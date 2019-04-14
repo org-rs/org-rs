@@ -22,7 +22,7 @@
 //! percent sign, and separated with colons.
 //!
 //! Examples of valid headlines include:
-//! ```
+//!
 //!
 //! *
 //!
@@ -31,7 +31,7 @@
 //! *** Some e-mail
 //!
 //! **** TODO [#A] COMMENT Title :tag:a2%:
-//! ```
+//!
 //!
 //! If the first word appearing in the title is “COMMENT”, the headline will be considered as
 //! “commented”. Case is significant.
@@ -48,7 +48,7 @@
 //! As an exception, text before the first headline in the document also belongs to a section.
 //!
 //! As an example, consider the following document:
-//! ```
+//!
 //! An introduction.
 //!
 //! * A Headline
@@ -60,9 +60,9 @@
 //! ** Sub-Topic 2
 //!
 //! *** Additional entry
-//! ```
+//!
 //! Its internal structure could be summarized as:
-//! ```
+//!
 //! (document
 //!  (section)
 //!  (headline
@@ -70,7 +70,7 @@
 //!   (headline)
 //!   (headline
 //!    (headline))))
-//! ```
+//!
 
 use crate::data::TimestampData;
 use regex::Regex;

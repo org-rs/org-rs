@@ -45,7 +45,7 @@ pub enum ParserMode {
 }
 
 pub struct Parser<'a> {
-    cursor: Cursor<'a, RopeInfo>,
+    cursor: RefCell<Cursor<'a, RopeInfo>>,
     input: &'a Node<RopeInfo>,
     granularity: ParseGranularity,
 }
@@ -53,7 +53,7 @@ pub struct Parser<'a> {
 impl<'a> Parser<'a> {
     fn new(input: &'a Node<RopeInfo>, granularity: ParseGranularity) -> Parser {
         Parser {
-            cursor: Cursor::new(input, 0),
+            cursor: RefCell::new(Cursor::new(input, 0)),
             input,
             granularity,
         }
@@ -90,9 +90,9 @@ impl<'a> Parser<'a> {
 
     /// org-element-parse-buffer
     /// Parses input from beginning to the end
-    fn parse_buffer(&mut self) -> SyntaxNode {
-        self.cursor.set(0);
-        self.cursor.skip_whitespace();
+    fn parse_buffer(&self) -> SyntaxNode {
+        self.cursor.borrow_mut().set(0);
+        self.cursor.borrow_mut().skip_whitespace();
 
         let end = self.input.len();
         let mut root = SyntaxNode::create_root();
@@ -114,14 +114,14 @@ impl<'a> Parser<'a> {
     /// (defun org-element--parse-elements
     ///     (beg end mode structure granularity visible-only acc)
     fn parse_elements(
-        &mut self,
+        &self,
         beg: usize,
         end: usize,
         mut mode: ParserMode,
         structure: Option<&ListStruct>,
     ) -> Vec<Handle> {
-        let pos = self.cursor.pos();
-        self.cursor.set(beg);
+        let pos = self.cursor.borrow_mut().pos();
+        self.cursor.borrow_mut().set(beg);
 
         // When parsing only headlines, skip any text before first one.
         if self.granularity == ParseGranularity::Headline && !self.at_headline() {
@@ -129,13 +129,18 @@ impl<'a> Parser<'a> {
         }
 
         let mut elements: Vec<Handle> = vec![];
-        while self.cursor.pos() < end {
+        loop {
+            let current_pos = self.cursor.borrow().pos();
+            if current_pos >= end {
+                break;
+            }
+
             // Find current element's type and parse it accordingly to its category.
             // (org-element--current-element end granularity mode structure))
             let element: SyntaxNode = self.current_element(end, mode, structure);
 
             // (goto-char (org-element-property :end element))
-            self.cursor.set(element.location.end);
+            self.cursor.borrow_mut().set(element.location.end);
 
             // Recurse into element's children if it has contents
             if element.content_location.is_some() {
@@ -179,13 +184,13 @@ impl<'a> Parser<'a> {
                     // (org-element--parse-objects
                     //    cbeg (org-element-property :contents-end element)
                     //    element (org-element-restriction type))))
-                    if let ParseGranularity::Object = &self.granularity {
-                        element.children.replace(self.parse_objects(
-                            content_location.start,
-                            content_location.end,
-                            restriction, //FIXME pass `can_contain` func of current element
-                        ));
-                    }
+                    // if let ParseGranularity::Object = &self.granularity {
+                    //     element.children.replace(self.parse_objects(
+                    //         content_location.start,
+                    //         content_location.end,
+                    //         restrictio, //FIXME pass `can_contain` func of current element
+                    //     ));
+                    // }
                 }
             }
             if let Some(m) = Parser::next_mode(&element.data, false) {
@@ -193,7 +198,7 @@ impl<'a> Parser<'a> {
             }
             elements.push(Rc::new(element));
         }
-        self.cursor.set(pos);
+        self.cursor.borrow_mut().set(pos);
         elements
     }
 
@@ -225,24 +230,24 @@ impl<'a> Parser<'a> {
     ///
     /// (defun org-element--current-element (limit &optional granularity mode structure)
     fn current_element(
-        &mut self,
+        &self,
         limit: usize,
         mode: ParserMode,
         structure: Option<&ListStruct>,
     ) -> SyntaxNode {
-        let pos = self.cursor.pos();
+        let pos = self.cursor.borrow().pos();
 
-        self.cursor.set(pos);
+        self.cursor.borrow_mut().set(pos);
         unimplemented!();
     }
 
     /// Checks if current line of the cursor is a headline
     /// In emacs defined as org-at-heading-p which is a proxy to
     /// outline-on-heading-p at outline.el
-    fn at_headline(&mut self) -> bool {
-        let pos = self.cursor.pos();
-        let beg = self.cursor.goto_line_begin();
-        self.cursor.set(pos);
+    fn at_headline(&self) -> bool {
+        let pos = self.cursor.borrow().pos();
+        let beg = self.cursor.borrow_mut().goto_line_begin();
+        self.cursor.borrow_mut().set(pos);
         let mut raw_lines = self.input.lines_raw(beg..self.input.len());
         match raw_lines.next() {
             Some(line) => REGEX_HEADLINE_SHORT.is_match(&line),
@@ -257,16 +262,18 @@ impl<'a> Parser<'a> {
 
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
-    fn next_headline(&mut self) -> Option<(usize)> {
-        let pos = self.cursor.pos();
-        let mut raw_lines = self.input.lines_raw(self.cursor.pos()..self.input.len());
+    fn next_headline(&self) -> Option<(usize)> {
+        let pos = self.cursor.borrow().pos();
+        let mut raw_lines = self
+            .input
+            .lines_raw(self.cursor.borrow().pos()..self.input.len());
         // make sure we don't match current headline
         raw_lines.next();
-        self.cursor.next::<LinesMetric>();
+        self.cursor.borrow_mut().next::<LinesMetric>();
 
         // TODO consider using FULL headline regex and consider leaving cursor at the end of match
         let search = find(
-            &mut self.cursor,
+            &mut self.cursor.borrow_mut(),
             &mut raw_lines,
             CaseInsensitive,
             REGEX_HEADLINE_SHORT.as_str(),
@@ -274,11 +281,11 @@ impl<'a> Parser<'a> {
         );
         match search {
             None => {
-                self.cursor.set(pos);
+                self.cursor.borrow_mut().set(pos);
                 None
             }
             Some(begin) => {
-                self.cursor.set(begin);
+                self.cursor.borrow_mut().set(begin);
                 Some(begin)
             }
         }
@@ -311,7 +318,7 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
     /// Returns the position of the cursor
     fn goto_line_begin(&mut self) -> usize {
         if self.pos() != 0 {
-            if let None = self.at_or_prev::<LinesMetric>() {
+            if self.at_or_prev::<LinesMetric>().is_none() {
                 self.set(0);
             }
         }
@@ -332,28 +339,28 @@ mod test {
     #[test]
     fn at_headline() {
         let rope = Rope::from_str("Some text\n**** headline\n").unwrap();
-        let mut parser = Parser::new(&rope, ParseGranularity::Object);
+        let parser = Parser::new(&rope, ParseGranularity::Object);
         assert!(!parser.at_headline());
-        parser.cursor.set(4);
+        parser.cursor.borrow_mut().set(4);
         assert!(!parser.at_headline());
-        assert_eq!(4, parser.cursor.pos());
-        parser.cursor.set(15);
+        assert_eq!(4, parser.cursor.borrow().pos());
+        parser.cursor.borrow_mut().set(15);
         assert!(parser.at_headline());
-        assert_eq!(15, parser.cursor.pos());
+        assert_eq!(15, parser.cursor.borrow().pos());
     }
 
     #[test]
     fn next_headline() {
         let rope = Rope::from_str("Some text\n**** headline\n").unwrap();
-        let mut parser = Parser::new(&rope, ParseGranularity::Object);
+        let parser = Parser::new(&rope, ParseGranularity::Object);
 
         assert_eq!(Some(10), parser.next_headline());
-        assert_eq!(10, parser.cursor.pos());
+        assert_eq!(10, parser.cursor.borrow().pos());
 
         let rope = Rope::from_str("* First\n** Second\n").unwrap();
-        let mut parser = Parser::new(&rope, ParseGranularity::Object);
+        let parser = Parser::new(&rope, ParseGranularity::Object);
         assert_eq!(Some(8), parser.next_headline());
-        assert_eq!(8, parser.cursor.pos());
+        assert_eq!(8, parser.cursor.borrow().pos());
     }
 
     #[test]
