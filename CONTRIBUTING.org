@@ -1,0 +1,92 @@
+* Contributing
+  
+  The project is currently in early development stage. All the effort is focused on
+  the core functionality which is the parser - element crate.
+
+  Resources that are especially useful:
+  - Elisp source [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el][org-element.el]]
+  - [[https://orgmode.org/worg/dev/org-element-api.html][Org Element API]]
+  - [[https://orgmode.org/worg/dev/org-syntax.html][Org Syntax]]
+
+** Current scope
+
+- [X] data structures (with some minor exceptions)
+- [-] [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4071][parse_buffer]]
+  - [X] [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4340][parse_elements]]
+  - [ ] [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L3833][current_element]]
+    - [ ] specific data structure parsers
+  - [ ] parse_objects
+- [ ] interpret_data
+- ...
+
+
+Things outside of the scope (for now):
+
+- Visibility 
+- Incremental parsing
+
+For the time being complete buffer re-parsing is the only way to update the
+parse tree.
+
+
+** Coding guide
+
+   Since a decision was made to closely follow original algorithm the code may not
+   look very idiomatic. That is fine for now. 
+
+   We are focused on the `Make it work. Make it right` part. Everything else will
+   come later. Nevertheless some code hygiene must be enforced to ensure that this
+   "later" will happen:
+    - Keep the same code structure as original implementation. To make validation
+      process easier try not to create functions and variables that original
+      implementation does not have. Though reasonable exceptions are allowed.
+    - Try to keep original function names, `org-{component}` prefix can be dropped as
+      rust does not suffer from lack of lexical scoping.
+    - Document all the things!
+    - To make comparison between original and zorg-mode easier add links to file
+      and line position from https://code.orgmode.org/bzg/org-mode/src/master/lisp
+      in function's docs where possible.
+    - Try to leverage Rust powers where possible without deviating from original
+ 
+
+** Tips, advice, gotchas
+
+   This is a collection of useful tips for writing zorg-mode, reading elisp code
+   etc.
+   
+   Using Emacs is handy to get elisp code navigation and quick documentation
+   access.  I usually have it open next to my main editor.
+   
+   Matching original behavior is primary goal.
+   
+   You can use Emacs' [[https://www.gnu.org/software/emacs/manual/html_node/emacs/Lisp-Eval.html][eval]]
+   functionality to manually invoke `(org-element-parse-buffer)` to get the
+   original Parse Tree so it can be compared with zorg-mode
+
+
+   *save-excursion* - remembers current cursor position, executes body and 
+   restores cursor to original position.
+
+   In the code represented by:
+
+   #+BEGIN_SRC rust
+   fn some_fn() {
+   let pos = self.cursor.pos();
+   // ... body of the function
+   self.cursor.set(pos);
+   // possibly return
+   }
+   #+END_SRC 
+
+**** Vocabulary
+
+     *structure* - in org codebase depending on context means one of two things:
+     - [[rust/element/src/lis][ListStruct]] - sort of an AST, and intermediate list
+       structure representation that is shared by PlainList element itself and all of
+       its items - [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4348][example]]
+     - Parse Tree. Whole, or part of it - [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4072][example]]
+
+
+*CAR/CDR* - head and tail of the list
+
+*plist/alist* - tbd

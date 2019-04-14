@@ -1,0 +1,108 @@
+
+[Org Mode](https://orgmode.org/) parser re-write in Rust
+
+! Warning, this project is in early development !
+
+# Motivation
+
+[Org](https://orgmode.org/) is probably the best and most complete plain text
+organizational system known to mankind. It has countless applications like
+authoring, publishing, task and time tracking, journal, blog, agenda, wiki
+etc...
+
+Unfortunately Org was originally developed for Emacs and therefore
+available only inside Emacs. It is huge limiting factor on Org's development
+and popularization. Because of that it is not as popular outside Emacs
+community as it should be.
+
+Many attempts were made to fix this. It all starts with the parser.
+But because Org's syntax is not trivial and in fact most of it is
+[context-sensitive](https://en.wikipedia.org/wiki/Chomsky_hierarchy#Type-1_grammars)
+with only a few context-free elements, it is quite easy to get it wrong. 
+Some Org parsers have chosen to focus on a restricted subset of Org syntax like
+[org-ruby](https://github.com/wallyqs/org-ruby) or [pandoc](https://pandoc.org/).
+More ambitious try to cover all features but since Org does not have a
+formal specification<sup>1</sup> they rely on observed Org's behavior in Emacs
+or author's intuition.  As a result they rarely get finished.
+
+But absence of the good spec and complexity of the grammar are not show
+stoppers. Why reinventing the wheel when we can just copy it!  This project
+takes the only surefire way to get it right - use original elisp parser
+implementation<sup>2</sup> as the blueprint!
+
+
+# Goals
+
+- Be fast. Speed matters. Period.
+- Be feature-complete, compliant with original implementation. Nobody wants Nth competing standard.
+- Be standalone, embeddable and reusable. User must not be locked into 
+one particular editor or ecosystem. Integrations with language servers,
+ editors and plugins should be encouraged.
+
+
+# Design decisions
+
+These are the choices that were made to achieve the goals:
+
+- Rust. Because it is fast, memory safe and provides C FFI. And most importantly it is cool
+
+- [Rope](https://en.wikipedia.org/wiki/Rope_(data_structure)) as underlying data
+structure that provides O(log n) updates. [xi-rope](http://abishov.com/xi-editor/docs/rope_science_00.html)
+is an awesome implementation from xi-editor project. 
+
+- Original elisp algorithm. While using original elisp source as guiding line
+  will likely result in less idiomatic Rust code it has its advantages:
+
+  - Scope of work is well-defined and finish line is visible. This should encourage
+  contributions even from people who want to get started with Rust.
+
+  - Getting "feature complete" is just a matter of getting to finish line
+
+
+# Roadmap
+
+[element](rust/element) - parser crate is currently the main and only focus.
+It should perform just 2 tasks. Generate concrete syntax tree and serialize it
+back to canonical org representation.
+
+The rest of the roadmap is not fully flashed out. Feature-complete parser opens 
+a lot of possibilities, here are just a few of my ideas:
+
+- Parse tree manipulation tools (like exporting to other formats)
+- Language server - [a way to solve "the matrix" problem](https://langserver.org/)
+  Enabling other editors to have their own org-mode would be logical next step.
+
+- CLI tools, I'd love to get integration with 
+  [TaskWarrior](https://github.com/GothenburgBitFactory/taskwarrior)
+  and maybe even using Org as TaskWarrior's DOM.
+
+
+# Contribution
+
+Any contributions are welcome. If you want to help check out
+[contribution guide](CONTRIBUTING.org)
+
+
+# Similar projects
+
+- [vim-orgmode](https://github.com/jceb/vim-orgmode)
+- [orgajs](https://github.com/xiaoxinghu/orgajs) nodejs
+- [orgnode](http://members.optusnet.com.au/~charles57/GTD/orgnode.html) python
+- [org-ruby](https://github.com/wallyqs/org-ruby) ruby
+- and [many others](https://orgmode.org/worg/org-tools/index.html)
+
+
+# More about Org Mode
+
+
+-  [Org-Mode Is One of the Most Reasonable Markup Languages to Use for Text](https://karl-voit.at/2017/09/23/orgmode-as-markup-only/)
+- [Awesome guide](http://doc.norang.ca/org-mode.html) about org-mode
+- [teaser](https://github.com/novoid/org-mode-workshop/blob/master/featureshow/org-mode-teaser.org)
+
+
+
+## Footnote
+
+1. Some attempts to formalize the syntax. org-rs uses them as supplementary materials.
+See [contribution guide](CONTRIBUTING.org) for details.
+
