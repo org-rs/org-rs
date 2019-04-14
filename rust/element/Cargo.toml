@@ -1,0 +1,15 @@
+[package]
+name = "org_element"
+version = "0.1.0"
+authors = ["Ihor Antonov <ngortheone@gmail.com>"]
+edition = "2018"
+
+[dependencies.xi-rope]
+git = "https://github.com/xi-editor/xi-editor.git"
+branch = "master"
+
+[dependencies]
+regex = "1"
+lazy_static = "^1.3.0"
+strum = "^0.15.0"
+strum_macros = "^0.15.0"
