@@ -28,7 +28,7 @@ or author's intuition.  As a result they rarely get finished.
 But absence of the good spec and complexity of the grammar are not show
 stoppers. Why reinventing the wheel when we can just copy it!  This project
 takes the only surefire way to get it right - use original elisp parser
-implementation<sup>2</sup> as the blueprint!
+implementation as the blueprint!
 
 
 # Goals
