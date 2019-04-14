@@ -29,23 +29,23 @@
 //! be an “ordered plain-list”. If it contains a tag, it will be a “descriptive
 //! list”. Otherwise, it will be an “unordered list”. List types are mutually
 //! exclusive.
-//!  ```
+//!
 //!  For example, consider the following excerpt of an Org document:
 //!
 //!  1. item 1
 //!  2. [X] item 2
 //!     - some tag :: item 2.1
-//!  ```
+//!
 //!
 //!  Its internal structure is as follows:
 //!
-//!  ```
+//!
 //!  (ordered-plain-list
 //!   (item)
 //!   (item
 //!    (descriptive-plain-list
 //!     (item))))
-//!  ```
+//!
 
 use std::borrow::Cow;
 
