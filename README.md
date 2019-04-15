@@ -21,7 +21,7 @@ But because Org's syntax is not trivial and in fact most of it is
 with only a few context-free elements, it is quite easy to get it wrong. 
 Some Org parsers have chosen to focus on a restricted subset of Org's syntax like
 [org-ruby](https://github.com/wallyqs/org-ruby) or [pandoc](https://pandoc.org/).
-More ambitious project try to cover all features but since Org does not have a
+More ambitious projects try to cover all features but since Org does not have a
 formal specification<sup>1</sup> they rely on observed Org's behavior in Emacs
 or author's intuition.  As a result they rarely get finished.
 
