@@ -1,7 +1,6 @@
 extern crate xi_rope;
 
 use crate::data::Handle;
-use crate::data::SyntaxInfo;
 use crate::data::SyntaxT;
 use crate::data::{Syntax, SyntaxNode};
 use crate::headline::REGEX_HEADLINE_SHORT;
@@ -90,7 +89,7 @@ impl<'a> Parser<'a> {
 
     /// org-element-parse-buffer
     /// Parses input from beginning to the end
-    fn parse_buffer(&self) -> SyntaxNode {
+    fn parse_buffer(&'a self) -> SyntaxNode {
         self.cursor.borrow_mut().set(0);
         self.cursor.borrow_mut().skip_whitespace();
 
@@ -113,8 +112,9 @@ impl<'a> Parser<'a> {
     /// Elements are accumulated into ACC."
     /// (defun org-element--parse-elements
     ///     (beg end mode structure granularity visible-only acc)
+    /// TODO do not forget to fix child-parent and parent-child links on tree updates
     fn parse_elements(
-        &self,
+        &'a self,
         beg: usize,
         end: usize,
         mut mode: ParserMode,
@@ -184,13 +184,13 @@ impl<'a> Parser<'a> {
                     // (org-element--parse-objects
                     //    cbeg (org-element-property :contents-end element)
                     //    element (org-element-restriction type))))
-                     if let ParseGranularity::Object = &self.granularity {
-                         element.children.replace(self.parse_objects(
-                             content_location.start,
-                             content_location.end,
-                             |that| element.data.can_contain(that)
-                         ));
-                     }
+                    if let ParseGranularity::Object = &self.granularity {
+                        element.children.replace(self.parse_objects(
+                            content_location.start,
+                            content_location.end,
+                            |that| element.data.can_contain(that),
+                        ));
+                    }
                 }
             }
             if let Some(m) = Parser::next_mode(&element.data, false) {
@@ -235,12 +235,39 @@ impl<'a> Parser<'a> {
         limit: usize,
         mode: ParserMode,
         structure: Option<&ListStruct>,
-    ) -> SyntaxNode {
+    ) -> SyntaxNode<'a> {
         let pos = self.cursor.borrow().pos();
         // TODO write current_element function #9
+        let raw_secondary_p = self.granularity == ParseGranularity::Object;
+
+        let current_element = match mode {
+            // Item
+            // ((eq mode 'item)
+            //(org-element-item-parser limit structure raw-secondary-p))
+            ParserMode::Item => self.item_parser(structure, raw_secondary_p),
+
+            // Table Row.
+            // ((eq mode 'table-row) (org-element-table-row-parser limit))
+            ParserMode::TableRow => self.table_row_parser(),
+
+            // Node Property.
+            // ((eq mode 'node-property) (org-element-node-property-parser limit))
+            ParserMode::NodeProperty => self.node_property_parser(limit),
+
+            // Headline.
+            // ((org-with-limited-levels (org-at-heading-p))
+            //  (org-element-headline-parser limit raw-secondary-p))
+            _ => unimplemented!(),
+            //  ;; Sections (must be checked after headline).
+            //  ((eq mode 'section) (org-element-section-parser limit))
+            //  ((eq mode 'first-section)
+            //  (org-element-section-parser
+            //      (or (save-excursion (org-with-limited-levels (outline-next-heading)))
+            //  limit)))
+        };
 
         self.cursor.borrow_mut().set(pos);
-        unimplemented!();
+        return current_element;
     }
 
     /// Checks if current line of the cursor is a headline
@@ -256,9 +283,6 @@ impl<'a> Parser<'a> {
             None => false,
         }
     }
-
-
-
 
     /// Parse objects between `beg` and `end` and return recursive structure.
     /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4515
@@ -284,7 +308,6 @@ impl<'a> Parser<'a> {
         self.cursor.borrow_mut().set(pos);
         unimplemented!();
     }
-
 
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs

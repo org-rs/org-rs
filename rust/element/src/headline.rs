@@ -72,7 +72,8 @@
 //!    (headline))))
 //!
 
-use crate::data::TimestampData;
+use crate::data::{SyntaxNode, TimestampData};
+use crate::parser::Parser;
 use regex::Regex;
 
 lazy_static! {
@@ -159,9 +160,26 @@ pub struct InlineTaskData<'a> {
     todo_keyword: Option<TodoKeyword>,
 }
 
+pub struct NodePropertyData<'a> {
+    key: &'a str,
+    value: &'a str,
+}
+
 pub struct Tag<'a>(&'a str);
 
 pub enum TodoKeyword {
     TODO,
     DONE,
+}
+
+impl<'a> Parser<'a> {
+    // TODO implement headline_parser
+    pub fn headline_parser(&self) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
+    // TODO implement node_property_parser
+    pub fn node_property_parser(&self, limit: usize) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
 }

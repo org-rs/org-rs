@@ -11,3 +11,4 @@ mod data;
 mod headline;
 mod list;
 mod parser;
+mod table;
