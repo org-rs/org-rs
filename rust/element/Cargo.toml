@@ -3,6 +3,7 @@ name = "org_element"
 version = "0.1.0"
 authors = ["Ihor Antonov <ngortheone@gmail.com>"]
 edition = "2018"
+license = "GPL-3.0-or-later"
 
 [dependencies.xi-rope]
 git = "https://github.com/xi-editor/xi-editor.git"
