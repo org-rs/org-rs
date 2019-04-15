@@ -184,13 +184,13 @@ impl<'a> Parser<'a> {
                     // (org-element--parse-objects
                     //    cbeg (org-element-property :contents-end element)
                     //    element (org-element-restriction type))))
-                    // if let ParseGranularity::Object = &self.granularity {
-                    //     element.children.replace(self.parse_objects(
-                    //         content_location.start,
-                    //         content_location.end,
-                    //         restrictio, //FIXME pass `can_contain` func of current element
-                    //     ));
-                    // }
+                     if let ParseGranularity::Object = &self.granularity {
+                         element.children.replace(self.parse_objects(
+                             content_location.start,
+                             content_location.end,
+                             |that| element.data.can_contain(that)
+                         ));
+                     }
                 }
             }
             if let Some(m) = Parser::next_mode(&element.data, false) {
@@ -202,7 +202,8 @@ impl<'a> Parser<'a> {
         elements
     }
 
-    ///   "Parse the element starting at cursor position (point).
+    /// Parse the element starting at cursor position (point).
+    /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L3833
     ///
     /// Return value is a list like (TYPE PROPS) where TYPE is the type
     /// of the element and PROPS a plist of properties associated to the
@@ -236,6 +237,7 @@ impl<'a> Parser<'a> {
         structure: Option<&ListStruct>,
     ) -> SyntaxNode {
         let pos = self.cursor.borrow().pos();
+        // TODO write current_element function #9
 
         self.cursor.borrow_mut().set(pos);
         unimplemented!();
@@ -255,10 +257,34 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // FIXME figure out restriction type
-    fn parse_objects(&mut self, beg: usize, end: usize, restriction: ()) -> Vec<Handle> {
-        unimplemented!()
+
+
+
+    /// Parse objects between `beg` and `end` and return recursive structure.
+    /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4515
+    ///
+    /// Objects are accumulated in ACC.  RESTRICTION is a list of object
+    /// successors which are allowed in the current object.
+    ///
+    /// ACC becomes the parent for all parsed objects.  However, if ACC
+    /// is nil (i.e., a secondary string is being parsed) and optional
+    /// argument PARENT is non-nil, use it as the parent for all objects.
+    /// Eventually, if both ACC and PARENT are nil, the common parent is
+    /// the list of objects itself."
+    /// (defun org-element--parse-objects (beg end acc restriction &optional parent)
+    fn parse_objects(
+        &self,
+        beg: usize,
+        end: usize,
+        restriction: impl Fn(&Syntax) -> bool,
+    ) -> Vec<Handle> //acc
+    {
+        let pos = self.cursor.borrow().pos();
+        // TODO write parse_objects function #8
+        self.cursor.borrow_mut().set(pos);
+        unimplemented!();
     }
+
 
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
@@ -327,6 +353,8 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
 }
 
 mod test {
+    use crate::data::Syntax;
+    use crate::data::Syntax::Section;
     use crate::parser::CursorHelper;
     use crate::parser::Parser;
     use crate::parser::{ParseGranularity, REGEX_HEADLINE_SHORT};
@@ -381,4 +409,5 @@ mod test {
         cursor.skip_whitespace();
         assert_eq!(None, cursor.next_codepoint());
     }
+
 }

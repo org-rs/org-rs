@@ -18,6 +18,7 @@ pub type Handle<'a> = Rc<SyntaxNode<'a>>;
 /// Weak reference to a DOM node, used for parent pointers.
 pub type WeakHandle<'a> = Weak<SyntaxNode<'a>>;
 
+
 /// ParseTree node.
 /// https://orgmode.org/worg/dev/org-element-api.html#attributes
 /// Should be bound to the underlying rope's lifetime
@@ -394,136 +395,137 @@ impl<'a> SyntaxInfo for Syntax<'a> {
     /// This alist also applies to secondary string.  For example, an
     /// `headline' type element doesn't directly contain objects, but
     /// still has an entry since one of its properties (`:title') does.")
-    fn can_contain(&self, that: &Syntax) -> bool {
-        // (standard-set (remq 'table-cell org-element-all-objects))
-        fn is_from_standard_set(that: &Syntax) -> bool {
-            match that {
-                Syntax::TableCell => false,
-                x if x.is_object() => true,
-                _ => false,
-            }
-        }
-
-        /// (standard-set-no-line-break (remq 'line-break standard-set)))
-        fn is_from_standard_set_no_line_break(that: &Syntax) -> bool {
-            match that {
-                Syntax::LineBreak => false,
-                x => is_from_standard_set(x),
-            }
-        }
-
-        match self {
-            // ((bold ,@standard-set)
-            // (italic ,@standard-set)
-            // (footnote-reference ,@standard-set)
-            // (paragraph ,@standard-set)
-            // (strike-through ,@standard-set)
-            // (subscript ,@standard-set)
-            // (superscript ,@standard-set)
-            //(verse-block ,@standard-set)))
-            //(underline ,@standard-set)
-            Syntax::Bold
-            | Syntax::Italic
-            | Syntax::FootnoteReference(..)
-            | Syntax::Paragraph
-            | Syntax::StrikeThrough
-            | Syntax::Subscript(..)
-            | Syntax::Superscript(..)
-            | Syntax::Underline
-            | Syntax::VerseBlock => is_from_standard_set(that),
-
-            // (headline ,@standard-set-no-line-break)
-            // (inlinetask ,@standard-set-no-line-break)
-            // (item ,@standard-set-no-line-break)
-            Syntax::Headline(..) | Syntax::InlineTask(..) | Syntax::Item(..) => {
-                is_from_standard_set_no_line_break(that)
+    fn can_contain(&self, that: &Syntax) -> bool
+    {
+            // (standard-set (remq 'table-cell org-element-all-objects))
+            fn is_from_standard_set(that: &Syntax) -> bool {
+                match that {
+                    Syntax::TableCell => false,
+                    x if x.is_object() => true,
+                    _ => false,
+                }
             }
 
-            // (keyword ,@(remq 'footnote-reference standard-set))
-            Syntax::Keyword(..) => match that {
-                Syntax::FootnoteReference(..) => false,
-                x => is_from_standard_set(x),
-            },
+            /// (standard-set-no-line-break (remq 'line-break standard-set)))
+            fn is_from_standard_set_no_line_break(that: &Syntax) -> bool {
+                match that {
+                    Syntax::LineBreak => false,
+                    x => is_from_standard_set(x),
+                }
+            }
 
-            // Ignore all links in a link description.  Also ignore
-            // radio-targets and line breaks.
-            // (link bold code entity export-snippet
-            //       inline-babel-call inline-src-block italic
-            //       latex-fragment macro statistics-cookie
-            //       strike-through subscript superscript
-            //       underline verbatim)
-            Syntax::Link(..) => match that {
+            match self {
+                // ((bold ,@standard-set)
+                // (italic ,@standard-set)
+                // (footnote-reference ,@standard-set)
+                // (paragraph ,@standard-set)
+                // (strike-through ,@standard-set)
+                // (subscript ,@standard-set)
+                // (superscript ,@standard-set)
+                //(verse-block ,@standard-set)))
+                //(underline ,@standard-set)
                 Syntax::Bold
-                | Syntax::Code(..)
-                | Syntax::Entity(..)
-                | Syntax::ExportSnippet(..)
-                | Syntax::InlineBabelCall(..)
-                | Syntax::InlineSrcBlock(..)
                 | Syntax::Italic
-                | Syntax::LatexFragment(..)
-                | Syntax::Macro(..)
-                | Syntax::StatisticsCookie(..)
-                | Syntax::StrikeThrough
-                | Syntax::Subscript(..)
-                | Syntax::Superscript(..)
-                | Syntax::Underline
-                | Syntax::Verbatim(..) => true,
-                _ => false,
-            },
-
-            // Remove any variable object from radio target as it would
-            // prevent it from being properly recognized.
-            // (radio-target bold code entity italic
-            //               latex-fragment strike-through
-            //               subscript superscript underline)
-            Syntax::RadioTarget(..) => match that {
-                Syntax::Bold
-                | Syntax::Code(..)
-                | Syntax::Entity(..)
-                | Syntax::Italic
-                | Syntax::LatexFragment(..)
-                | Syntax::StrikeThrough
-                | Syntax::Subscript(..)
-                | Syntax::Superscript(..)
-                | Syntax::Underline => true,
-                _ => false,
-            },
-
-            // Ignore inline babel call and inline source block as formulas
-            // are possible.  Also ignore line breaks and statistics
-            // cookies.
-            // (table-cell bold code entity export-snippet footnote-reference italic
-            //             latex-fragment link macro radio-target strike-through
-            //             subscript superscript target timestamp underline verbatim)
-            Syntax::TableCell => match that {
-                Syntax::Bold
-                | Syntax::Code(..)
-                | Syntax::Entity(..)
-                | Syntax::ExportSnippet(..)
                 | Syntax::FootnoteReference(..)
-                | Syntax::Italic
-                | Syntax::LatexFragment(..)
-                | Syntax::Link(..)
-                | Syntax::Macro(..)
-                | Syntax::RadioTarget(..)
+                | Syntax::Paragraph
                 | Syntax::StrikeThrough
                 | Syntax::Subscript(..)
                 | Syntax::Superscript(..)
-                | Syntax::Target(..)
-                | Syntax::Timestamp(..)
                 | Syntax::Underline
-                | Syntax::Verbatim(..) => true,
-                _ => false,
-            },
+                | Syntax::VerseBlock => is_from_standard_set(that),
 
-            //(table-row table-cell)
-            Syntax::TableRow(..) => match that {
-                Syntax::TableCell => true,
-                _ => false,
-            },
+                // (headline ,@standard-set-no-line-break)
+                // (inlinetask ,@standard-set-no-line-break)
+                // (item ,@standard-set-no-line-break)
+                Syntax::Headline(..) | Syntax::InlineTask(..) | Syntax::Item(..) => {
+                    is_from_standard_set_no_line_break(that)
+                }
 
-            _ => false,
-        }
+                // (keyword ,@(remq 'footnote-reference standard-set))
+                Syntax::Keyword(..) => match that {
+                    Syntax::FootnoteReference(..) => false,
+                    x => is_from_standard_set(x),
+                },
+
+                // Ignore all links in a link description.  Also ignore
+                // radio-targets and line breaks.
+                // (link bold code entity export-snippet
+                //       inline-babel-call inline-src-block italic
+                //       latex-fragment macro statistics-cookie
+                //       strike-through subscript superscript
+                //       underline verbatim)
+                Syntax::Link(..) => match that {
+                    Syntax::Bold
+                    | Syntax::Code(..)
+                    | Syntax::Entity(..)
+                    | Syntax::ExportSnippet(..)
+                    | Syntax::InlineBabelCall(..)
+                    | Syntax::InlineSrcBlock(..)
+                    | Syntax::Italic
+                    | Syntax::LatexFragment(..)
+                    | Syntax::Macro(..)
+                    | Syntax::StatisticsCookie(..)
+                    | Syntax::StrikeThrough
+                    | Syntax::Subscript(..)
+                    | Syntax::Superscript(..)
+                    | Syntax::Underline
+                    | Syntax::Verbatim(..) => true,
+                    _ => false,
+                },
+
+                // Remove any variable object from radio target as it would
+                // prevent it from being properly recognized.
+                // (radio-target bold code entity italic
+                //               latex-fragment strike-through
+                //               subscript superscript underline)
+                Syntax::RadioTarget(..) => match that {
+                    Syntax::Bold
+                    | Syntax::Code(..)
+                    | Syntax::Entity(..)
+                    | Syntax::Italic
+                    | Syntax::LatexFragment(..)
+                    | Syntax::StrikeThrough
+                    | Syntax::Subscript(..)
+                    | Syntax::Superscript(..)
+                    | Syntax::Underline => true,
+                    _ => false,
+                },
+
+                // Ignore inline babel call and inline source block as formulas
+                // are possible.  Also ignore line breaks and statistics
+                // cookies.
+                // (table-cell bold code entity export-snippet footnote-reference italic
+                //             latex-fragment link macro radio-target strike-through
+                //             subscript superscript target timestamp underline verbatim)
+                Syntax::TableCell => match that {
+                    Syntax::Bold
+                    | Syntax::Code(..)
+                    | Syntax::Entity(..)
+                    | Syntax::ExportSnippet(..)
+                    | Syntax::FootnoteReference(..)
+                    | Syntax::Italic
+                    | Syntax::LatexFragment(..)
+                    | Syntax::Link(..)
+                    | Syntax::Macro(..)
+                    | Syntax::RadioTarget(..)
+                    | Syntax::StrikeThrough
+                    | Syntax::Subscript(..)
+                    | Syntax::Superscript(..)
+                    | Syntax::Target(..)
+                    | Syntax::Timestamp(..)
+                    | Syntax::Underline
+                    | Syntax::Verbatim(..) => true,
+                    _ => false,
+                },
+
+                //(table-row table-cell)
+                Syntax::TableRow(..) => match that {
+                    Syntax::TableCell => true,
+                    _ => false,
+                },
+
+                _ => false,
+            }
     }
 }
 
@@ -1049,8 +1051,20 @@ mod test {
 
     #[test]
     fn can_contain() {
-        let syntax = Syntax::Bold;
-        assert!(!syntax.can_contain(&Syntax::VerseBlock));
-        assert!(syntax.can_contain(&Syntax::LineBreak));
+        let bold  = Syntax::Bold;
+        let br    = Syntax::LineBreak;
+        let verse = Syntax::VerseBlock;
+
+        fn closure_test(that: &Syntax, restriction: impl Fn(&Syntax)-> bool ) -> bool
+        {
+            restriction(that)
+        }
+
+        assert!(!bold.can_contain(&Syntax::VerseBlock));
+        assert!(bold.can_contain(&Syntax::LineBreak));
+        assert!(closure_test(&br, |that| bold.can_contain(that)));
+        assert!(!closure_test(&verse, |that| bold.can_contain(that)));
     }
+
+
 }
