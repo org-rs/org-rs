@@ -103,6 +103,6 @@ Any contributions are welcome. If you want to help check out
 
 ## Footnote
 
-1. Some attempts were made to formalize the syntax. This prject uses them as supplementary materials.
+1. Some attempts were made to formalize the syntax. This project uses them as supplementary materials.
 See [contribution guide](CONTRIBUTING.org) for details.
 
