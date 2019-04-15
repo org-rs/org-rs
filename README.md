@@ -82,6 +82,7 @@ a lot of possibilities, here are just a few of my ideas:
 Any contributions are welcome. If you want to help check out
 [contribution guide](CONTRIBUTING.org).
 
+Got a question? Stop by for a chat at [gitter](https://gitter.im/org-rs/community)
 
 # Similar projects
 
