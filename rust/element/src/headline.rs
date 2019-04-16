@@ -178,6 +178,11 @@ impl<'a> Parser<'a> {
         unimplemented!()
     }
 
+    // TODO implement section_parser
+    pub fn section_parser(&self, limit: usize) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
     // TODO implement node_property_parser
     pub fn node_property_parser(&self, limit: usize) -> SyntaxNode<'a> {
         unimplemented!()

@@ -257,13 +257,25 @@ impl<'a> Parser<'a> {
             // Headline.
             // ((org-with-limited-levels (org-at-heading-p))
             //  (org-element-headline-parser limit raw-secondary-p))
-            _ => unimplemented!(),
-            //  ;; Sections (must be checked after headline).
-            //  ((eq mode 'section) (org-element-section-parser limit))
+            _ if self.at_headline() => self.headline_parser(),
+
+            // Sections (must be checked after headline).
+
+            // ((eq mode 'section) (org-element-section-parser limit))
+            ParserMode::Section => self.section_parser(limit),
+
             //  ((eq mode 'first-section)
             //  (org-element-section-parser
             //      (or (save-excursion (org-with-limited-levels (outline-next-heading)))
             //  limit)))
+            ParserMode::FirstSection => {
+                let pos = self.cursor.borrow().pos();
+                let lim = self.next_headline().unwrap_or(limit);
+                self.cursor.borrow_mut().set(pos);
+                self.section_parser(lim)
+            }
+
+            _ => unimplemented!(),
         };
 
         self.cursor.borrow_mut().set(pos);
@@ -311,6 +323,7 @@ impl<'a> Parser<'a> {
 
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
+    /// If next headline is found returns it's start position
     fn next_headline(&self) -> Option<(usize)> {
         let pos = self.cursor.borrow().pos();
         let mut raw_lines = self
@@ -320,7 +333,7 @@ impl<'a> Parser<'a> {
         raw_lines.next();
         self.cursor.borrow_mut().next::<LinesMetric>();
 
-        // TODO consider using FULL headline regex and consider leaving cursor at the end of match
+        // TODO consider using FULL headline regex?
         let search = find(
             &mut self.cursor.borrow_mut(),
             &mut raw_lines,
