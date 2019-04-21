@@ -7,6 +7,7 @@ extern crate strum_macros;
 extern crate regex;
 extern crate strum;
 
+mod cursor;
 mod data;
 mod headline;
 mod list;

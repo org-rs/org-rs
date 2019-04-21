@@ -4,6 +4,8 @@ use crate::data::Handle;
 use crate::data::SyntaxT;
 use crate::data::{Syntax, SyntaxNode};
 use crate::headline::REGEX_HEADLINE_SHORT;
+use crate::headline::REGEX_PLANNING_LINE;
+use crate::cursor::CursorHelper;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -14,6 +16,7 @@ use xi_rope::RopeInfo;
 use xi_rope::{Cursor, LinesMetric};
 
 use crate::list::*;
+use regex::Regex;
 
 /// determines the depth of the recursion.
 #[derive(PartialEq)]
@@ -32,7 +35,7 @@ pub enum ParseGranularity {
 
 /// MODE prioritizes some elements over the others
 /// @ngortheone - it looks like these are states of parser's finite automata
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone,PartialEq)]
 pub enum ParserMode {
     FirstSection,
     Section,
@@ -44,13 +47,13 @@ pub enum ParserMode {
 }
 
 pub struct Parser<'a> {
-    cursor: RefCell<Cursor<'a, RopeInfo>>,
-    input: &'a Node<RopeInfo>,
-    granularity: ParseGranularity,
+    pub cursor: RefCell<Cursor<'a, RopeInfo>>,
+    pub input: &'a Node<RopeInfo>,
+    pub granularity: ParseGranularity,
 }
 
 impl<'a> Parser<'a> {
-    fn new(input: &'a Node<RopeInfo>, granularity: ParseGranularity) -> Parser {
+    pub fn new(input: &'a Node<RopeInfo>, granularity: ParseGranularity) -> Parser {
         Parser {
             cursor: RefCell::new(Cursor::new(input, 0)),
             input,
@@ -124,8 +127,10 @@ impl<'a> Parser<'a> {
         self.cursor.borrow_mut().set(beg);
 
         // When parsing only headlines, skip any text before first one.
-        if self.granularity == ParseGranularity::Headline && !self.at_headline() {
-            self.next_headline();
+        if self.granularity == ParseGranularity::Headline
+            && !self.cursor.borrow_mut().looking_at(&*REGEX_HEADLINE_SHORT)
+        {
+            self.cursor.borrow_mut().next_headline();
         }
 
         let mut elements: Vec<Handle> = vec![];
@@ -237,63 +242,77 @@ impl<'a> Parser<'a> {
         structure: Option<&ListStruct>,
     ) -> SyntaxNode<'a> {
         let pos = self.cursor.borrow().pos();
-        // TODO write current_element function #9
+
         let raw_secondary_p = self.granularity == ParseGranularity::Object;
 
-        let current_element = match mode {
+        let  get_current_element = || -> SyntaxNode<'a> {
+            use crate::parser::ParserMode::*;
+
             // Item
             // ((eq mode 'item)
             //(org-element-item-parser limit structure raw-secondary-p))
-            ParserMode::Item => self.item_parser(structure, raw_secondary_p),
+            if mode == Item {
+                return self.item_parser(structure, raw_secondary_p);
+            }
 
             // Table Row.
             // ((eq mode 'table-row) (org-element-table-row-parser limit))
-            ParserMode::TableRow => self.table_row_parser(),
+            if mode == TableRow {
+                return self.table_row_parser();
+            }
 
             // Node Property.
             // ((eq mode 'node-property) (org-element-node-property-parser limit))
-            ParserMode::NodeProperty => self.node_property_parser(limit),
+            if mode == NodeProperty {
+                return self.node_property_parser(limit);
+            }
 
             // Headline.
             // ((org-with-limited-levels (org-at-heading-p))
             //  (org-element-headline-parser limit raw-secondary-p))
-            _ if self.at_headline() => self.headline_parser(),
+            if self.cursor.borrow_mut().looking_at(&*REGEX_HEADLINE_SHORT) {
+                return self.headline_parser();
+            }
 
             // Sections (must be checked after headline).
 
             // ((eq mode 'section) (org-element-section-parser limit))
-            ParserMode::Section => self.section_parser(limit),
+            if mode == Section {
+                return self.section_parser(limit);
+            }
 
             //  ((eq mode 'first-section)
             //  (org-element-section-parser
             //      (or (save-excursion (org-with-limited-levels (outline-next-heading)))
             //  limit)))
-            ParserMode::FirstSection => {
+            if mode == FirstSection {
                 let pos = self.cursor.borrow().pos();
-                let lim = self.next_headline().unwrap_or(limit);
+                let lim = self.cursor.borrow_mut().next_headline().unwrap_or(limit);
                 self.cursor.borrow_mut().set(pos);
-                self.section_parser(lim)
+                return self.section_parser(lim);
             }
 
-            _ => unimplemented!(),
+            // Planning.
+            //    ((and (eq mode 'planning)
+            //      (eq ?* (char-after (line-beginning-position 0)))
+            //      (looking-at org-planning-line-re))
+            //     (org-element-planning-parser limit))
+            let prev_line_offset = self.cursor.borrow_mut().line_beginning_position(Some(0));
+            let prev_line_first_char = self.cursor.borrow_mut().char_after(prev_line_offset);
+
+            if mode == Planning
+                && (Some('*') == prev_line_first_char)
+                && self.cursor.borrow_mut().looking_at(&*REGEX_PLANNING_LINE)
+            {
+                return self.planning_parser(limit);
+            }
+
+            return unreachable!();
         };
 
+        let current_element = get_current_element();
         self.cursor.borrow_mut().set(pos);
         return current_element;
-    }
-
-    /// Checks if current line of the cursor is a headline
-    /// In emacs defined as org-at-heading-p which is a proxy to
-    /// outline-on-heading-p at outline.el
-    fn at_headline(&self) -> bool {
-        let pos = self.cursor.borrow().pos();
-        let beg = self.cursor.borrow_mut().goto_line_begin();
-        self.cursor.borrow_mut().set(pos);
-        let mut raw_lines = self.input.lines_raw(beg..self.input.len());
-        match raw_lines.next() {
-            Some(line) => REGEX_HEADLINE_SHORT.is_match(&line),
-            None => false,
-        }
     }
 
     /// Parse objects between `beg` and `end` and return recursive structure.
@@ -321,129 +340,5 @@ impl<'a> Parser<'a> {
         unimplemented!();
     }
 
-    /// Possibly moves cursor to the beginning of the next headline
-    /// corresponds to `outline-next-heading` in emacs
-    /// If next headline is found returns it's start position
-    fn next_headline(&self) -> Option<(usize)> {
-        let pos = self.cursor.borrow().pos();
-        let mut raw_lines = self
-            .input
-            .lines_raw(self.cursor.borrow().pos()..self.input.len());
-        // make sure we don't match current headline
-        raw_lines.next();
-        self.cursor.borrow_mut().next::<LinesMetric>();
-
-        // TODO consider using FULL headline regex?
-        let search = find(
-            &mut self.cursor.borrow_mut(),
-            &mut raw_lines,
-            CaseInsensitive,
-            REGEX_HEADLINE_SHORT.as_str(),
-            Some(&*REGEX_HEADLINE_SHORT),
-        );
-        match search {
-            None => {
-                self.cursor.borrow_mut().set(pos);
-                None
-            }
-            Some(begin) => {
-                self.cursor.borrow_mut().set(begin);
-                Some(begin)
-            }
-        }
-    }
 }
 
-/// Handy things for cursor
-pub trait CursorHelper {
-    /// Skip over space, tabs and newline characters
-    /// Cursor position is set before next non-whitespace char
-    fn skip_whitespace(&mut self) -> usize;
-    fn goto_line_begin(&mut self) -> usize;
-}
-
-impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
-    fn skip_whitespace(&mut self) -> usize {
-        while let Some(c) = self.next_codepoint() {
-            if !(c.is_whitespace()) {
-                self.prev_codepoint();
-                break;
-            } else {
-                self.next_codepoint();
-            }
-        }
-        self.pos()
-    }
-
-    /// Moves cursor to the beginning of the current line.
-    /// If cursor is already at the beginning of the line - nothing happens
-    /// Returns the position of the cursor
-    fn goto_line_begin(&mut self) -> usize {
-        if self.pos() != 0 {
-            if self.at_or_prev::<LinesMetric>().is_none() {
-                self.set(0);
-            }
-        }
-        self.pos()
-    }
-}
-
-mod test {
-    use crate::data::Syntax;
-    use crate::data::Syntax::Section;
-    use crate::parser::CursorHelper;
-    use crate::parser::Parser;
-    use crate::parser::{ParseGranularity, REGEX_HEADLINE_SHORT};
-    use core::borrow::Borrow;
-    use std::str::FromStr;
-    use xi_rope::find::find;
-    use xi_rope::find::CaseMatching::CaseInsensitive;
-    use xi_rope::{Cursor, Rope};
-
-    #[test]
-    fn at_headline() {
-        let rope = Rope::from_str("Some text\n**** headline\n").unwrap();
-        let parser = Parser::new(&rope, ParseGranularity::Object);
-        assert!(!parser.at_headline());
-        parser.cursor.borrow_mut().set(4);
-        assert!(!parser.at_headline());
-        assert_eq!(4, parser.cursor.borrow().pos());
-        parser.cursor.borrow_mut().set(15);
-        assert!(parser.at_headline());
-        assert_eq!(15, parser.cursor.borrow().pos());
-    }
-
-    #[test]
-    fn next_headline() {
-        let rope = Rope::from_str("Some text\n**** headline\n").unwrap();
-        let parser = Parser::new(&rope, ParseGranularity::Object);
-
-        assert_eq!(Some(10), parser.next_headline());
-        assert_eq!(10, parser.cursor.borrow().pos());
-
-        let rope = Rope::from_str("* First\n** Second\n").unwrap();
-        let parser = Parser::new(&rope, ParseGranularity::Object);
-        assert_eq!(Some(8), parser.next_headline());
-        assert_eq!(8, parser.cursor.borrow().pos());
-    }
-
-    #[test]
-    fn skip_whitespaces() {
-        let rope = Rope::from_str(" \n\t\rorg-mode ").unwrap();
-        let mut cursor = Cursor::new(&rope, 0);
-        cursor.skip_whitespace();
-        assert_eq!(cursor.next_codepoint().unwrap(), 'o');
-
-        let rope2 = Rope::from_str("no_whitespace_for_you!").unwrap();
-        cursor = Cursor::new(&rope2, 0);
-        cursor.skip_whitespace();
-        assert_eq!(cursor.next_codepoint().unwrap(), 'n');
-
-        // Skipping all the remaining whitespace results in invalid cursor at the end of the rope
-        let rope3 = Rope::from_str(" ").unwrap();
-        cursor = Cursor::new(&rope3, 0);
-        cursor.skip_whitespace();
-        assert_eq!(None, cursor.next_codepoint());
-    }
-
-}

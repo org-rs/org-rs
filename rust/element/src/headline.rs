@@ -76,8 +76,20 @@ use crate::data::{SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use regex::Regex;
 
+const ORG_CLOSED_STRING: &str = "CLOSED";
+const ORG_DEADLINE_STRING: &str = "DEADLINE";
+const ORG_SCHEDULED_STRING: &str = "SCHEDULED";
+
 lazy_static! {
     pub static ref REGEX_HEADLINE_SHORT: Regex = Regex::new(r"\*+\s").unwrap();
+
+    // Matches a line with planning info.
+    // Matched keyword is in group 1.")
+
+    pub static ref REGEX_PLANNING_LINE: Regex = Regex::new(
+        &format!(r"^[ \t]*((?:{}|{}|{}):)",
+            ORG_CLOSED_STRING, ORG_DEADLINE_STRING, ORG_SCHEDULED_STRING ))
+        .unwrap();
 }
 
 pub struct HeadlineData<'a> {
@@ -160,6 +172,18 @@ pub struct InlineTaskData<'a> {
     todo_keyword: Option<TodoKeyword>,
 }
 
+// A planning is an element with the following pattern:
+// HEADLINE
+// PLANNING
+//
+// where HEADLINE is a headline element and PLANNING is a line filled with INFO parts, where each of them follows the pattern:
+//
+// KEYWORD: TIMESTAMP
+//
+// KEYWORD is either “DEADLINE”, “SCHEDULED” or “CLOSED”. TIMESTAMP is a timestamp object.
+//
+// In particular, no blank line is allowed between PLANNING and HEADLINE.
+
 pub struct NodePropertyData<'a> {
     key: &'a str,
     value: &'a str,
@@ -175,6 +199,12 @@ pub enum TodoKeyword {
 impl<'a> Parser<'a> {
     // TODO implement headline_parser
     pub fn headline_parser(&self) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
+
+    // TODO implement planning_parser
+    pub fn planning_parser(&self, limit: usize) -> SyntaxNode<'a> {
         unimplemented!()
     }
 
