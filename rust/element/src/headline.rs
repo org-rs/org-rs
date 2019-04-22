@@ -83,13 +83,20 @@ const ORG_SCHEDULED_STRING: &str = "SCHEDULED";
 lazy_static! {
     pub static ref REGEX_HEADLINE_SHORT: Regex = Regex::new(r"\*+\s").unwrap();
 
-    // Matches a line with planning info.
-    // Matched keyword is in group 1.")
-
+    /// Matches a line with planning info.
+    /// Matched keyword is in group 1
     pub static ref REGEX_PLANNING_LINE: Regex = Regex::new(
         &format!(r"^[ \t]*((?:{}|{}|{}):)",
             ORG_CLOSED_STRING, ORG_DEADLINE_STRING, ORG_SCHEDULED_STRING ))
         .unwrap();
+
+    /// Matches an entire property drawer
+    /// Requires multiline match
+    /// correspond to org-property-drawer-re in org.el
+    pub static ref REGEX_PROPERTY_DRAWER: Regex = Regex::new(
+        r"^[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?: .*)?[ \t]*\n)*?[ \t]*:END:[ \t]*$")
+            .unwrap();
+
 }
 
 pub struct HeadlineData<'a> {
@@ -202,9 +209,13 @@ impl<'a> Parser<'a> {
         unimplemented!()
     }
 
-
     // TODO implement planning_parser
     pub fn planning_parser(&self, limit: usize) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
+    // TODO implement planning_parser
+    pub fn property_drawer_parser(&self, limit: usize) -> SyntaxNode<'a> {
         unimplemented!()
     }
 

@@ -1,11 +1,12 @@
 extern crate xi_rope;
 
+use crate::cursor::CursorHelper;
 use crate::data::Handle;
 use crate::data::SyntaxT;
 use crate::data::{Syntax, SyntaxNode};
 use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
-use crate::cursor::CursorHelper;
+use crate::headline::REGEX_PROPERTY_DRAWER;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -15,6 +16,7 @@ use xi_rope::tree::Node;
 use xi_rope::RopeInfo;
 use xi_rope::{Cursor, LinesMetric};
 
+use crate::data::TimestampType::Active;
 use crate::list::*;
 use regex::Regex;
 
@@ -35,7 +37,7 @@ pub enum ParseGranularity {
 
 /// MODE prioritizes some elements over the others
 /// @ngortheone - it looks like these are states of parser's finite automata
-#[derive(Copy, Clone,PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum ParserMode {
     FirstSection,
     Section,
@@ -209,32 +211,20 @@ impl<'a> Parser<'a> {
 
     /// Parse the element starting at cursor position (point).
     /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L3833
-    ///
-    /// Return value is a list like (TYPE PROPS) where TYPE is the type
-    /// of the element and PROPS a plist of properties associated to the
-    /// element.
-    ///
-    /// Possible types are defined in `org-element-all-elements'.
+    /// (defun org-element--current-element (limit &optional granularity mode structure)
     ///
     /// LIMIT bounds the search.
     ///
-    /// Optional argument GRANULARITY determines the depth of the
-    /// recursion.  Allowed values are `headline', `greater-element',
-    /// `element', `object' or nil.  When it is broader than `object' (or
-    /// nil), secondary values will not be parsed, since they only
+    /// GRANULARITY determines the depth of the
+    /// recursion. When it is broader than `object',
+    /// secondary values will not be parsed, since they only
     /// contain objects.
-    ///
-    /// Optional argument MODE, when non-nil, can be either
-    /// `first-section', `section', `planning', `item', `node-property'
-    /// and `table-row'.
     ///
     /// If STRUCTURE isn't provided but MODE is set to `item', it will be
     /// computed.
     ///
-    /// This function assumes point is always at the beginning of the
+    /// This function assumes cursor is always at the beginning of the
     /// element it has to parse."
-    ///
-    /// (defun org-element--current-element (limit &optional granularity mode structure)
     fn current_element(
         &self,
         limit: usize,
@@ -245,7 +235,7 @@ impl<'a> Parser<'a> {
 
         let raw_secondary_p = self.granularity == ParseGranularity::Object;
 
-        let  get_current_element = || -> SyntaxNode<'a> {
+        let get_current_element = || -> SyntaxNode<'a> {
             use crate::parser::ParserMode::*;
 
             // Item
@@ -293,18 +283,46 @@ impl<'a> Parser<'a> {
             }
 
             // Planning.
-            //    ((and (eq mode 'planning)
-            //      (eq ?* (char-after (line-beginning-position 0)))
-            //      (looking-at org-planning-line-re))
-            //     (org-element-planning-parser limit))
-            let prev_line_offset = self.cursor.borrow_mut().line_beginning_position(Some(0));
-            let prev_line_first_char = self.cursor.borrow_mut().char_after(prev_line_offset);
-
-            if mode == Planning
-                && (Some('*') == prev_line_first_char)
-                && self.cursor.borrow_mut().looking_at(&*REGEX_PLANNING_LINE)
+            // ((and (eq mode 'planning)
+            //   (eq ?* (char-after (line-beginning-position 0)))
+            //   (looking-at org-planning-line-re))
+            //  (org-element-planning-parser limit))
             {
-                return self.planning_parser(limit);
+                let mut c = self.cursor.borrow_mut();
+                let maybe_headline_offset = c.line_beginning_position(Some(0));
+                let maybe_star = c.char_after(maybe_headline_offset);
+                let is_prev_line_headline = Some('*') == maybe_star;
+                let is_match_planning = c.looking_at(&*REGEX_PLANNING_LINE);
+                drop(c);
+
+                if mode == Planning && is_prev_line_headline && is_match_planning {
+                    return self.planning_parser(limit);
+                }
+            }
+
+            // Property drawer.
+            //     ((and (memq mode '(planning property-drawer))
+            // (eq ?* (char-after (line-beginning-position
+            //     (if (eq mode 'planning) 0 -1))))
+            // (looking-at org-property-drawer-re))
+            // (org-element-property-drawer-parser limit))
+            {
+                let mut c = self.cursor.borrow_mut();
+                let delta = if mode == Planning { 0 } else { -1 };
+                let maybe_headline_offset = c.line_beginning_position(Some(delta));
+                let maybe_star = c.char_after(maybe_headline_offset);
+                let is_prev_line_headline = Some('*') == maybe_star;
+
+                // FIXME requires multiline search
+                let is_match_property_drawer = c.looking_at(&*REGEX_PROPERTY_DRAWER);
+                drop(c);
+
+                if (mode == Planning || mode == PropertyDrawer)
+                    && is_prev_line_headline
+                    && is_match_property_drawer
+                {
+                    return self.property_drawer_parser(limit);
+                }
             }
 
             return unreachable!();
@@ -339,6 +357,4 @@ impl<'a> Parser<'a> {
         self.cursor.borrow_mut().set(pos);
         unimplemented!();
     }
-
 }
-

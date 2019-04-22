@@ -37,15 +37,23 @@ pub trait CursorHelper {
 
     fn char_after(&mut self, offset: usize) -> Option<char>;
 
-    /// Checks if current line of the cursor is a headline
-    /// In emacs defined as org-at-heading-p which is a proxy to
-    /// outline-on-heading-p at outline.el
+    /// Checks if current line matches a given regex
+    /// This function determines whether the text in
+    /// the current buffer directly following point matches
+    /// the regular expression regexp.
+    /// “Directly following” means precisely that:
+    /// the search is “anchored” and it can succeed only
+    /// starting with the first character following point.
+    /// The result is true if so, false otherwise.
+    /// This function does not move point
+    /// FIXME update
     fn looking_at(&mut self, r: &Regex) -> bool;
 
 
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
+    /// FIXME check if starts from BOL
     fn next_headline(&mut self) -> Option<(usize)> ;
 }
 
@@ -138,6 +146,7 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
         return result;
     }
 
+    // FIXME multiline match
     fn looking_at(&mut self, r: &Regex) -> bool {
         let pos = self.pos();
         let beg = self.goto_line_begin();
