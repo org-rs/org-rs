@@ -93,8 +93,8 @@ lazy_static! {
     /// Matches an entire property drawer
     /// Requires multiline match
     /// correspond to org-property-drawer-re in org.el
-    pub static ref REGEX_PROPERTY_DRAWER: Regex = Regex::new(
-        r"^[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?: .*)?[ \t]*\n)*?[ \t]*:END:[ \t]*$")
+    pub static ref REGEX_PROPERTY_DRAWER_M: Regex = Regex::new(
+        r"^[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?: .*)?[ \t]*\n)*?[ \t]*:END:[ \t]*")
             .unwrap();
 
 }

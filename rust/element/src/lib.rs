@@ -11,5 +11,6 @@ mod cursor;
 mod data;
 mod headline;
 mod list;
+mod paragraph;
 mod parser;
 mod table;

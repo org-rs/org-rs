@@ -1,9 +1,8 @@
-use xi_rope::{Cursor, RopeInfo, LinesMetric};
-use regex::Regex;
-use xi_rope::find::CaseMatching::CaseInsensitive;
-use xi_rope::find::find;
 use crate::headline::REGEX_HEADLINE_SHORT;
-
+use regex::Regex;
+use xi_rope::find::find;
+use xi_rope::find::CaseMatching::CaseInsensitive;
+use xi_rope::{Cursor, LinesMetric, RopeInfo};
 
 /// Handy things for cursor
 pub trait CursorHelper {
@@ -49,12 +48,13 @@ pub trait CursorHelper {
     /// FIXME update
     fn looking_at(&mut self, r: &Regex) -> bool;
 
-
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
     /// FIXME check if starts from BOL
-    fn next_headline(&mut self) -> Option<(usize)> ;
+    fn next_headline(&mut self) -> Option<(usize)>;
+
+    fn is_bol(&self) -> bool;
 }
 
 impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
@@ -158,20 +158,16 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
         }
     }
 
-
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
     fn next_headline(&mut self) -> Option<(usize)> {
         let pos = self.pos();
-        let mut raw_lines = self
-            .root()
-            .lines_raw(self.pos()..self.root().len());
+        let mut raw_lines = self.root().lines_raw(self.pos()..self.root().len());
         // make sure we don't match current headline
         raw_lines.next();
         self.next::<LinesMetric>();
 
-        // TODO consider using FULL headline regex?
         let search = find(
             self,
             &mut raw_lines,
@@ -190,20 +186,26 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
             }
         }
     }
+
+    fn is_bol(&self) -> bool {
+        let pos = self.pos();
+        let lofs = self.root().line_of_offset(pos);
+        self.root().offset_of_line(lofs) == pos
+    }
 }
 
 mod test {
     use core::borrow::Borrow;
     use std::str::FromStr;
 
-    use xi_rope::LinesMetric;
     use xi_rope::find::find;
     use xi_rope::find::CaseMatching::CaseInsensitive;
+    use xi_rope::LinesMetric;
     use xi_rope::{Cursor, Rope};
 
     use crate::data::Syntax;
-    use crate::parser::Parser;
     use crate::headline::REGEX_HEADLINE_SHORT;
+    use crate::parser::Parser;
 
     use super::CursorHelper;
 

@@ -6,9 +6,9 @@ use crate::data::SyntaxT;
 use crate::data::{Syntax, SyntaxNode};
 use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
-use crate::headline::REGEX_PROPERTY_DRAWER;
 use std::cell::RefCell;
 use std::rc::Rc;
+use REGEX_PROPERTY_DRAWER_M::headline::REGEX_PROPERTY_DRAWER_M;
 
 use xi_rope::find::find;
 use xi_rope::find::CaseMatching::CaseInsensitive;
@@ -314,7 +314,7 @@ impl<'a> Parser<'a> {
                 let is_prev_line_headline = Some('*') == maybe_star;
 
                 // FIXME requires multiline search
-                let is_match_property_drawer = c.looking_at(&*REGEX_PROPERTY_DRAWER);
+                let is_match_property_drawer = c.looking_at(&*REGEX_PROPERTY_DRAWER_M);
                 drop(c);
 
                 if (mode == Planning || mode == PropertyDrawer)
@@ -323,6 +323,13 @@ impl<'a> Parser<'a> {
                 {
                     return self.property_drawer_parser(limit);
                 }
+            }
+
+            // When not at bol, point is at the beginning of an item or
+            // a footnote definition: next item is always a paragraph.
+            // ((not (bolp)) (org-element-paragraph-parser limit (list (point))))
+            if !self.cursor.borrow().is_bol() {
+                return self.paragraph_parser(limit, self.cursor.borrow().pos());
             }
 
             return unreachable!();
