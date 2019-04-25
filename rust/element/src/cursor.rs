@@ -45,14 +45,16 @@ pub trait CursorHelper {
     /// starting with the first character following point.
     /// The result is true if so, false otherwise.
     /// This function does not move point
-    /// FIXME update
     fn looking_at(&mut self, r: &Regex) -> bool;
 
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
-    /// FIXME check if starts from BOL
     fn next_headline(&mut self) -> Option<(usize)>;
+
+    /// Return true if cursor is on a headline.
+    /// corresponds to `org-at-heading-p`
+    fn on_headline(&mut self) -> bool;
 
     fn is_bol(&self) -> bool;
 }
@@ -146,16 +148,21 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
         return result;
     }
 
-    // FIXME multiline match
     fn looking_at(&mut self, r: &Regex) -> bool {
         let pos = self.pos();
-        let beg = self.goto_line_begin();
+        let mut lines = self.root().lines_raw(self.pos()..self.root().len());
+        let result = xi_rope::find::compare_cursor_regex(self, &mut lines, r.as_str(), r);
         self.set(pos);
-        let mut raw_lines = self.root().lines_raw(beg..self.root().len());
-        match raw_lines.next() {
-            Some(line) => r.is_match(&line),
-            None => false,
-        }
+        return result.is_some();
+    }
+
+    /// Return true if cursor is on a headline.
+    fn on_headline(&mut self) -> bool {
+        let pos = self.pos();
+        self.goto_line_begin();
+        let result = self.looking_at(&*REGEX_HEADLINE_SHORT);
+        self.set(pos);
+        return result;
     }
 
     /// Possibly moves cursor to the beginning of the next headline
@@ -213,7 +220,6 @@ mod test {
     fn looking_at() {
         let rope = Rope::from_str("Some text\n**** headline\n").unwrap();
         let mut cursor = Cursor::new(&rope, 0);
-
         assert!(!cursor.looking_at(&*REGEX_HEADLINE_SHORT));
 
         cursor.set(4);
@@ -221,8 +227,32 @@ mod test {
         assert_eq!(4, cursor.pos());
 
         cursor.set(15);
+        assert!(!cursor.looking_at(&*REGEX_HEADLINE_SHORT));
+
+        cursor.set(10);
         assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT));
-        assert_eq!(15, cursor.pos());
+        assert_eq!(10, cursor.pos());
+    }
+
+
+
+    #[test]
+    fn on_headline() {
+        let rope = Rope::from_str("Some text\n**** headline\n").unwrap();
+        let mut cursor = Cursor::new(&rope, 0);
+
+        assert!(!cursor.on_headline());
+
+        cursor.set(4);
+        assert!(!cursor.on_headline());
+        assert_eq!(4, cursor.pos());
+
+        cursor.set(15);
+        assert!(cursor.on_headline());
+
+        cursor.set(10);
+        assert!(cursor.on_headline());
+        assert_eq!(10, cursor.pos());
     }
 
     #[test]

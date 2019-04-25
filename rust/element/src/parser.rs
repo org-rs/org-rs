@@ -8,7 +8,6 @@ use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
 use std::cell::RefCell;
 use std::rc::Rc;
-use REGEX_PROPERTY_DRAWER_M::headline::REGEX_PROPERTY_DRAWER_M;
 
 use xi_rope::find::find;
 use xi_rope::find::CaseMatching::CaseInsensitive;
@@ -17,6 +16,7 @@ use xi_rope::RopeInfo;
 use xi_rope::{Cursor, LinesMetric};
 
 use crate::data::TimestampType::Active;
+use crate::headline::REGEX_PROPERTY_DRAWER_M;
 use crate::list::*;
 use regex::Regex;
 
@@ -129,8 +129,7 @@ impl<'a> Parser<'a> {
         self.cursor.borrow_mut().set(beg);
 
         // When parsing only headlines, skip any text before first one.
-        if self.granularity == ParseGranularity::Headline
-            && !self.cursor.borrow_mut().looking_at(&*REGEX_HEADLINE_SHORT)
+        if self.granularity == ParseGranularity::Headline && !self.cursor.borrow_mut().on_headline()
         {
             self.cursor.borrow_mut().next_headline();
         }
@@ -260,7 +259,7 @@ impl<'a> Parser<'a> {
             // Headline.
             // ((org-with-limited-levels (org-at-heading-p))
             //  (org-element-headline-parser limit raw-secondary-p))
-            if self.cursor.borrow_mut().looking_at(&*REGEX_HEADLINE_SHORT) {
+            if self.cursor.borrow_mut().on_headline() {
                 return self.headline_parser();
             }
 
