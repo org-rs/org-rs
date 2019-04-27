@@ -73,10 +73,8 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
     }
 
     fn goto_line_begin(&mut self) -> usize {
-        if self.pos() != 0 {
-            if self.at_or_prev::<LinesMetric>().is_none() {
-                self.set(0);
-            }
+        if self.pos() != 0 && self.at_or_prev::<LinesMetric>().is_none() {
+            self.set(0);
         }
         self.pos()
     }
@@ -156,15 +154,6 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
         return result.is_some();
     }
 
-    /// Return true if cursor is on a headline.
-    fn on_headline(&mut self) -> bool {
-        let pos = self.pos();
-        self.goto_line_begin();
-        let result = self.looking_at(&*REGEX_HEADLINE_SHORT);
-        self.set(pos);
-        return result;
-    }
-
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
@@ -194,6 +183,15 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
         }
     }
 
+    /// Return true if cursor is on a headline.
+    fn on_headline(&mut self) -> bool {
+        let pos = self.pos();
+        self.goto_line_begin();
+        let result = self.looking_at(&*REGEX_HEADLINE_SHORT);
+        self.set(pos);
+        return result;
+    }
+
     fn is_bol(&self) -> bool {
         let pos = self.pos();
         let lofs = self.root().line_of_offset(pos);
@@ -202,7 +200,6 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
 }
 
 mod test {
-    use core::borrow::Borrow;
     use std::str::FromStr;
 
     use xi_rope::find::find;
@@ -215,6 +212,7 @@ mod test {
     use crate::parser::Parser;
 
     use super::CursorHelper;
+    use crate::data::TimestampType::Active;
 
     #[test]
     fn looking_at() {
@@ -233,8 +231,6 @@ mod test {
         assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT));
         assert_eq!(10, cursor.pos());
     }
-
-
 
     #[test]
     fn on_headline() {
@@ -299,6 +295,7 @@ mod test {
         assert_eq!(cursor.peek_next_codepoint().unwrap(), 'S');
         cursor.set(26);
         assert_eq!(cursor.goto_line_begin(), 24);
+        assert!(cursor.is_bol());
         assert_eq!(cursor.peek_next_codepoint().unwrap(), 'T');
         assert_eq!(cursor.next_codepoint().unwrap(), 'T');
         assert_eq!(cursor.goto_line_begin(), 24);
@@ -336,6 +333,26 @@ mod test {
         assert_eq!(cursor.line_beginning_position(Some(0)), 8);
         assert_eq!(cursor.line_beginning_position(Some(-1)), 4);
         assert_eq!(cursor.line_beginning_position(Some(-2)), 0);
+    }
+
+    #[test]
+    fn is_bol() {
+        let rope = Rope::from_str("One\nTwo\nThi\nFo4\nFiv\nSix\n7en").unwrap();
+        let mut cursor = Cursor::new(&rope, 0);
+        assert!(cursor.is_bol());
+        cursor.set(2);
+        assert!(!cursor.is_bol());
+        cursor.set(4);
+        assert!(cursor.is_bol());
+        cursor.set(rope.len());
+        assert!(!cursor.is_bol());
+
+        cursor.prev::<LinesMetric>();
+        assert!(cursor.is_bol());
+        cursor.goto_prev_line();
+        assert!(cursor.is_bol());
+        cursor.goto_next_line();
+        assert!(cursor.is_bol());
     }
 
 }

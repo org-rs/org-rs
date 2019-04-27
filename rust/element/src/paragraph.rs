@@ -19,4 +19,9 @@ impl<'a> Parser<'a> {
     pub fn paragraph_parser(&self, limit: usize, affiliated_start: usize) -> SyntaxNode<'a> {
         unimplemented!()
     }
+
+    // TODO implement section_parser
+    pub fn section_parser(&self, limit: usize) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
 }

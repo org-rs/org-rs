@@ -13,4 +13,5 @@ mod headline;
 mod list;
 mod paragraph;
 mod parser;
+mod planning;
 mod table;

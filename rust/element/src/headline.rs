@@ -93,9 +93,11 @@ lazy_static! {
     /// Matches an entire property drawer
     /// Requires multiline match
     /// correspond to org-property-drawer-re in org.el
-    pub static ref REGEX_PROPERTY_DRAWER_M: Regex = Regex::new(
+    pub static ref REGEX_PROPERTY_DRAWER: Regex = Regex::new(
         r"^[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?: .*)?[ \t]*\n)*?[ \t]*:END:[ \t]*")
             .unwrap();
+
+    pub static ref REGEX_CLOCK_LINE: Regex = Regex::new(r"^[ \t]*CLOCK:").unwrap();
 
 }
 
@@ -209,18 +211,13 @@ impl<'a> Parser<'a> {
         unimplemented!()
     }
 
-    // TODO implement planning_parser
-    pub fn planning_parser(&self, limit: usize) -> SyntaxNode<'a> {
+    // TODO implement inlinetask_parser
+    pub fn inlinetask_parser(&self, limit: usize, raw_secondary_p: bool) -> SyntaxNode<'a> {
         unimplemented!()
     }
 
-    // TODO implement planning_parser
+    // TODO implement property_drawer_parser
     pub fn property_drawer_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        unimplemented!()
-    }
-
-    // TODO implement section_parser
-    pub fn section_parser(&self, limit: usize) -> SyntaxNode<'a> {
         unimplemented!()
     }
 

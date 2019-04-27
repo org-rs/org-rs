@@ -4,8 +4,10 @@ use crate::cursor::CursorHelper;
 use crate::data::Handle;
 use crate::data::SyntaxT;
 use crate::data::{Syntax, SyntaxNode};
+use crate::headline::REGEX_CLOCK_LINE;
 use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
+use crate::headline::REGEX_PROPERTY_DRAWER;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -16,7 +18,6 @@ use xi_rope::RopeInfo;
 use xi_rope::{Cursor, LinesMetric};
 
 use crate::data::TimestampType::Active;
-use crate::headline::REGEX_PROPERTY_DRAWER_M;
 use crate::list::*;
 use regex::Regex;
 
@@ -312,8 +313,7 @@ impl<'a> Parser<'a> {
                 let maybe_star = c.char_after(maybe_headline_offset);
                 let is_prev_line_headline = Some('*') == maybe_star;
 
-                // FIXME requires multiline search
-                let is_match_property_drawer = c.looking_at(&*REGEX_PROPERTY_DRAWER_M);
+                let is_match_property_drawer = c.looking_at(&*REGEX_PROPERTY_DRAWER);
                 drop(c);
 
                 if (mode == Planning || mode == PropertyDrawer)
@@ -330,6 +330,22 @@ impl<'a> Parser<'a> {
             if !self.cursor.borrow().is_bol() {
                 return self.paragraph_parser(limit, self.cursor.borrow().pos());
             }
+
+            // Clock.
+            // ((looking-at org-clock-line-re) (org-element-clock-parser limit))
+            if self.cursor.borrow_mut().looking_at(&*REGEX_CLOCK_LINE) {
+                return self.clock_line_parser(limit);
+            }
+
+            // Inlinetask.
+            // ((org-at-heading-p)
+            //   (org-element-inlinetask-parser limit raw-secondary-p))
+            if self.cursor.borrow_mut().on_headline() {
+                return self.inlinetask_parser(limit, raw_secondary_p);
+            }
+
+            // From there, elements can have affiliated keywords.
+            // TODO finish current_element fn
 
             return unreachable!();
         };
