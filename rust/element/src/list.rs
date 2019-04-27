@@ -47,7 +47,10 @@
 //!     (item))))
 //!
 
+use crate::data::SyntaxNode;
+use crate::parser::Parser;
 use std::borrow::Cow;
+use std::cell::Cell;
 
 /// List structure
 /// This looks like an intermediate list representation, required both by
@@ -93,4 +96,35 @@ pub enum CheckBox {
     On,
     Off,
     Trans,
+}
+
+impl<'a> Parser<'a> {
+    // TODO implement item_parser
+    //https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L1253
+    pub fn item_parser(
+        &self,
+        structure: Option<&ListStruct>,
+        raw_secondary_p: bool,
+    ) -> SyntaxNode<'a> {
+        //   let mut item_data = ItemData {
+        //       bullet: (),
+        //       checkbox: None,
+        //       counter: 0,
+        //       pre_blank: 0,
+        //       raw_tag: None,
+        //       tag: None,
+        //       structure: ListStruct {}
+        //   }
+
+        //    let mut node = SyntaxNode {
+        //        parent: Cell::new(None),
+        //        children: (),
+        //        data: item_data
+        //        location: Interval {},
+        //        content_location: None,
+        //        post_blank: 0,
+        //        affiliated: None
+        //    }
+        unimplemented!()
+    }
 }

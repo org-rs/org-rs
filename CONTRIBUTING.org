@@ -55,7 +55,7 @@ parse tree.
    etc.
    
    Using Emacs is handy to get elisp code navigation and quick documentation
-   access.  I usually have it open next to my main editor.
+   access. I usually have it open next to my main editor.
    
    Matching original behavior is primary goal.
    

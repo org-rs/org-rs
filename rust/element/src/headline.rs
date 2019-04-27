@@ -72,11 +72,33 @@
 //!    (headline))))
 //!
 
-use crate::data::TimestampData;
+use crate::data::{SyntaxNode, TimestampData};
+use crate::parser::Parser;
 use regex::Regex;
+
+const ORG_CLOSED_STRING: &str = "CLOSED";
+const ORG_DEADLINE_STRING: &str = "DEADLINE";
+const ORG_SCHEDULED_STRING: &str = "SCHEDULED";
 
 lazy_static! {
     pub static ref REGEX_HEADLINE_SHORT: Regex = Regex::new(r"\*+\s").unwrap();
+
+    /// Matches a line with planning info.
+    /// Matched keyword is in group 1
+    pub static ref REGEX_PLANNING_LINE: Regex = Regex::new(
+        &format!(r"^[ \t]*((?:{}|{}|{}):)",
+            ORG_CLOSED_STRING, ORG_DEADLINE_STRING, ORG_SCHEDULED_STRING ))
+        .unwrap();
+
+    /// Matches an entire property drawer
+    /// Requires multiline match
+    /// correspond to org-property-drawer-re in org.el
+    pub static ref REGEX_PROPERTY_DRAWER: Regex = Regex::new(
+        r"^[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?: .*)?[ \t]*\n)*?[ \t]*:END:[ \t]*")
+            .unwrap();
+
+    pub static ref REGEX_CLOCK_LINE: Regex = Regex::new(r"^[ \t]*CLOCK:").unwrap();
+
 }
 
 pub struct HeadlineData<'a> {
@@ -159,9 +181,48 @@ pub struct InlineTaskData<'a> {
     todo_keyword: Option<TodoKeyword>,
 }
 
+// A planning is an element with the following pattern:
+// HEADLINE
+// PLANNING
+//
+// where HEADLINE is a headline element and PLANNING is a line filled with INFO parts, where each of them follows the pattern:
+//
+// KEYWORD: TIMESTAMP
+//
+// KEYWORD is either “DEADLINE”, “SCHEDULED” or “CLOSED”. TIMESTAMP is a timestamp object.
+//
+// In particular, no blank line is allowed between PLANNING and HEADLINE.
+
+pub struct NodePropertyData<'a> {
+    key: &'a str,
+    value: &'a str,
+}
+
 pub struct Tag<'a>(&'a str);
 
 pub enum TodoKeyword {
     TODO,
     DONE,
+}
+
+impl<'a> Parser<'a> {
+    // TODO implement headline_parser
+    pub fn headline_parser(&self) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
+    // TODO implement inlinetask_parser
+    pub fn inlinetask_parser(&self, limit: usize, raw_secondary_p: bool) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
+    // TODO implement property_drawer_parser
+    pub fn property_drawer_parser(&self, limit: usize) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
+    // TODO implement node_property_parser
+    pub fn node_property_parser(&self, limit: usize) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
 }
