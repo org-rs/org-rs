@@ -1,10 +1,13 @@
 extern crate xi_rope;
 
+use crate::cursor::CursorHelper;
 use crate::data::Handle;
-use crate::data::SyntaxInfo;
 use crate::data::SyntaxT;
 use crate::data::{Syntax, SyntaxNode};
+use crate::headline::REGEX_CLOCK_LINE;
 use crate::headline::REGEX_HEADLINE_SHORT;
+use crate::headline::REGEX_PLANNING_LINE;
+use crate::headline::REGEX_PROPERTY_DRAWER;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -14,7 +17,9 @@ use xi_rope::tree::Node;
 use xi_rope::RopeInfo;
 use xi_rope::{Cursor, LinesMetric};
 
+use crate::data::TimestampType::Active;
 use crate::list::*;
+use regex::Regex;
 
 /// determines the depth of the recursion.
 #[derive(PartialEq)]
@@ -33,7 +38,7 @@ pub enum ParseGranularity {
 
 /// MODE prioritizes some elements over the others
 /// @ngortheone - it looks like these are states of parser's finite automata
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum ParserMode {
     FirstSection,
     Section,
@@ -45,13 +50,13 @@ pub enum ParserMode {
 }
 
 pub struct Parser<'a> {
-    cursor: RefCell<Cursor<'a, RopeInfo>>,
-    input: &'a Node<RopeInfo>,
-    granularity: ParseGranularity,
+    pub cursor: RefCell<Cursor<'a, RopeInfo>>,
+    pub input: &'a Node<RopeInfo>,
+    pub granularity: ParseGranularity,
 }
 
 impl<'a> Parser<'a> {
-    fn new(input: &'a Node<RopeInfo>, granularity: ParseGranularity) -> Parser {
+    pub fn new(input: &'a Node<RopeInfo>, granularity: ParseGranularity) -> Parser {
         Parser {
             cursor: RefCell::new(Cursor::new(input, 0)),
             input,
@@ -90,7 +95,7 @@ impl<'a> Parser<'a> {
 
     /// org-element-parse-buffer
     /// Parses input from beginning to the end
-    fn parse_buffer(&self) -> SyntaxNode {
+    fn parse_buffer(&'a self) -> SyntaxNode {
         self.cursor.borrow_mut().set(0);
         self.cursor.borrow_mut().skip_whitespace();
 
@@ -113,8 +118,9 @@ impl<'a> Parser<'a> {
     /// Elements are accumulated into ACC."
     /// (defun org-element--parse-elements
     ///     (beg end mode structure granularity visible-only acc)
+    /// TODO do not forget to fix child-parent and parent-child links on tree updates
     fn parse_elements(
-        &self,
+        &'a self,
         beg: usize,
         end: usize,
         mut mode: ParserMode,
@@ -124,8 +130,9 @@ impl<'a> Parser<'a> {
         self.cursor.borrow_mut().set(beg);
 
         // When parsing only headlines, skip any text before first one.
-        if self.granularity == ParseGranularity::Headline && !self.at_headline() {
-            self.next_headline();
+        if self.granularity == ParseGranularity::Headline && !self.cursor.borrow_mut().on_headline()
+        {
+            self.cursor.borrow_mut().next_headline();
         }
 
         let mut elements: Vec<Handle> = vec![];
@@ -184,13 +191,13 @@ impl<'a> Parser<'a> {
                     // (org-element--parse-objects
                     //    cbeg (org-element-property :contents-end element)
                     //    element (org-element-restriction type))))
-                     if let ParseGranularity::Object = &self.granularity {
-                         element.children.replace(self.parse_objects(
-                             content_location.start,
-                             content_location.end,
-                             |that| element.data.can_contain(that)
-                         ));
-                     }
+                    if let ParseGranularity::Object = &self.granularity {
+                        element.children.replace(self.parse_objects(
+                            content_location.start,
+                            content_location.end,
+                            |that| element.data.can_contain(that),
+                        ));
+                    }
                 }
             }
             if let Some(m) = Parser::next_mode(&element.data, false) {
@@ -204,61 +211,149 @@ impl<'a> Parser<'a> {
 
     /// Parse the element starting at cursor position (point).
     /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L3833
-    ///
-    /// Return value is a list like (TYPE PROPS) where TYPE is the type
-    /// of the element and PROPS a plist of properties associated to the
-    /// element.
-    ///
-    /// Possible types are defined in `org-element-all-elements'.
+    /// (defun org-element--current-element (limit &optional granularity mode structure)
     ///
     /// LIMIT bounds the search.
     ///
-    /// Optional argument GRANULARITY determines the depth of the
-    /// recursion.  Allowed values are `headline', `greater-element',
-    /// `element', `object' or nil.  When it is broader than `object' (or
-    /// nil), secondary values will not be parsed, since they only
+    /// GRANULARITY determines the depth of the
+    /// recursion. When it is broader than `object',
+    /// secondary values will not be parsed, since they only
     /// contain objects.
-    ///
-    /// Optional argument MODE, when non-nil, can be either
-    /// `first-section', `section', `planning', `item', `node-property'
-    /// and `table-row'.
     ///
     /// If STRUCTURE isn't provided but MODE is set to `item', it will be
     /// computed.
     ///
-    /// This function assumes point is always at the beginning of the
+    /// This function assumes cursor is always at the beginning of the
     /// element it has to parse."
-    ///
-    /// (defun org-element--current-element (limit &optional granularity mode structure)
     fn current_element(
         &self,
         limit: usize,
         mode: ParserMode,
         structure: Option<&ListStruct>,
-    ) -> SyntaxNode {
+    ) -> SyntaxNode<'a> {
         let pos = self.cursor.borrow().pos();
-        // TODO write current_element function #9
 
+        let raw_secondary_p = self.granularity == ParseGranularity::Object;
+
+        let get_current_element = || -> SyntaxNode<'a> {
+            use crate::parser::ParserMode::*;
+
+            // Item
+            // ((eq mode 'item)
+            //(org-element-item-parser limit structure raw-secondary-p))
+            if mode == Item {
+                return self.item_parser(structure, raw_secondary_p);
+            }
+
+            // Table Row.
+            // ((eq mode 'table-row) (org-element-table-row-parser limit))
+            if mode == TableRow {
+                return self.table_row_parser();
+            }
+
+            // Node Property.
+            // ((eq mode 'node-property) (org-element-node-property-parser limit))
+            if mode == NodeProperty {
+                return self.node_property_parser(limit);
+            }
+
+            // Headline.
+            // ((org-with-limited-levels (org-at-heading-p))
+            //  (org-element-headline-parser limit raw-secondary-p))
+            if self.cursor.borrow_mut().on_headline() {
+                return self.headline_parser();
+            }
+
+            // Sections (must be checked after headline).
+
+            // ((eq mode 'section) (org-element-section-parser limit))
+            if mode == Section {
+                return self.section_parser(limit);
+            }
+
+            //  ((eq mode 'first-section)
+            //  (org-element-section-parser
+            //      (or (save-excursion (org-with-limited-levels (outline-next-heading)))
+            //  limit)))
+            if mode == FirstSection {
+                let pos = self.cursor.borrow().pos();
+                let lim = self.cursor.borrow_mut().next_headline().unwrap_or(limit);
+                self.cursor.borrow_mut().set(pos);
+                return self.section_parser(lim);
+            }
+
+            // Planning.
+            // ((and (eq mode 'planning)
+            //   (eq ?* (char-after (line-beginning-position 0)))
+            //   (looking-at org-planning-line-re))
+            //  (org-element-planning-parser limit))
+            {
+                let mut c = self.cursor.borrow_mut();
+                let maybe_headline_offset = c.line_beginning_position(Some(0));
+                let maybe_star = c.char_after(maybe_headline_offset);
+                let is_prev_line_headline = Some('*') == maybe_star;
+                let is_match_planning = c.looking_at(&*REGEX_PLANNING_LINE);
+                drop(c);
+
+                if mode == Planning && is_prev_line_headline && is_match_planning {
+                    return self.planning_parser(limit);
+                }
+            }
+
+            // Property drawer.
+            //     ((and (memq mode '(planning property-drawer))
+            // (eq ?* (char-after (line-beginning-position
+            //     (if (eq mode 'planning) 0 -1))))
+            // (looking-at org-property-drawer-re))
+            // (org-element-property-drawer-parser limit))
+            {
+                let mut c = self.cursor.borrow_mut();
+                let delta = if mode == Planning { 0 } else { -1 };
+                let maybe_headline_offset = c.line_beginning_position(Some(delta));
+                let maybe_star = c.char_after(maybe_headline_offset);
+                let is_prev_line_headline = Some('*') == maybe_star;
+
+                let is_match_property_drawer = c.looking_at(&*REGEX_PROPERTY_DRAWER);
+                drop(c);
+
+                if (mode == Planning || mode == PropertyDrawer)
+                    && is_prev_line_headline
+                    && is_match_property_drawer
+                {
+                    return self.property_drawer_parser(limit);
+                }
+            }
+
+            // When not at bol, point is at the beginning of an item or
+            // a footnote definition: next item is always a paragraph.
+            // ((not (bolp)) (org-element-paragraph-parser limit (list (point))))
+            if !self.cursor.borrow().is_bol() {
+                return self.paragraph_parser(limit, self.cursor.borrow().pos());
+            }
+
+            // Clock.
+            // ((looking-at org-clock-line-re) (org-element-clock-parser limit))
+            if self.cursor.borrow_mut().looking_at(&*REGEX_CLOCK_LINE) {
+                return self.clock_line_parser(limit);
+            }
+
+            // Inlinetask.
+            // ((org-at-heading-p)
+            //   (org-element-inlinetask-parser limit raw-secondary-p))
+            if self.cursor.borrow_mut().on_headline() {
+                return self.inlinetask_parser(limit, raw_secondary_p);
+            }
+
+            // From there, elements can have affiliated keywords.
+            // TODO finish current_element fn
+
+            return unreachable!();
+        };
+
+        let current_element = get_current_element();
         self.cursor.borrow_mut().set(pos);
-        unimplemented!();
+        return current_element;
     }
-
-    /// Checks if current line of the cursor is a headline
-    /// In emacs defined as org-at-heading-p which is a proxy to
-    /// outline-on-heading-p at outline.el
-    fn at_headline(&self) -> bool {
-        let pos = self.cursor.borrow().pos();
-        let beg = self.cursor.borrow_mut().goto_line_begin();
-        self.cursor.borrow_mut().set(pos);
-        let mut raw_lines = self.input.lines_raw(beg..self.input.len());
-        match raw_lines.next() {
-            Some(line) => REGEX_HEADLINE_SHORT.is_match(&line),
-            None => false,
-        }
-    }
-
-
-
 
     /// Parse objects between `beg` and `end` and return recursive structure.
     /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4515
@@ -284,130 +379,4 @@ impl<'a> Parser<'a> {
         self.cursor.borrow_mut().set(pos);
         unimplemented!();
     }
-
-
-    /// Possibly moves cursor to the beginning of the next headline
-    /// corresponds to `outline-next-heading` in emacs
-    fn next_headline(&self) -> Option<(usize)> {
-        let pos = self.cursor.borrow().pos();
-        let mut raw_lines = self
-            .input
-            .lines_raw(self.cursor.borrow().pos()..self.input.len());
-        // make sure we don't match current headline
-        raw_lines.next();
-        self.cursor.borrow_mut().next::<LinesMetric>();
-
-        // TODO consider using FULL headline regex and consider leaving cursor at the end of match
-        let search = find(
-            &mut self.cursor.borrow_mut(),
-            &mut raw_lines,
-            CaseInsensitive,
-            REGEX_HEADLINE_SHORT.as_str(),
-            Some(&*REGEX_HEADLINE_SHORT),
-        );
-        match search {
-            None => {
-                self.cursor.borrow_mut().set(pos);
-                None
-            }
-            Some(begin) => {
-                self.cursor.borrow_mut().set(begin);
-                Some(begin)
-            }
-        }
-    }
-}
-
-/// Handy things for cursor
-pub trait CursorHelper {
-    /// Skip over space, tabs and newline characters
-    /// Cursor position is set before next non-whitespace char
-    fn skip_whitespace(&mut self) -> usize;
-    fn goto_line_begin(&mut self) -> usize;
-}
-
-impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
-    fn skip_whitespace(&mut self) -> usize {
-        while let Some(c) = self.next_codepoint() {
-            if !(c.is_whitespace()) {
-                self.prev_codepoint();
-                break;
-            } else {
-                self.next_codepoint();
-            }
-        }
-        self.pos()
-    }
-
-    /// Moves cursor to the beginning of the current line.
-    /// If cursor is already at the beginning of the line - nothing happens
-    /// Returns the position of the cursor
-    fn goto_line_begin(&mut self) -> usize {
-        if self.pos() != 0 {
-            if self.at_or_prev::<LinesMetric>().is_none() {
-                self.set(0);
-            }
-        }
-        self.pos()
-    }
-}
-
-mod test {
-    use crate::data::Syntax;
-    use crate::data::Syntax::Section;
-    use crate::parser::CursorHelper;
-    use crate::parser::Parser;
-    use crate::parser::{ParseGranularity, REGEX_HEADLINE_SHORT};
-    use core::borrow::Borrow;
-    use std::str::FromStr;
-    use xi_rope::find::find;
-    use xi_rope::find::CaseMatching::CaseInsensitive;
-    use xi_rope::{Cursor, Rope};
-
-    #[test]
-    fn at_headline() {
-        let rope = Rope::from_str("Some text\n**** headline\n").unwrap();
-        let parser = Parser::new(&rope, ParseGranularity::Object);
-        assert!(!parser.at_headline());
-        parser.cursor.borrow_mut().set(4);
-        assert!(!parser.at_headline());
-        assert_eq!(4, parser.cursor.borrow().pos());
-        parser.cursor.borrow_mut().set(15);
-        assert!(parser.at_headline());
-        assert_eq!(15, parser.cursor.borrow().pos());
-    }
-
-    #[test]
-    fn next_headline() {
-        let rope = Rope::from_str("Some text\n**** headline\n").unwrap();
-        let parser = Parser::new(&rope, ParseGranularity::Object);
-
-        assert_eq!(Some(10), parser.next_headline());
-        assert_eq!(10, parser.cursor.borrow().pos());
-
-        let rope = Rope::from_str("* First\n** Second\n").unwrap();
-        let parser = Parser::new(&rope, ParseGranularity::Object);
-        assert_eq!(Some(8), parser.next_headline());
-        assert_eq!(8, parser.cursor.borrow().pos());
-    }
-
-    #[test]
-    fn skip_whitespaces() {
-        let rope = Rope::from_str(" \n\t\rorg-mode ").unwrap();
-        let mut cursor = Cursor::new(&rope, 0);
-        cursor.skip_whitespace();
-        assert_eq!(cursor.next_codepoint().unwrap(), 'o');
-
-        let rope2 = Rope::from_str("no_whitespace_for_you!").unwrap();
-        cursor = Cursor::new(&rope2, 0);
-        cursor.skip_whitespace();
-        assert_eq!(cursor.next_codepoint().unwrap(), 'n');
-
-        // Skipping all the remaining whitespace results in invalid cursor at the end of the rope
-        let rope3 = Rope::from_str(" ").unwrap();
-        cursor = Cursor::new(&rope3, 0);
-        cursor.skip_whitespace();
-        assert_eq!(None, cursor.next_codepoint());
-    }
-
 }
