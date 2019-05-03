@@ -22,6 +22,7 @@ extern crate strum_macros;
 extern crate regex;
 extern crate strum;
 
+mod affiliated;
 mod cursor;
 mod data;
 mod headline;
