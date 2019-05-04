@@ -47,30 +47,19 @@ use regex::Regex;
 
 lazy_static! {
 
-   /// FIXME Regexp matching any affiliated keyword
-   /// Keyword name is put in match group 1.  Moreover, if keyword
-   /// belongs to `org-element-dual-keywords', put the dual value in
-   /// match group 2.
+   /// Regexp matching any affiliated keyword
+   /// Dual keywords are captured in groups 1 and 2
+   /// Regular into group 3 and exported attributes in 4
    ///
+   /// Warning! If youu add more keywords then you must update this regex!
+   /// Original elisp implementation dynamicaly creates this regex based on
+   /// definitions lists of dual,regular and attribute keywords.
+   /// While this is possible to do in rust, and maybe it will be required in
+   /// the future, for now due laziness and lack of time static regex will be used.
    ///
-    //   (format "[ \t]*#\\+\\(?:%s\\):[ \t]*"
-    // 	  (concat
-    // 	   ;; Dual affiliated keywords.
-    // 	   (format "\\(?1:%s\\)\\(?:\\[\\(.*\\)\\]\\)?"
-    // 		   (regexp-opt org-element-dual-keywords))
-    // 	   "\\|"
-    // 	   ;; Regular affiliated keywords.
-    // 	   (format "\\(?1:%s\\)"
-    // 		   (regexp-opt
-    // 		    (cl-remove-if
-    // 		     (lambda (k) (member k org-element-dual-keywords))
-    // 		     org-element-affiliated-keywords)))
-    // 	   "\\|"
-    // 	   ;; Export attributes.
-    // 	   "\\(?1:ATTR_[-_A-Za-z0-9]+\\)"))
-   pub static ref REGEX_AFFILIATED: Regex = Regex::new(r"").unwrap();
-
-// [ \t]*#\+(?:(?1:(?:CAPTION|RESULTS))(?:[(.*)])?|(?1:(?:DATA|HEADERS?|LABEL|NAME|PLOT|RES(?:NAME|ULT)|(?:S(?:OURC|RCNAM)|TBLNAM)E))|(?1:ATTR_[-_A-Za-z0-9]+)):[ \t]*
+   /// elisp: `org-element--affiliated-re`
+    pub static ref REGEX_AFFILIATED: Regex = Regex::new(r"[ \t]*#\+(?:((?:CAPTION|RESULTS))(?:\[(.*)\])?|((?:DATA|HEADERS?|LABEL|NAME|PLOT|RES(?:NAME|ULT)|(?:S(?:OURC|RCNAM)|TBLNAM)E))|(ATTR_[-_A-Za-z0-9]+)):[ \t]*")
+        .unwrap();
 
 }
 
@@ -150,8 +139,7 @@ impl Keywords {
     }
 }
 
-//
-//
+// WIP
 //
 // (defconst org-element--parsed-properties-alist
 //   (mapcar (lambda (k) (cons k (intern (concat ":" (downcase k)))))
@@ -180,6 +168,43 @@ impl<'a> Parser<'a> {
     // TODO implement collect_affiliated_keywords
     pub fn collect_affiliated_keywords(&self) -> Affiliated {
         unimplemented!()
+    }
+}
+
+mod test {
+    use super::REGEX_AFFILIATED;
+    use regex::Match;
+
+    #[test]
+    fn affiliated_re() {
+        let dual_full = r"#+CAPTION[GIT]: org-rs";
+
+        let mut cap = REGEX_AFFILIATED.captures(dual_full).unwrap();
+        assert_eq!("CAPTION", cap.get(1).unwrap().as_str());
+        assert_eq!("GIT", cap.get(2).unwrap().as_str());
+        assert_eq!(None, cap.get(3));
+        assert_eq!(None, cap.get(4));
+
+        let dual_part = r"#+CAPTION: Orgmode";
+        cap = REGEX_AFFILIATED.captures(dual_part).unwrap();
+        assert_eq!("CAPTION", cap.get(1).unwrap().as_str());
+        assert_eq!(None, cap.get(2));
+        assert_eq!(None, cap.get(3));
+        assert_eq!(None, cap.get(4));
+
+        let single = r"#+RESNAME: someresult";
+        cap = REGEX_AFFILIATED.captures(single).unwrap();
+        assert_eq!("RESNAME", cap.get(3).unwrap().as_str());
+        assert_eq!(None, cap.get(1));
+        assert_eq!(None, cap.get(2));
+        assert_eq!(None, cap.get(4));
+
+        let attr = r"#+ATTR_HTML: :file filename.ext";
+        cap = REGEX_AFFILIATED.captures(attr).unwrap();
+        assert_eq!("ATTR_HTML", cap.get(4).unwrap().as_str());
+        assert_eq!(None, cap.get(1));
+        assert_eq!(None, cap.get(2));
+        assert_eq!(None, cap.get(3));
     }
 }
 
@@ -256,3 +281,5 @@ impl<'a> Parser<'a> {
 //       (when (looking-at "[ \t]*$") (goto-char origin) (setq output nil))
 //       ;; Return value.
 //       (cons origin output))))
+//
+//
