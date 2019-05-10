@@ -1,8 +1,5 @@
 [Org Mode](https://orgmode.org/) parser re-write in Rust
 
-# :warning: Work on this project is suspended
-More details: https://github.com/org-rs/org-rs/issues/22
-
 
 # Motivation
 
