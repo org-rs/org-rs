@@ -17,7 +17,9 @@ use crate::headline::REGEX_HEADLINE_SHORT;
 use regex::Regex;
 use xi_rope::find::find;
 use xi_rope::find::CaseMatching::CaseInsensitive;
-use xi_rope::{Cursor, LinesMetric, RopeInfo};
+use xi_rope::Cursor;
+use xi_rope::LinesMetric;
+use xi_rope::RopeInfo;
 
 /// Handy things for cursor
 pub trait CursorHelper {
@@ -59,7 +61,7 @@ pub trait CursorHelper {
     /// the search is “anchored” and it can succeed only
     /// starting with the first character following point.
     /// The result is true if so, false otherwise.
-    /// This function does not move point
+    /// This function does not move cursor
     fn looking_at(&mut self, r: &Regex) -> bool;
 
     /// Possibly moves cursor to the beginning of the next headline
@@ -131,7 +133,7 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
 
             Some(x) => {
                 if x > 1 {
-                    for p in 0..x - 1 {
+                    for _p in 0..x - 1 {
                         self.goto_next_line();
                     }
                 } else {
@@ -163,7 +165,7 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
 
     fn looking_at(&mut self, r: &Regex) -> bool {
         let pos = self.pos();
-        let mut lines = self.root().lines_raw(self.pos()..self.root().len());
+        let mut lines = self.root().lines_raw(self.pos()..);
         let result = xi_rope::find::compare_cursor_regex(self, &mut lines, r.as_str(), r);
         self.set(pos);
         return result.is_some();
@@ -369,5 +371,4 @@ mod test {
         cursor.goto_next_line();
         assert!(cursor.is_bol());
     }
-
 }

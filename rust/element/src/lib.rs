@@ -12,7 +12,7 @@
 //
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
-
+#![warn(clippy::all)]
 #![allow(dead_code)]
 #[macro_use]
 extern crate lazy_static;
@@ -30,4 +30,5 @@ mod list;
 mod paragraph;
 mod parser;
 mod planning;
+mod rope;
 mod table;

@@ -42,6 +42,8 @@
 //! “CAPTION”, “AUTHOR”, “DATE” and “TITLE” keywords can contain objects
 //! in their value and their optional value, if applicable.
 
+use crate::cursor::CursorHelper;
+use crate::data::SyntaxT;
 use crate::parser::Parser;
 use regex::Regex;
 
@@ -58,14 +60,32 @@ lazy_static! {
    /// the future, for now due laziness and lack of time static regex will be used.
    ///
    /// elisp: `org-element--affiliated-re`
-    pub static ref REGEX_AFFILIATED: Regex = Regex::new(r"[ \t]*#\+(?:((?:CAPTION|RESULTS))(?:\[(.*)\])?|((?:DATA|HEADERS?|LABEL|NAME|PLOT|RES(?:NAME|ULT)|(?:S(?:OURC|RCNAM)|TBLNAM)E))|(ATTR_[-_A-Za-z0-9]+)):[ \t]*")
-        .unwrap();
+   pub static ref REGEX_AFFILIATED: Regex = Regex::new(
+           &format!(
+              r"[ \t]{}|{}|{}[ \t]*",
+              r"*#\+(?:((?:CAPTION|RESULTS))(?:\[(.*)\])?",
+              r"((?:DATA|HEADERS?|LABEL|NAME|PLOT|RES(?:NAME|ULT)|(?:S(?:OURC|RCNAM)|TBLNAM)E))",
+              r"(ATTR_[-_A-Za-z0-9]+)):")
+       ).unwrap();
+}
 
+pub struct KeywordData<'a> {
+    /// Keyword's name (string).
+    key: &'a str,
+    /// Keyword's value (string).
+    value: &'a str,
 }
 
 pub enum Affiliated {
     Regular,
+
+    /// In Org syntax, they can be written with optional square brackets
+    /// before the colons.  For example, RESULTS keyword can be
+    /// associated to a hash value with the following:
+    ///
+    /// #+RESULTS[hash-string]: some-source
     Dual,
+
     ExportAttribute,
 }
 
@@ -137,36 +157,105 @@ impl Keywords {
             _ => false,
         }
     }
+
+    /// List of affiliated keywords which can have a secondary value.
+    /// elisp: `defconst org-element-dual-keywords`
+    /// This list is checked after translations have been applied.
+    /// See `traslate`, `org-element-keyword-translation-alist`
+    fn is_dual(&self) -> bool {
+        use Keywords::*;
+        match &self {
+            CAPTION | RESULTS => true,
+            _ => false,
+        }
+    }
 }
 
-// WIP
-//
-// (defconst org-element--parsed-properties-alist
-//   (mapcar (lambda (k) (cons k (intern (concat ":" (downcase k)))))
-// 	  org-element-parsed-keywords)
-//   "Alist of parsed keywords and associated properties.
-// This is generated from `org-element-parsed-keywords', which
-// see.")
-//
-// (defconst org-element-dual-keywords '("CAPTION" "RESULTS")
-//   "List of affiliated keywords which can have a secondary value.
-//
-// In Org syntax, they can be written with optional square brackets
-// before the colons.  For example, RESULTS keyword can be
-// associated to a hash value with the following:
-//
-//   #+RESULTS[hash-string]: some-source
-//
-// This list is checked after translations have been applied.  See
-// `org-element-keyword-translation-alist'.")
-//
-//
-//
-// Don't modify it, set `org-element-affiliated-keywords' instead.")
-
 impl<'a> Parser<'a> {
-    // TODO implement collect_affiliated_keywords
-    pub fn collect_affiliated_keywords(&self) -> Affiliated {
+    /// Collect affiliated keywords from point down to LIMIT.
+    ///
+    /// Most elements can have affiliated keywords.  When looking for an
+    /// element beginning, we want to move before them, as they belong to
+    /// that element, and, in the meantime, collect information they give
+    /// into appropriate properties.  Hence the following function.
+    ///
+    /// Return a list whose CAR is the position at the first of them and
+    /// CDR a plist of keywords and values and move point to the
+    /// beginning of the first line after them.
+    ///
+    /// As a special case, if element doesn't start at the beginning of
+    /// the line (e.g., a paragraph starting an item), CAR is current
+    /// position of point and CDR is nil."
+    /// elisp `defun org-element--collect-affiliated-keywords (limit)`
+    pub fn collect_affiliated_keywords(&self, limit: usize) -> (usize, Vec<Affiliated>) {
+        if !self.cursor.borrow().is_bol() {
+            return (self.cursor.borrow().pos(), vec![]);
+        }
+        // Regex searches should be case insensitive
+        let origin = self.cursor.borrow().pos();
+        let restrict = |that| SyntaxT::Keyword.can_contain(that);
+        let mut output: ();
+        self.cursor.borrow_mut().pos();
+
+        loop {
+            let looking_at_affiliated = self.cursor.borrow_mut().looking_at(&*REGEX_AFFILIATED);
+            let current_pos = self.cursor.borrow().pos();
+            if current_pos >= limit || !looking_at_affiliated {
+                break;
+            }
+        }
+
+        //       (while (and (< (point) limit) (looking-at org-element--affiliated-re))
+        // 	(let* ((raw-kwd (upcase (match-string 1)))
+        // 	       ;; Apply translation to RAW-KWD.  From there, KWD is
+        // 	       ;; the official keyword.
+        // 	       (kwd (or (cdr (assoc raw-kwd
+        // 				    org-element-keyword-translation-alist))
+        // 			raw-kwd))
+        // 	       ;; Find main value for any keyword.
+        // 	       (value
+        // 		(save-match-data
+        // 		  (org-trim
+        // 		   (buffer-substring-no-properties
+        // 		    (match-end 0) (line-end-position)))))
+        // 	       ;; PARSEDP is non-nil when keyword should have its
+        // 	       ;; value parsed.
+        // 	       (parsedp (member kwd org-element-parsed-keywords))
+        // 	       ;; If KWD is a dual keyword, find its secondary
+        // 	       ;; value.  Maybe parse it.
+        // 	       (dualp (member kwd org-element-dual-keywords))
+        // 	       (dual-value
+        // 		(and dualp
+        // 		     (let ((sec (match-string-no-properties 2)))
+        // 		       (if (or (not sec) (not parsedp)) sec
+        // 			 (save-match-data
+        // 			   (org-element--parse-objects
+        // 			    (match-beginning 2) (match-end 2) nil restrict))))))
+        // 	       ;; Attribute a property name to KWD.
+        // 	       (kwd-sym (and kwd (intern (concat ":" (downcase kwd))))))
+        // 	  ;; Now set final shape for VALUE.
+        // 	  (when parsedp
+        // 	    (setq value
+        // 		  (org-element--parse-objects
+        // 		   (match-end 0)
+        // 		   (progn (end-of-line) (skip-chars-backward " \t") (point))
+        // 		   nil restrict)))
+        // 	  (when dualp
+        // 	    (setq value (and (or value dual-value) (cons value dual-value))))
+        // 	  (when (or (member kwd org-element-multiple-keywords)
+        // 		    ;; Attributes can always appear on multiple lines.
+        // 		    (string-match "^ATTR_" kwd))
+        // 	    (setq value (cons value (plist-get output kwd-sym))))
+        // 	  ;; Eventually store the new value in OUTPUT.
+        // 	  (setq output (plist-put output kwd-sym value))
+        // 	  ;; Move to next keyword.
+        // 	  (forward-line)))
+        //       ;; If affiliated keywords are orphaned: move back to first one.
+        //       ;; They will be parsed as a paragraph.
+        //       (when (looking-at "[ \t]*$") (goto-char origin) (setq output nil))
+        //       ;; Return value.
+        //       (cons origin output))))
+
         unimplemented!()
     }
 }
@@ -174,6 +263,12 @@ impl<'a> Parser<'a> {
 mod test {
     use super::REGEX_AFFILIATED;
     use regex::Match;
+
+    #[test]
+    fn test_re() {
+        let expected = r"[ \t]*#\+(?:((?:CAPTION|RESULTS))(?:\[(.*)\])?|((?:DATA|HEADERS?|LABEL|NAME|PLOT|RES(?:NAME|ULT)|(?:S(?:OURC|RCNAM)|TBLNAM)E))|(ATTR_[-_A-Za-z0-9]+)):[ \t]*";
+        assert_eq!(expected, REGEX_AFFILIATED.as_str());
+    }
 
     #[test]
     fn affiliated_re() {
@@ -208,78 +303,13 @@ mod test {
     }
 }
 
-//
-// (defun org-element--collect-affiliated-keywords (limit)
-//   "Collect affiliated keywords from point down to LIMIT.
-//
-// ;; Most elements can have affiliated keywords.  When looking for an
-// ;; element beginning, we want to move before them, as they belong to
-// ;; that element, and, in the meantime, collect information they give
-// ;; into appropriate properties.  Hence the following function.
+// Not sure what to do with this yet
+// (defconst org-element--parsed-properties-alist
+//   (mapcar (lambda (k) (cons k (intern (concat ":" (downcase k)))))
+// 	  org-element-parsed-keywords)
+//   "Alist of parsed keywords and associated properties.
+// This is generated from `org-element-parsed-keywords', which
+// see.")
 
-// Return a list whose CAR is the position at the first of them and
-// CDR a plist of keywords and values and move point to the
-// beginning of the first line after them.
-//
-// As a special case, if element doesn't start at the beginning of
-// the line (e.g., a paragraph starting an item), CAR is current
-// position of point and CDR is nil."
-//   (if (not (bolp)) (list (point))
-//     (let ((case-fold-search t)
-// 	  (origin (point))
-// 	  ;; RESTRICT is the list of objects allowed in parsed
-// 	  ;; keywords value.
-// 	  (restrict (org-element-restriction 'keyword))
-// 	  output)
-//       (while (and (< (point) limit) (looking-at org-element--affiliated-re))
-// 	(let* ((raw-kwd (upcase (match-string 1)))
-// 	       ;; Apply translation to RAW-KWD.  From there, KWD is
-// 	       ;; the official keyword.
-// 	       (kwd (or (cdr (assoc raw-kwd
-// 				    org-element-keyword-translation-alist))
-// 			raw-kwd))
-// 	       ;; Find main value for any keyword.
-// 	       (value
-// 		(save-match-data
-// 		  (org-trim
-// 		   (buffer-substring-no-properties
-// 		    (match-end 0) (line-end-position)))))
-// 	       ;; PARSEDP is non-nil when keyword should have its
-// 	       ;; value parsed.
-// 	       (parsedp (member kwd org-element-parsed-keywords))
-// 	       ;; If KWD is a dual keyword, find its secondary
-// 	       ;; value.  Maybe parse it.
-// 	       (dualp (member kwd org-element-dual-keywords))
-// 	       (dual-value
-// 		(and dualp
-// 		     (let ((sec (match-string-no-properties 2)))
-// 		       (if (or (not sec) (not parsedp)) sec
-// 			 (save-match-data
-// 			   (org-element--parse-objects
-// 			    (match-beginning 2) (match-end 2) nil restrict))))))
-// 	       ;; Attribute a property name to KWD.
-// 	       (kwd-sym (and kwd (intern (concat ":" (downcase kwd))))))
-// 	  ;; Now set final shape for VALUE.
-// 	  (when parsedp
-// 	    (setq value
-// 		  (org-element--parse-objects
-// 		   (match-end 0)
-// 		   (progn (end-of-line) (skip-chars-backward " \t") (point))
-// 		   nil restrict)))
-// 	  (when dualp
-// 	    (setq value (and (or value dual-value) (cons value dual-value))))
-// 	  (when (or (member kwd org-element-multiple-keywords)
-// 		    ;; Attributes can always appear on multiple lines.
-// 		    (string-match "^ATTR_" kwd))
-// 	    (setq value (cons value (plist-get output kwd-sym))))
-// 	  ;; Eventually store the new value in OUTPUT.
-// 	  (setq output (plist-put output kwd-sym value))
-// 	  ;; Move to next keyword.
-// 	  (forward-line)))
-//       ;; If affiliated keywords are orphaned: move back to first one.
-//       ;; They will be parsed as a paragraph.
-//       (when (looking-at "[ \t]*$") (goto-char origin) (setq output nil))
-//       ;; Return value.
-//       (cons origin output))))
 //
 //
