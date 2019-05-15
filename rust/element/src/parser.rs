@@ -13,8 +13,6 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-extern crate xi_rope;
-
 use crate::cursor::CursorHelper;
 use crate::data::Handle;
 use crate::data::SyntaxT;
@@ -26,15 +24,13 @@ use crate::headline::REGEX_PROPERTY_DRAWER;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use xi_rope::find::find;
-use xi_rope::find::CaseMatching::CaseInsensitive;
-use xi_rope::tree::Node;
+use xi_rope::Cursor;
+use xi_rope::LinesMetric;
 use xi_rope::RopeInfo;
-use xi_rope::{Cursor, LinesMetric};
-
-use crate::data::TimestampType::Active;
+// use crate::data::TimestampType::Active;
 use crate::list::*;
 use regex::Regex;
+use xi_rope::tree::Node;
 
 /// determines the depth of the recursion.
 #[derive(PartialEq)]
@@ -86,6 +82,7 @@ impl<'a> Parser<'a> {
     /// <br>
     /// Original function name: org-element--next-mode
     /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4273
+    /// TODO refactor to SyntaxT
     fn next_mode(syntax: &Syntax, is_parent: bool) -> Option<ParserMode> {
         if is_parent {
             match syntax {
@@ -175,7 +172,7 @@ impl<'a> Parser<'a> {
                 //    in order to get sub-level headings.
                 // 2. Granularity is Element or Object
                 // 3. This is Section and Granularity is GreaterElement
-                if element.data.is_greater_element() {
+                if SyntaxT::from(&element.data).is_greater_element() {
                     if (SyntaxT::Headline == SyntaxT::from(&element.data))
                         || (self.granularity == ParseGranularity::Element
                             || self.granularity == ParseGranularity::Object)
@@ -201,6 +198,7 @@ impl<'a> Parser<'a> {
                         ));
                     }
                 }
+                // ctermfg=37 gui=italic guifg=#2aa1ae
                 // Any other element with contents, if granularity allows it
                 else {
                     // (org-element--parse-objects
@@ -210,7 +208,7 @@ impl<'a> Parser<'a> {
                         element.children.replace(self.parse_objects(
                             content_location.start,
                             content_location.end,
-                            |that| element.data.can_contain(that),
+                            |that| SyntaxT::from(&element.data).can_contain(that),
                         ));
                     }
                 }
@@ -386,7 +384,7 @@ impl<'a> Parser<'a> {
         &self,
         beg: usize,
         end: usize,
-        restriction: impl Fn(&Syntax) -> bool,
+        restriction: impl Fn(SyntaxT) -> bool,
     ) -> Vec<Handle> //acc
     {
         let pos = self.cursor.borrow().pos();
