@@ -21,6 +21,7 @@
 use crate::headline::{HeadlineData, InlineTaskData, NodePropertyData};
 use crate::list::*;
 // use regex::Regex;
+use crate::affiliated::KeywordData;
 use crate::data::Syntax::BabelCall;
 use crate::table::{TableData, TableRowData};
 use std::cell::Cell;
@@ -259,131 +260,135 @@ pub enum Syntax<'a> {
     PlainText(&'a str),
 }
 
-impl<'a> Syntax<'a> {
+impl SyntaxT {
     #[rustfmt::skip]
-
     pub fn is_greater_element(&self) -> bool {
+        use SyntaxT::*;
         match self {
-            Syntax::CenterBlock             => true,   // Greater element
-            Syntax::Drawer(..)              => true,   // Greater element
-            Syntax::DynamicBlock(..)        => true,   // Greater element
-            Syntax::FootnoteDefinition(..)  => true,   // Greater element
-            Syntax::Headline(..)            => true,   // Greater element
-            Syntax::InlineTask(..)          => true,   // Greater element
-            Syntax::Item(..)                => true,   // Greater element
-            Syntax::PlainList(..)           => true,   // Greater element
-            Syntax::PropertyDrawer           => true,   // Greater element
-            Syntax::QuoteBlock              => true,   // Greater element
-            Syntax::Section                 => true,   // Greater element
-            Syntax::SpecialBlock(..)        => true,   // Greater element
-            Syntax::Table(..)               => true,   // Greater element
-            _                               => false
+            CenterBlock        => true,   // Greater element
+            Drawer             => true,   // Greater element
+            DynamicBlock       => true,   // Greater element
+            FootnoteDefinition => true,   // Greater element
+            Headline           => true,   // Greater element
+            InlineTask         => true,   // Greater element
+            Item               => true,   // Greater element
+            PlainList          => true,   // Greater element
+            PropertyDrawer     => true,   // Greater element
+            QuoteBlock         => true,   // Greater element
+            Section            => true,   // Greater element
+            SpecialBlock       => true,   // Greater element
+            Table              => true,   // Greater element
+            _                  => false
 
         }
     }
 
     #[rustfmt::skip]
     fn is_element(&self) -> bool {
+        use SyntaxT::*;
         match self {
-            Syntax::BabelCall(..)           => true,   // Element
-            Syntax::CenterBlock             => true,   // Greater element
-            Syntax::Clock(..)               => true,   // Element
-            Syntax::Comment(..)             => true,   // Element
-            Syntax::CommentBlock(..)        => true,   // Element
-            Syntax::DiarySexp(..)           => true,   // Element
-            Syntax::Drawer(..)              => true,   // Greater element
-            Syntax::DynamicBlock(..)        => true,   // Greater element
-            Syntax::ExampleBlock(..)        => true,   // Element
-            Syntax::ExportBlock(..)         => true,   // Element
-            Syntax::FixedWidth(..)          => true,   // Element
-            Syntax::FootnoteDefinition(..)  => true,   // Greater element
-            Syntax::Headline(..)            => true,   // Greater element
-            Syntax::HorizontalRule          => true,   // Element
-            Syntax::InlineTask(..)          => true,   // Greater element
-            Syntax::Item(..)                => true,   // Greater element
-            Syntax::Keyword(..)             => true,   // Element
-            Syntax::LatexEnvironment(..)    => true,   // Element
-            Syntax::NodeProperty(..)        => true,   // Element
-            Syntax::Paragraph               => true,   // Element containing objects.
-            Syntax::PlainList(..)           => true,   // Greater element
-            Syntax::Planning(..)            => true,   // Element
-            Syntax::PropertyDrawer          => true,   // Greater element
-            Syntax::QuoteBlock              => true,   // Greater element
-            Syntax::Section                 => true,   // Greater element
-            Syntax::SpecialBlock(..)        => true,   // Greater element
-            Syntax::SrcBlock(..)            => true,   // Element
-            Syntax::Table(..)               => true,   // Greater element
-            Syntax::TableRow(..)            => true,   // Element containing objects.
-            Syntax::VerseBlock              => true,   // Element containing objects.
-            _                               => false
+            BabelCall          => true,   // Element
+            CenterBlock        => true,   // Greater element
+            Clock              => true,   // Element
+            Comment            => true,   // Element
+            CommentBlock       => true,   // Element
+            DiarySexp          => true,   // Element
+            Drawer             => true,   // Greater element
+            DynamicBlock       => true,   // Greater element
+            ExampleBlock       => true,   // Element
+            ExportBlock        => true,   // Element
+            FixedWidth         => true,   // Element
+            FootnoteDefinition => true,   // Greater element
+            Headline           => true,   // Greater element
+            HorizontalRule     => true,   // Element
+            InlineTask         => true,   // Greater element
+            Item               => true,   // Greater element
+            Keyword            => true,   // Element
+            LatexEnvironment   => true,   // Element
+            NodeProperty       => true,   // Element
+            Paragraph          => true,   // Element containing objects.
+            PlainList          => true,   // Greater element
+            Planning           => true,   // Element
+            PropertyDrawer     => true,   // Greater element
+            QuoteBlock         => true,   // Greater element
+            Section            => true,   // Greater element
+            SpecialBlock       => true,   // Greater element
+            SrcBlock           => true,   // Element
+            Table              => true,   // Greater element
+            TableRow           => true,   // Element containing objects.
+            VerseBlock         => true,   // Element containing objects.
+            _                  => false
 
         }
     }
 
     #[rustfmt::skip]
     fn is_object(&self) -> bool {
+        use SyntaxT::*;
         match self {
-            Syntax::Bold                    => true,  // Recursive object
-            Syntax::Code(..)                => true,  // Object.
-            Syntax::Entity(..)              => true,  // Object
-            Syntax::ExportSnippet(..)       => true,  // Object
-            Syntax::FootnoteReference(..)   => true,  // Recursive object.
-            Syntax::InlineBabelCall(..)     => true,  // Object
-            Syntax::InlineSrcBlock(..)      => true,  // Object
-            Syntax::Italic                  => true,  // Recursive object.
-            Syntax::LineBreak               => true,  // Object
-            Syntax::LatexFragment(..)       => true,  // Object
-            Syntax::Link(..)                => true,  // Recursive object.
-            Syntax::Macro(..)               => true,  // Object
-            Syntax::RadioTarget(..)         => true,  // Recursive object.
-            Syntax::StatisticsCookie(..)    => true,  // Object
-            Syntax::StrikeThrough           => true,  // Recursive object.
-            Syntax::Subscript(..)           => true,  // Recursive object.
-            Syntax::Superscript(..)         => true,  // Recursive object.
-            Syntax::TableCell               => true,  // Recursive object
-            Syntax::Target(..)              => true,  // Object
-            Syntax::Timestamp(..)           => true,  // Object
-            Syntax::Underline               => true,  // Recursive object.
-            Syntax::Verbatim(..)            => true,  // Object
-            Syntax::PlainText(..)           => true,  // Special object
-            _                               => false
+            Bold              => true,  // Recursive object
+            Code              => true,  // Object.
+            Entity            => true,  // Object
+            ExportSnippet     => true,  // Object
+            FootnoteReference => true,  // Recursive object.
+            InlineBabelCall   => true,  // Object
+            InlineSrcBlock    => true,  // Object
+            Italic            => true,  // Recursive object.
+            LineBreak         => true,  // Object
+            LatexFragment     => true,  // Object
+            Link              => true,  // Recursive object.
+            Macro             => true,  // Object
+            RadioTarget       => true,  // Recursive object.
+            StatisticsCookie  => true,  // Object
+            StrikeThrough     => true,  // Recursive object.
+            Subscript         => true,  // Recursive object.
+            Superscript       => true,  // Recursive object.
+            TableCell         => true,  // Recursive object
+            Target            => true,  // Object
+            Timestamp         => true,  // Object
+            Underline         => true,  // Recursive object.
+            Verbatim          => true,  // Object
+            PlainText         => true,  // Special object
+            _                 => false
         }
     }
 
     #[rustfmt::skip]
     fn is_recursive_object(&self) -> bool {
+        use SyntaxT::*;
         match self {
-            Syntax::Bold                    => true,  // Recursive object
-            Syntax::FootnoteReference(..)   => true,  // Recursive object.
-            Syntax::Italic                  => true,  // Recursive object.
-            Syntax::Link(..)                => true,  // Recursive object.
-            Syntax::RadioTarget(..)         => true,  // Recursive object.
-            Syntax::StrikeThrough           => true,  // Recursive object.
-            Syntax::Subscript(..)           => true,  // Recursive object.
-            Syntax::Superscript(..)         => true,  // Recursive object.
-            Syntax::TableCell               => true,  // Recursive object
-            Syntax::Underline               => true,  // Recursive object.
-            _                               => false
+            Bold              => true,  // Recursive object
+            FootnoteReference => true,  // Recursive object.
+            Italic            => true,  // Recursive object.
+            Link              => true,  // Recursive object.
+            RadioTarget       => true,  // Recursive object.
+            StrikeThrough     => true,  // Recursive object.
+            Subscript         => true,  // Recursive object.
+            Superscript       => true,  // Recursive object.
+            TableCell         => true,  // Recursive object
+            Underline         => true,  // Recursive object.
+            _                 => false
         }
     }
 
     #[rustfmt::skip]
     fn is_object_container(&self) -> bool {
+        use SyntaxT::*;
         match self {
-            Syntax::Paragraph               => true,  // Element containing objects.
-            Syntax::TableRow(..)            => true,  // Element containing objects.
-            Syntax::VerseBlock              => true,  // Element containing objects.
-            Syntax::Bold                    => true,  // Recursive object
-            Syntax::FootnoteReference(..)   => true,  // Recursive object.
-            Syntax::Italic                  => true,  // Recursive object.
-            Syntax::Link(..)                => true,  // Recursive object.
-            Syntax::RadioTarget(..)         => true,  // Recursive object.
-            Syntax::StrikeThrough           => true,  // Recursive object.
-            Syntax::Subscript(..)           => true,  // Recursive object.
-            Syntax::Superscript(..)         => true,  // Recursive object.
-            Syntax::TableCell               => true,  // Recursive object
-            Syntax::Underline               => true,  // Recursive object.
-            _                               => false
+            Paragraph         => true,  // Element containing objects.
+            TableRow          => true,  // Element containing objects.
+            VerseBlock        => true,  // Element containing objects.
+            Bold              => true,  // Recursive object
+            FootnoteReference => true,  // Recursive object.
+            Italic            => true,  // Recursive object.
+            Link              => true,  // Recursive object.
+            RadioTarget       => true,  // Recursive object.
+            StrikeThrough     => true,  // Recursive object.
+            Subscript         => true,  // Recursive object.
+            Superscript       => true,  // Recursive object.
+            TableCell         => true,  // Recursive object
+            Underline         => true,  // Recursive object.
+            _                 => false
         }
     }
 
@@ -403,24 +408,25 @@ impl<'a> Syntax<'a> {
     /// This alist also applies to secondary string.  For example, an
     /// `headline' type element doesn't directly contain objects, but
     /// still has an entry since one of its properties (`:title') does.")
-    pub fn can_contain(&self, that: &Syntax) -> bool {
+    pub fn can_contain(&self, that: SyntaxT) -> bool {
         // (standard-set (remq 'table-cell org-element-all-objects))
-        fn is_from_standard_set(that: &Syntax) -> bool {
+        fn is_from_standard_set(that: SyntaxT) -> bool {
             match that {
-                Syntax::TableCell => false,
+                SyntaxT::TableCell => false,
                 x if x.is_object() => true,
                 _ => false,
             }
         }
 
         /// (standard-set-no-line-break (remq 'line-break standard-set)))
-        fn is_from_standard_set_no_line_break(that: &Syntax) -> bool {
+        fn is_from_standard_set_no_line_break(that: SyntaxT) -> bool {
             match that {
-                Syntax::LineBreak => false,
+                SyntaxT::LineBreak => false,
                 x => is_from_standard_set(x),
             }
         }
 
+        use SyntaxT::*;
         match self {
             // ((bold ,@standard-set)
             // (italic ,@standard-set)
@@ -431,26 +437,17 @@ impl<'a> Syntax<'a> {
             // (superscript ,@standard-set)
             //(verse-block ,@standard-set)))
             //(underline ,@standard-set)
-            Syntax::Bold
-            | Syntax::Italic
-            | Syntax::FootnoteReference(..)
-            | Syntax::Paragraph
-            | Syntax::StrikeThrough
-            | Syntax::Subscript(..)
-            | Syntax::Superscript(..)
-            | Syntax::Underline
-            | Syntax::VerseBlock => is_from_standard_set(that),
+            Bold | Italic | FootnoteReference | Paragraph | StrikeThrough | Subscript
+            | Superscript | Underline | VerseBlock => is_from_standard_set(that),
 
             // (headline ,@standard-set-no-line-break)
             // (inlinetask ,@standard-set-no-line-break)
             // (item ,@standard-set-no-line-break)
-            Syntax::Headline(..) | Syntax::InlineTask(..) | Syntax::Item(..) => {
-                is_from_standard_set_no_line_break(that)
-            }
+            Headline | InlineTask | Item => is_from_standard_set_no_line_break(that),
 
             // (keyword ,@(remq 'footnote-reference standard-set))
-            Syntax::Keyword(..) => match that {
-                Syntax::FootnoteReference(..) => false,
+            Keyword => match that {
+                FootnoteReference => false,
                 x => is_from_standard_set(x),
             },
 
@@ -461,22 +458,10 @@ impl<'a> Syntax<'a> {
             //       latex-fragment macro statistics-cookie
             //       strike-through subscript superscript
             //       underline verbatim)
-            Syntax::Link(..) => match that {
-                Syntax::Bold
-                | Syntax::Code(..)
-                | Syntax::Entity(..)
-                | Syntax::ExportSnippet(..)
-                | Syntax::InlineBabelCall(..)
-                | Syntax::InlineSrcBlock(..)
-                | Syntax::Italic
-                | Syntax::LatexFragment(..)
-                | Syntax::Macro(..)
-                | Syntax::StatisticsCookie(..)
-                | Syntax::StrikeThrough
-                | Syntax::Subscript(..)
-                | Syntax::Superscript(..)
-                | Syntax::Underline
-                | Syntax::Verbatim(..) => true,
+            Link => match that {
+                Bold | Code | Entity | ExportSnippet | InlineBabelCall | InlineSrcBlock
+                | Italic | LatexFragment | Macro | StatisticsCookie | StrikeThrough | Subscript
+                | Superscript | Underline | Verbatim => true,
                 _ => false,
             },
 
@@ -485,16 +470,9 @@ impl<'a> Syntax<'a> {
             // (radio-target bold code entity italic
             //               latex-fragment strike-through
             //               subscript superscript underline)
-            Syntax::RadioTarget(..) => match that {
-                Syntax::Bold
-                | Syntax::Code(..)
-                | Syntax::Entity(..)
-                | Syntax::Italic
-                | Syntax::LatexFragment(..)
-                | Syntax::StrikeThrough
-                | Syntax::Subscript(..)
-                | Syntax::Superscript(..)
-                | Syntax::Underline => true,
+            RadioTarget => match that {
+                Bold | Code | Entity | Italic | LatexFragment | StrikeThrough | Subscript
+                | Superscript | Underline => true,
                 _ => false,
             },
 
@@ -504,30 +482,16 @@ impl<'a> Syntax<'a> {
             // (table-cell bold code entity export-snippet footnote-reference italic
             //             latex-fragment link macro radio-target strike-through
             //             subscript superscript target timestamp underline verbatim)
-            Syntax::TableCell => match that {
-                Syntax::Bold
-                | Syntax::Code(..)
-                | Syntax::Entity(..)
-                | Syntax::ExportSnippet(..)
-                | Syntax::FootnoteReference(..)
-                | Syntax::Italic
-                | Syntax::LatexFragment(..)
-                | Syntax::Link(..)
-                | Syntax::Macro(..)
-                | Syntax::RadioTarget(..)
-                | Syntax::StrikeThrough
-                | Syntax::Subscript(..)
-                | Syntax::Superscript(..)
-                | Syntax::Target(..)
-                | Syntax::Timestamp(..)
-                | Syntax::Underline
-                | Syntax::Verbatim(..) => true,
+            TableCell => match that {
+                Bold | Code | Entity | ExportSnippet | FootnoteReference | Italic
+                | LatexFragment | Link | Macro | RadioTarget | StrikeThrough | Subscript
+                | Superscript | Target | Timestamp | Underline | Verbatim => true,
                 _ => false,
             },
 
             //(table-row table-cell)
-            Syntax::TableRow(..) => match that {
-                Syntax::TableCell => true,
+            TableRow => match that {
+                TableCell => true,
                 _ => false,
             },
 
@@ -666,13 +630,6 @@ pub struct FootnoteDefinitionData<'a> {
     /// beginning of the footnoote and the beginning
     /// of the contents (0, 1 or 2).
     pre_blank: u8,
-}
-
-pub struct KeywordData<'a> {
-    /// Keyword's name (string).
-    key: &'a str,
-    /// Keyword's value (string).
-    value: &'a str,
 }
 
 pub struct LatexEnvironmentData<'a> {
@@ -1023,23 +980,25 @@ pub struct VerbatimData<'a> {
 
 mod test {
 
-    use crate::data::Syntax;
+    use crate::data::SyntaxT;
+    use crate::data::SyntaxT::*;
 
     #[test]
     fn can_contain() {
-        let bold = Syntax::Bold;
-        let br = Syntax::LineBreak;
-        let verse = Syntax::VerseBlock;
+        let bold = Bold;
+        let br = LineBreak;
+        let verse = VerseBlock;
 
-        fn closure_test(that: &Syntax, restriction: impl Fn(&Syntax) -> bool) -> bool {
+        fn closure_test(that: SyntaxT, restriction: impl Fn(SyntaxT) -> bool) -> bool {
             restriction(that)
         }
 
-        // TODO find out a way to satisfy grumpy borrow checker and have can_contain method return a lambda and do not get a brain damage from lifetimes
-        assert!(!bold.can_contain(&Syntax::VerseBlock));
-        assert!(bold.can_contain(&Syntax::LineBreak));
-        assert!(closure_test(&br, |that| bold.can_contain(that)));
-        assert!(!closure_test(&verse, |that| bold.can_contain(that)));
+        // TODO find out a way to satisfy grumpy borrow checker and have can_contain method return
+        // a lambda and do not get a brain damage from lifetimes
+        assert!(!bold.can_contain(VerseBlock));
+        assert!(bold.can_contain(LineBreak));
+        assert!(closure_test(br, |that| bold.can_contain(that)));
+        assert!(!closure_test(verse, |that| bold.can_contain(that)));
     }
 
 }
