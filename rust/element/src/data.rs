@@ -28,13 +28,18 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::rc::Weak;
-use xi_rope::Interval;
 
 /// Reference to a DOM node.
 pub type Handle<'a> = Rc<SyntaxNode<'a>>;
 
 /// Weak reference to a DOM node, used for parent pointers.
 pub type WeakHandle<'a> = Weak<SyntaxNode<'a>>;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Interval {
+    pub start: usize,
+    pub end: usize,
+}
 
 /// ParseTree node.
 /// https://orgmode.org/worg/dev/org-element-api.html#attributes
@@ -981,13 +986,12 @@ pub struct VerbatimData<'a> {
 mod test {
 
     use crate::data::SyntaxT;
-    use crate::data::SyntaxT::*;
 
     #[test]
     fn can_contain() {
-        let bold = Bold;
-        let br = LineBreak;
-        let verse = VerseBlock;
+        let bold = SyntaxT::Bold;
+        let br = SyntaxT::LineBreak;
+        let verse = SyntaxT::VerseBlock;
 
         fn closure_test(that: SyntaxT, restriction: impl Fn(SyntaxT) -> bool) -> bool {
             restriction(that)
@@ -995,8 +999,8 @@ mod test {
 
         // TODO find out a way to satisfy grumpy borrow checker and have can_contain method return
         // a lambda and do not get a brain damage from lifetimes
-        assert!(!bold.can_contain(VerseBlock));
-        assert!(bold.can_contain(LineBreak));
+        assert!(!bold.can_contain(SyntaxT::VerseBlock));
+        assert!(bold.can_contain(SyntaxT::LineBreak));
         assert!(closure_test(br, |that| bold.can_contain(that)));
         assert!(!closure_test(verse, |that| bold.can_contain(that)));
     }

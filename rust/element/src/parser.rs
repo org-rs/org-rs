@@ -13,7 +13,12 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::cursor::CursorHelper;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use regex::Regex;
+
+use crate::cursor::{Cursor, CursorHelper};
 use crate::data::Handle;
 use crate::data::SyntaxT;
 use crate::data::{Syntax, SyntaxNode};
@@ -21,16 +26,7 @@ use crate::headline::REGEX_CLOCK_LINE;
 use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
 use crate::headline::REGEX_PROPERTY_DRAWER;
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use xi_rope::Cursor;
-use xi_rope::LinesMetric;
-use xi_rope::RopeInfo;
-// use crate::data::TimestampType::Active;
 use crate::list::*;
-use regex::Regex;
-use xi_rope::tree::Node;
 
 /// determines the depth of the recursion.
 #[derive(PartialEq)]
@@ -61,13 +57,13 @@ pub enum ParserMode {
 }
 
 pub struct Parser<'a> {
-    pub cursor: RefCell<Cursor<'a, RopeInfo>>,
-    pub input: &'a Node<RopeInfo>,
+    pub cursor: RefCell<Cursor<'a>>,
+    pub input: &'a str,
     pub granularity: ParseGranularity,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(input: &'a Node<RopeInfo>, granularity: ParseGranularity) -> Parser {
+    pub fn new(input: &'a str, granularity: ParseGranularity) -> Parser {
         Parser {
             cursor: RefCell::new(Cursor::new(input, 0)),
             input,

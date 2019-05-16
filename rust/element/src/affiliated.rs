@@ -116,9 +116,11 @@ impl Keywords {
         use std::mem;
         use Keywords::*;
         match self {
-            DATA | LABEL | RESNAME | SOURCE | SRCNAME | TBLNAME => drop(mem::replace(self, NAME)),
-            RESULT => drop(mem::replace(self, RESULTS)),
-            HEADERS => drop(mem::replace(self, HEADER)),
+            DATA | LABEL | RESNAME | SOURCE | SRCNAME | TBLNAME => {
+                drop(mem::replace(self, Keywords::NAME))
+            }
+            RESULT => drop(mem::replace(self, Keywords::RESULTS)),
+            HEADERS => drop(mem::replace(self, Keywords::HEADER)),
             _ => (),
         };
     }

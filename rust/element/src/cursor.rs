@@ -15,11 +15,149 @@
 
 use crate::headline::REGEX_HEADLINE_SHORT;
 use regex::Regex;
-use xi_rope::find::find;
-use xi_rope::find::CaseMatching::CaseInsensitive;
-use xi_rope::Cursor;
-use xi_rope::LinesMetric;
-use xi_rope::RopeInfo;
+
+use memchr::{memchr, memrchr};
+
+pub trait Metric {
+    fn is_boundary(s: &str, offset: usize) -> bool;
+    fn prev(s: &str, offset: usize) -> Option<usize>;
+    fn next(s: &str, offset: usize) -> Option<usize>;
+}
+
+pub struct BaseMetric(());
+pub struct LinesMetric(());
+
+impl Metric for BaseMetric {
+    fn is_boundary(s: &str, offset: usize) -> bool {
+        s.is_char_boundary(offset)
+    }
+
+    fn prev(s: &str, offset: usize) -> Option<usize> {
+        if offset == 0 {
+            None
+        } else {
+            let mut len = 1;
+            while !s.is_char_boundary(offset - len) {
+                len += 1;
+            }
+            Some(offset - len)
+        }
+    }
+
+    fn next(s: &str, offset: usize) -> Option<usize> {
+        if offset == s.len() {
+            None
+        } else {
+            let b = s.as_bytes()[offset];
+            Some(offset + len_utf8_from_first_byte(b))
+        }
+    }
+}
+
+impl Metric for LinesMetric {
+    fn is_boundary(s: &str, offset: usize) -> bool {
+        if offset == 0 {
+            // shouldn't be called with this, but be defensive
+            false
+        } else {
+            s.as_bytes()[offset - 1] == b'\n'
+        }
+    }
+
+    fn prev(s: &str, offset: usize) -> Option<usize> {
+        debug_assert!(offset > 0, "caller is responsible for validating input");
+        memrchr(b'\n', &s.as_bytes()[..offset - 1]).map(|pos| pos + 1)
+    }
+
+    fn next(s: &str, offset: usize) -> Option<usize> {
+        memchr(b'\n', &s.as_bytes()[offset..]).map(|pos| offset + pos + 1)
+    }
+}
+
+// pub trait Cursor<T> {
+//     fn set(&mut self, pos: usize);
+//     fn pos(&self) -> usize;
+//
+//     fn get_next_char(&mut self) -> Option<char>;
+//     fn get_prev_char(&mut self) -> Option<char>;
+//
+//     fn next<M: Metric>(&mut self) -> Option<usize>;
+//     fn prev<M: Metric>(&mut self) -> Option<usize>;
+//
+//     fn at_or_next<Metric>(&mut self) -> Option<usize>;
+//     fn at_or_prev<Metric>(&mut self) -> Option<usize>;
+//
+//     fn data(&self) -> T;
+// }
+
+pub struct Cursor<'a> {
+    data: &'a str,
+    pos: usize,
+}
+
+impl<'a> Cursor<'a> {
+    pub fn new(data: &'a str, pos: usize) -> Cursor<'a> {
+        Cursor {
+            data: data,
+            pos: pos,
+        }
+    }
+
+    pub fn set(&mut self, pos: usize) {
+        self.pos = pos;
+    }
+
+    pub fn pos(&self) -> usize {
+        self.pos
+    }
+
+    /// Get next codepoint after cursor position, and advance cursor.
+    pub fn get_next_char(&mut self) -> Option<char> {
+        let pos = self.pos;
+        if let Some(offset) = self.next::<BaseMetric>() {
+            self.pos = offset;
+            self.data[pos..].chars().next()
+        } else {
+            None
+        }
+    }
+
+    /// Get previous codepoint before cursor position, and advance cursor backwards.
+    pub fn get_prev_char(&mut self) -> Option<char> {
+        if let Some(offset) = self.prev::<BaseMetric>() {
+            self.pos = offset;
+            self.data[offset..].chars().next()
+        } else {
+            None
+        }
+    }
+
+    pub fn next<M: Metric>(&mut self) -> Option<usize> {
+        if let Some(offset) = M::next(self.data, self.pos) {
+            self.pos = offset;
+            Some(offset)
+        } else {
+            None
+        }
+    }
+
+    pub fn prev<M: Metric>(&mut self) -> Option<usize> {
+        if let Some(offset) = M::prev(self.data, self.pos) {
+            self.pos = offset;
+            Some(offset)
+        } else {
+            None
+        }
+    }
+
+    pub fn at_or_next<Metric>(&mut self) -> Option<usize> {
+        unimplemented!()
+    }
+
+    pub fn at_or_prev<Metric>(&mut self) -> Option<usize> {
+        unimplemented!()
+    }
+}
 
 /// Handy things for cursor
 pub trait CursorHelper {
@@ -76,14 +214,15 @@ pub trait CursorHelper {
     fn is_bol(&self) -> bool;
 }
 
-impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
+// Implementation for xi-rope
+impl<'a> CursorHelper for Cursor<'a> {
     fn skip_whitespace(&mut self) -> usize {
-        while let Some(c) = self.next_codepoint() {
+        while let Some(c) = self.get_next_char() {
             if !(c.is_whitespace()) {
-                self.prev_codepoint();
+                self.get_prev_char();
                 break;
             } else {
-                self.next_codepoint();
+                self.get_next_char();
             }
         }
         self.pos()
@@ -100,8 +239,8 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
         let res = self.next::<LinesMetric>();
         match res {
             None => {
-                self.set(self.root().len());
-                self.root().len()
+                self.set(self.data.len());
+                self.data.len()
             }
             Some(x) => x,
         }
@@ -158,46 +297,48 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
     fn char_after(&mut self, offset: usize) -> Option<char> {
         let pos = self.pos();
         self.set(offset);
-        let result = self.next_codepoint();
+        let result = self.get_next_char();
         self.set(pos);
         return result;
     }
 
     fn looking_at(&mut self, r: &Regex) -> bool {
-        let pos = self.pos();
-        let mut lines = self.root().lines_raw(self.pos()..);
-        let result = xi_rope::find::compare_cursor_regex(self, &mut lines, r.as_str(), r);
-        self.set(pos);
-        return result.is_some();
+        unimplemented!()
+        // let pos = self.pos();
+        // let mut lines = self.root().lines_raw(self.pos()..);
+        // let result = xi_rope::find::compare_cursor_regex(self, &mut lines, r.as_str(), r);
+        // self.set(pos);
+        // return result.is_some();
     }
 
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
     fn next_headline(&mut self) -> Option<(usize)> {
-        let pos = self.pos();
-        let mut raw_lines = self.root().lines_raw(self.pos()..self.root().len());
-        // make sure we don't match current headline
-        raw_lines.next();
-        self.next::<LinesMetric>();
+        unimplemented!()
+        // let pos = self.pos();
+        // let mut raw_lines = self.root().lines_raw(self.pos()..);
+        // // make sure we don't match current headline
+        // raw_lines.next();
+        // self.next::<LinesMetric>();
 
-        let search = find(
-            self,
-            &mut raw_lines,
-            CaseInsensitive,
-            &*REGEX_HEADLINE_SHORT.as_str(),
-            Some(&*REGEX_HEADLINE_SHORT),
-        );
-        match search {
-            None => {
-                self.set(pos);
-                None
-            }
-            Some(begin) => {
-                self.set(begin);
-                Some(begin)
-            }
-        }
+        // let search = find(
+        //     self,
+        //     &mut raw_lines,
+        //     CaseInsensitive,
+        //     &*REGEX_HEADLINE_SHORT.as_str(),
+        //     Some(&*REGEX_HEADLINE_SHORT),
+        // );
+        // match search {
+        //     None => {
+        //         self.set(pos);
+        //         None
+        //     }
+        //     Some(begin) => {
+        //         self.set(begin);
+        //         Some(begin)
+        //     }
+        // }
     }
 
     /// Return true if cursor is on a headline.
@@ -210,30 +351,39 @@ impl<'a> CursorHelper for Cursor<'a, RopeInfo> {
     }
 
     fn is_bol(&self) -> bool {
-        let pos = self.pos();
-        let lofs = self.root().line_of_offset(pos);
-        self.root().offset_of_line(lofs) == pos
+        LinesMetric::is_boundary(self.data, self.pos)
+    }
+}
+
+/// Given the inital byte of a UTF-8 codepoint, returns the number of
+/// bytes required to represent the codepoint.
+/// RFC reference : https://tools.ietf.org/html/rfc3629#section-4
+pub fn len_utf8_from_first_byte(b: u8) -> usize {
+    match b {
+        b if b < 0x80 => 1,
+        b if b < 0xe0 => 2,
+        b if b < 0xf0 => 3,
+        _ => 4,
     }
 }
 
 mod test {
     use std::str::FromStr;
 
-    use xi_rope::find::find;
-    use xi_rope::find::CaseMatching::CaseInsensitive;
-    use xi_rope::LinesMetric;
-    use xi_rope::{Cursor, Rope};
+    use super::Cursor;
+    use super::CursorHelper;
+    use super::LinesMetric;
+    use super::Metric;
 
     use crate::data::Syntax;
     use crate::headline::REGEX_HEADLINE_SHORT;
     use crate::parser::Parser;
 
-    use super::CursorHelper;
     use crate::data::TimestampType::Active;
 
     #[test]
     fn looking_at() {
-        let rope = Rope::from_str("Some text\n**** headline\n").unwrap();
+        let rope = "Some text\n**** headline\n";
         let mut cursor = Cursor::new(&rope, 0);
         assert!(!cursor.looking_at(&*REGEX_HEADLINE_SHORT));
 
@@ -251,7 +401,7 @@ mod test {
 
     #[test]
     fn on_headline() {
-        let rope = Rope::from_str("Some text\n**** headline\n").unwrap();
+        let rope = "Some text\n**** headline\n";
         let mut cursor = Cursor::new(&rope, 0);
 
         assert!(!cursor.on_headline());
@@ -270,13 +420,13 @@ mod test {
 
     #[test]
     fn next_headline() {
-        let rope = Rope::from_str("Some text\n**** headline\n").unwrap();
+        let rope = "Some text\n**** headline\n";
         let mut cursor = Cursor::new(&rope, 0);
 
         assert_eq!(Some(10), cursor.next_headline());
         assert_eq!(10, cursor.pos());
 
-        let rope = Rope::from_str("* First\n** Second\n").unwrap();
+        let rope = "* First\n** Second\n";
         cursor = Cursor::new(&rope, 0);
         assert_eq!(Some(8), cursor.next_headline());
         assert_eq!(8, cursor.pos());
@@ -284,62 +434,59 @@ mod test {
 
     #[test]
     fn skip_whitespaces() {
-        let rope = Rope::from_str(" \n\t\rorg-mode ").unwrap();
+        let rope = " \n\t\rorg-mode ";
         let mut cursor = Cursor::new(&rope, 0);
         cursor.skip_whitespace();
-        assert_eq!(cursor.next_codepoint().unwrap(), 'o');
+        assert_eq!(cursor.get_next_char().unwrap(), 'o');
 
-        let rope2 = Rope::from_str("no_whitespace_for_you!").unwrap();
+        let rope2 = "no_whitespace_for_you!";
         cursor = Cursor::new(&rope2, 0);
         cursor.skip_whitespace();
-        assert_eq!(cursor.next_codepoint().unwrap(), 'n');
+        assert_eq!(cursor.get_next_char().unwrap(), 'n');
 
         // Skipping all the remaining whitespace results in invalid cursor at the end of the rope
-        let rope3 = Rope::from_str(" ").unwrap();
+        let rope3 = " ";
         cursor = Cursor::new(&rope3, 0);
         cursor.skip_whitespace();
-        assert_eq!(None, cursor.next_codepoint());
+        assert_eq!(None, cursor.get_next_char());
     }
 
     #[test]
     fn line_begin() {
-        let rope = Rope::from_str("First line\nSecond line\r\nThird line").unwrap();
+        let rope = "First line\nSecond line\r\nThird line";
         let mut cursor = Cursor::new(&rope, 13);
         assert_eq!(cursor.goto_line_begin(), 11);
-        assert_eq!(cursor.peek_next_codepoint().unwrap(), 'S');
         assert_eq!(cursor.goto_line_begin(), 11);
         assert_eq!(cursor.goto_line_begin(), 11);
-        assert_eq!(cursor.peek_next_codepoint().unwrap(), 'S');
         cursor.set(26);
         assert_eq!(cursor.goto_line_begin(), 24);
         assert!(cursor.is_bol());
-        assert_eq!(cursor.peek_next_codepoint().unwrap(), 'T');
-        assert_eq!(cursor.next_codepoint().unwrap(), 'T');
+        assert_eq!(cursor.get_next_char().unwrap(), 'T');
         assert_eq!(cursor.goto_line_begin(), 24);
-        assert_eq!(cursor.next_codepoint().unwrap(), 'T');
+        assert_eq!(cursor.get_next_char().unwrap(), 'T');
         cursor.set(3);
         assert_eq!(cursor.goto_line_begin(), 0);
-        assert_eq!(cursor.next_codepoint().unwrap(), 'F');
+        assert_eq!(cursor.get_next_char().unwrap(), 'F');
     }
 
     #[test]
     fn prev_line() {
-        let rope = Rope::from_str("First line\nSecond line\r\nThird line\nFour").unwrap();
+        let rope = "First line\nSecond line\r\nThird line\nFour";
         let mut cursor = Cursor::new(&rope, rope.len());
 
         assert_eq!(cursor.goto_prev_line(), 24);
-        assert_eq!(cursor.next_codepoint().unwrap(), 'T');
+        assert_eq!(cursor.get_next_char().unwrap(), 'T');
 
         assert_eq!(cursor.goto_prev_line(), 11);
-        assert_eq!(cursor.next_codepoint().unwrap(), 'S');
+        assert_eq!(cursor.get_next_char().unwrap(), 'S');
 
         assert_eq!(cursor.goto_prev_line(), 0);
-        assert_eq!(cursor.next_codepoint().unwrap(), 'F');
+        assert_eq!(cursor.get_next_char().unwrap(), 'F');
     }
 
     #[test]
     fn line_begin_pos() {
-        let rope = Rope::from_str("One\nTwo\nThi\nFo4\nFiv\nSix\n7en").unwrap();
+        let rope = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
         let mut cursor = Cursor::new(&rope, 13);
 
         assert_eq!(cursor.line_beginning_position(None), 12);
@@ -354,7 +501,7 @@ mod test {
 
     #[test]
     fn is_bol() {
-        let rope = Rope::from_str("One\nTwo\nThi\nFo4\nFiv\nSix\n7en").unwrap();
+        let rope = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
         let mut cursor = Cursor::new(&rope, 0);
         assert!(cursor.is_bol());
         cursor.set(2);
