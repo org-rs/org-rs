@@ -13,6 +13,7 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::headline::REGEX_HEADLINE_MULTILINE;
 use crate::headline::REGEX_HEADLINE_SHORT;
 use regex::Regex;
 
@@ -57,7 +58,6 @@ impl Metric for BaseMetric {
 impl Metric for LinesMetric {
     fn is_boundary(s: &str, offset: usize) -> bool {
         if offset == 0 {
-            // shouldn't be called with this, but be defensive
             false
         } else {
             s.as_bytes()[offset - 1] == b'\n'
@@ -74,22 +74,6 @@ impl Metric for LinesMetric {
     }
 }
 
-// pub trait Cursor<T> {
-//     fn set(&mut self, pos: usize);
-//     fn pos(&self) -> usize;
-//
-//     fn get_next_char(&mut self) -> Option<char>;
-//     fn get_prev_char(&mut self) -> Option<char>;
-//
-//     fn next<M: Metric>(&mut self) -> Option<usize>;
-//     fn prev<M: Metric>(&mut self) -> Option<usize>;
-//
-//     fn at_or_next<Metric>(&mut self) -> Option<usize>;
-//     fn at_or_prev<Metric>(&mut self) -> Option<usize>;
-//
-//     fn data(&self) -> T;
-// }
-
 pub struct Cursor<'a> {
     data: &'a str,
     pos: usize,
@@ -97,10 +81,7 @@ pub struct Cursor<'a> {
 
 impl<'a> Cursor<'a> {
     pub fn new(data: &'a str, pos: usize) -> Cursor<'a> {
-        Cursor {
-            data: data,
-            pos: pos,
-        }
+        Cursor { data, pos }
     }
 
     pub fn set(&mut self, pos: usize) {
@@ -141,6 +122,10 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn is_boundary<M: Metric>(&self) -> bool {
+        M::is_boundary(self.data, self.pos)
+    }
+
     pub fn prev<M: Metric>(&mut self) -> Option<usize> {
         if let Some(offset) = M::prev(self.data, self.pos) {
             self.pos = offset;
@@ -150,12 +135,20 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn at_or_next<Metric>(&mut self) -> Option<usize> {
-        unimplemented!()
+    pub fn at_or_next<M: Metric>(&mut self) -> Option<usize> {
+        if self.is_boundary::<M>() {
+            Some(self.pos())
+        } else {
+            self.next::<M>()
+        }
     }
 
-    pub fn at_or_prev<Metric>(&mut self) -> Option<usize> {
-        unimplemented!()
+    pub fn at_or_prev<M: Metric>(&mut self) -> Option<usize> {
+        if self.is_boundary::<M>() {
+            Some(self.pos())
+        } else {
+            self.prev::<M>()
+        }
     }
 }
 
@@ -193,14 +186,14 @@ pub trait CursorHelper {
 
     /// Checks if current line matches a given regex
     /// This function determines whether the text in
-    /// the current buffer directly following point matches
+    /// the current buffer directly following cursor matches
     /// the regular expression regexp.
     /// “Directly following” means precisely that:
     /// the search is “anchored” and it can succeed only
     /// starting with the first character following point.
     /// The result is true if so, false otherwise.
     /// This function does not move cursor
-    fn looking_at(&mut self, r: &Regex) -> bool;
+    fn looking_at(&self, r: &Regex) -> bool;
 
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
@@ -302,43 +295,24 @@ impl<'a> CursorHelper for Cursor<'a> {
         return result;
     }
 
-    fn looking_at(&mut self, r: &Regex) -> bool {
-        unimplemented!()
-        // let pos = self.pos();
-        // let mut lines = self.root().lines_raw(self.pos()..);
-        // let result = xi_rope::find::compare_cursor_regex(self, &mut lines, r.as_str(), r);
-        // self.set(pos);
-        // return result.is_some();
+    fn looking_at(&self, re: &Regex) -> bool {
+        re.find(&self.data[self.pos..]).is_some()
     }
 
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
     fn next_headline(&mut self) -> Option<(usize)> {
-        unimplemented!()
-        // let pos = self.pos();
-        // let mut raw_lines = self.root().lines_raw(self.pos()..);
-        // // make sure we don't match current headline
-        // raw_lines.next();
-        // self.next::<LinesMetric>();
-
-        // let search = find(
-        //     self,
-        //     &mut raw_lines,
-        //     CaseInsensitive,
-        //     &*REGEX_HEADLINE_SHORT.as_str(),
-        //     Some(&*REGEX_HEADLINE_SHORT),
-        // );
-        // match search {
-        //     None => {
-        //         self.set(pos);
-        //         None
-        //     }
-        //     Some(begin) => {
-        //         self.set(begin);
-        //         Some(begin)
-        //     }
-        // }
+        // make sure we don't match current headline
+        self.next::<LinesMetric>();
+        let beg = self.pos();
+        match REGEX_HEADLINE_MULTILINE.find(&self.data[beg..]) {
+            Some(p) => {
+                self.pos = beg + p.start();
+                Some(beg + p.start())
+            }
+            None => None,
+        }
     }
 
     /// Return true if cursor is on a headline.
@@ -351,7 +325,11 @@ impl<'a> CursorHelper for Cursor<'a> {
     }
 
     fn is_bol(&self) -> bool {
-        LinesMetric::is_boundary(self.data, self.pos)
+        if self.pos == 0 {
+            true
+        } else {
+            LinesMetric::is_boundary(self.data, self.pos)
+        }
     }
 }
 
@@ -367,6 +345,15 @@ pub fn len_utf8_from_first_byte(b: u8) -> usize {
     }
 }
 
+/// Checks if a regular expression can match multiple lines.
+pub fn is_multiline_regex(regex: &str) -> bool {
+    // regex characters that match line breaks
+    // todo: currently multiline mode is ignored
+    let multiline_indicators = vec![r"\n", r"\r", r"[[:space:]]"];
+
+    multiline_indicators.iter().any(|&i| regex.contains(i))
+}
+
 mod test {
     use std::str::FromStr;
 
@@ -379,7 +366,23 @@ mod test {
     use crate::headline::REGEX_HEADLINE_SHORT;
     use crate::parser::Parser;
 
-    use crate::data::TimestampType::Active;
+    use crate::cursor::BaseMetric;
+
+    #[test]
+    fn essetials() {
+        let input = "1234567890\nЗдравствуйте";
+        let mut cursor = Cursor::new(&input, 0);
+        assert_eq!('1', cursor.get_next_char().unwrap());
+        assert_eq!(1, cursor.pos());
+        assert_eq!('2', cursor.get_next_char().unwrap());
+        assert_eq!(2, cursor.pos());
+        assert_eq!(11, cursor.next::<LinesMetric>().unwrap());
+        assert!(cursor.is_boundary::<LinesMetric>());
+        assert_eq!('З', cursor.get_next_char().unwrap());
+        assert_eq!(13, cursor.pos());
+        cursor.set(12);
+        assert!(!cursor.is_boundary::<BaseMetric>());
+    }
 
     #[test]
     fn looking_at() {
@@ -395,6 +398,7 @@ mod test {
         assert!(!cursor.looking_at(&*REGEX_HEADLINE_SHORT));
 
         cursor.set(10);
+
         assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT));
         assert_eq!(10, cursor.pos());
     }
@@ -420,14 +424,14 @@ mod test {
 
     #[test]
     fn next_headline() {
-        let rope = "Some text\n**** headline\n";
-        let mut cursor = Cursor::new(&rope, 0);
+        let string = "Some text\n**** headline\n";
+        let mut cursor = Cursor::new(&string, 0);
 
         assert_eq!(Some(10), cursor.next_headline());
         assert_eq!(10, cursor.pos());
 
-        let rope = "* First\n** Second\n";
-        cursor = Cursor::new(&rope, 0);
+        let string2 = "* First\n** Second\n";
+        cursor = Cursor::new(&string2, 0);
         assert_eq!(Some(8), cursor.next_headline());
         assert_eq!(8, cursor.pos());
     }
