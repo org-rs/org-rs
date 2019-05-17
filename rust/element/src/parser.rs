@@ -304,7 +304,7 @@ impl<'a> Parser<'a> {
                 let maybe_headline_offset = c.line_beginning_position(Some(0));
                 let maybe_star = c.char_after(maybe_headline_offset);
                 let is_prev_line_headline = Some('*') == maybe_star;
-                let is_match_planning = c.looking_at(&*REGEX_PLANNING_LINE);
+                let is_match_planning = c.looking_at(&*REGEX_PLANNING_LINE).is_some();
                 drop(c);
 
                 if mode == Planning && is_prev_line_headline && is_match_planning {
@@ -325,7 +325,7 @@ impl<'a> Parser<'a> {
                 let maybe_star = c.char_after(maybe_headline_offset);
                 let is_prev_line_headline = Some('*') == maybe_star;
 
-                let is_match_property_drawer = c.looking_at(&*REGEX_PROPERTY_DRAWER);
+                let is_match_property_drawer = c.looking_at(&*REGEX_PROPERTY_DRAWER).is_some();
                 drop(c);
 
                 if (mode == Planning || mode == PropertyDrawer)
@@ -345,7 +345,12 @@ impl<'a> Parser<'a> {
 
             // Clock.
             // ((looking-at org-clock-line-re) (org-element-clock-parser limit))
-            if self.cursor.borrow_mut().looking_at(&*REGEX_CLOCK_LINE) {
+            if self
+                .cursor
+                .borrow_mut()
+                .looking_at(&*REGEX_CLOCK_LINE)
+                .is_some()
+            {
                 return self.clock_line_parser(limit);
             }
 

@@ -52,8 +52,8 @@ lazy_static! {
    /// Dual keywords are captured in groups 1 and 2
    /// Regular into group 3 and exported attributes in 4
    ///
-   /// Warning! If youu add more keywords then you must update this regex!
-   /// Original elisp implementation dynamicaly creates this regex based on
+   /// Warning! If you add more keywords then you must update this regex!
+   /// Original elisp implementation dynamically creates this regex based on
    /// definitions lists of dual,regular and attribute keywords.
    /// While this is possible to do in rust, and maybe it will be required in
    /// the future, for now due laziness and lack of time static regex will be used.
@@ -199,11 +199,15 @@ impl<'a> Parser<'a> {
         self.cursor.borrow_mut().pos();
 
         loop {
-            let looking_at_affiliated = self.cursor.borrow_mut().looking_at(&*REGEX_AFFILIATED);
+            let maybe_affiliated = self.cursor.borrow().capturing_at(&*REGEX_AFFILIATED);
             let current_pos = self.cursor.borrow().pos();
-            if current_pos >= limit || !looking_at_affiliated {
+            if current_pos >= limit || maybe_affiliated.is_none() {
                 break;
             }
+            let match_string = maybe_affiliated.expect("Captures are expected here");
+            let raw_kwd = match_string
+                .get(0)
+                .expect("0th match must always be present");
         }
 
         //       (while (and (< (point) limit) (looking-at org-element--affiliated-re))

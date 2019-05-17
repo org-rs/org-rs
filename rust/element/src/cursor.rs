@@ -13,11 +13,13 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::headline::REGEX_HEADLINE_MULTILINE;
-use crate::headline::REGEX_HEADLINE_SHORT;
-use regex::Regex;
+// Parts of the cursor code are shamelessly copied from xi-rope
+// https://github.com/xi-editor/xi-editor/tree/master/rust/rope
 
 use memchr::{memchr, memrchr};
+use regex::{Captures, Match, Regex};
+
+use crate::headline::{REGEX_HEADLINE_MULTILINE, REGEX_HEADLINE_SHORT};
 
 pub trait Metric {
     fn is_boundary(s: &str, offset: usize) -> bool;
@@ -264,8 +266,16 @@ impl<'a> Cursor<'a> {
     /// starting with the first character following point.
     /// The result is true if so, false otherwise.
     /// This function does not move cursor
-    pub fn looking_at(&self, re: &Regex) -> bool {
-        re.find(&self.data[self.pos..]).is_some()
+    /// Use `capturing_at` if you need capture groups.
+    pub fn looking_at(&self, re: &Regex) -> Option<Match<'a>> {
+        re.find(&self.data[self.pos..])
+    }
+
+    /// Acts exactly as `looking_at` but returns Captures
+    /// This is slower than simple regex search so if you don't need
+    /// capture groups use `looking_at` for better performance
+    pub fn capturing_at(&self, re: &Regex) -> Option<Captures<'a>> {
+        re.captures(&self.data[self.pos..])
     }
 
     /// Possibly moves cursor to the beginning of the next headline
@@ -289,7 +299,7 @@ impl<'a> Cursor<'a> {
     pub fn on_headline(&mut self) -> bool {
         let pos = self.pos();
         self.goto_line_begin();
-        let result = self.looking_at(&*REGEX_HEADLINE_SHORT);
+        let result = self.looking_at(&*REGEX_HEADLINE_SHORT).is_some();
         self.set(pos);
         return result;
     }
@@ -325,7 +335,6 @@ pub fn is_multiline_regex(regex: &str) -> bool {
 }
 
 mod test {
-    use std::str::FromStr;
 
     use super::Cursor;
     use super::LinesMetric;
@@ -336,6 +345,7 @@ mod test {
     use crate::parser::Parser;
 
     use crate::cursor::BaseMetric;
+    use regex::Match;
 
     #[test]
     fn essentials() {
@@ -357,18 +367,21 @@ mod test {
     fn looking_at() {
         let rope = "Some text\n**** headline\n";
         let mut cursor = Cursor::new(&rope, 0);
-        assert!(!cursor.looking_at(&*REGEX_HEADLINE_SHORT));
+        assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT).is_none());
 
         cursor.set(4);
-        assert!(!cursor.looking_at(&*REGEX_HEADLINE_SHORT));
+        assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT).is_none());
         assert_eq!(4, cursor.pos());
 
         cursor.set(15);
-        assert!(!cursor.looking_at(&*REGEX_HEADLINE_SHORT));
+        assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT).is_none());
 
         cursor.set(10);
 
-        assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT));
+        let m = cursor.looking_at(&*REGEX_HEADLINE_SHORT).unwrap();
+        assert_eq!(0, m.start());
+        assert_eq!(5, m.end());
+        assert_eq!("**** ", m.as_str());
         assert_eq!(10, cursor.pos());
     }
 
