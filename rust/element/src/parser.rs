@@ -13,7 +13,12 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::cursor::CursorHelper;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use regex::Regex;
+
+use crate::cursor::Cursor;
 use crate::data::Handle;
 use crate::data::SyntaxT;
 use crate::data::{Syntax, SyntaxNode};
@@ -21,16 +26,7 @@ use crate::headline::REGEX_CLOCK_LINE;
 use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
 use crate::headline::REGEX_PROPERTY_DRAWER;
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use xi_rope::Cursor;
-use xi_rope::LinesMetric;
-use xi_rope::RopeInfo;
-// use crate::data::TimestampType::Active;
 use crate::list::*;
-use regex::Regex;
-use xi_rope::tree::Node;
 
 /// determines the depth of the recursion.
 #[derive(PartialEq)]
@@ -61,13 +57,13 @@ pub enum ParserMode {
 }
 
 pub struct Parser<'a> {
-    pub cursor: RefCell<Cursor<'a, RopeInfo>>,
-    pub input: &'a Node<RopeInfo>,
+    pub cursor: RefCell<Cursor<'a>>,
+    pub input: &'a str,
     pub granularity: ParseGranularity,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(input: &'a Node<RopeInfo>, granularity: ParseGranularity) -> Parser {
+    pub fn new(input: &'a str, granularity: ParseGranularity) -> Parser {
         Parser {
             cursor: RefCell::new(Cursor::new(input, 0)),
             input,
@@ -82,25 +78,27 @@ impl<'a> Parser<'a> {
     /// <br>
     /// Original function name: org-element--next-mode
     /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4273
-    /// TODO refactor to SyntaxT
-    fn next_mode(syntax: &Syntax, is_parent: bool) -> Option<ParserMode> {
+    #[rustfmt::skip]
+    fn next_mode(syntax: SyntaxT, is_parent: bool) -> Option<ParserMode> {
+        use SyntaxT::*;
+
         if is_parent {
             match syntax {
-                Syntax::Headline { .. } => Some(ParserMode::Section),
-                Syntax::InlineTask { .. } => Some(ParserMode::Planning),
-                Syntax::PlainList { .. } => Some(ParserMode::Item),
-                Syntax::PropertyDrawer { .. } => Some(ParserMode::NodeProperty),
-                Syntax::Section { .. } => Some(ParserMode::Planning),
-                Syntax::Table { .. } => Some(ParserMode::TableRow),
-                _ => None,
+                Headline      => Some(ParserMode::Section),
+                InlineTask    => Some(ParserMode::Planning),
+                PlainList     => Some(ParserMode::Item),
+                PropertyDrawer=> Some(ParserMode::NodeProperty),
+                Section       => Some(ParserMode::Planning),
+                Table         => Some(ParserMode::TableRow),
+                _             => None,
             }
         } else {
             match syntax {
-                Syntax::Item { .. } => Some(ParserMode::Item),
-                Syntax::NodeProperty { .. } => Some(ParserMode::NodeProperty),
-                Syntax::Planning { .. } => Some(ParserMode::PropertyDrawer),
-                Syntax::TableRow { .. } => Some(ParserMode::TableRow),
-                _ => None,
+                Item         => Some(ParserMode::Item),
+                NodeProperty => Some(ParserMode::NodeProperty),
+                Planning     => Some(ParserMode::PropertyDrawer),
+                TableRow     => Some(ParserMode::TableRow),
+                _            => None,
             }
         }
     }
@@ -188,7 +186,8 @@ impl<'a> Parser<'a> {
 
                         //  Possibly switch to a special mode.
                         // (org-element--next-mode type t)
-                        let new_mode = Parser::next_mode(&element.data, true).unwrap_or(mode);
+                        let new_mode =
+                            Parser::next_mode(SyntaxT::from(&element.data), true).unwrap_or(mode);
 
                         element.children.replace(self.parse_elements(
                             content_location.start,
@@ -213,7 +212,7 @@ impl<'a> Parser<'a> {
                     }
                 }
             }
-            if let Some(m) = Parser::next_mode(&element.data, false) {
+            if let Some(m) = Parser::next_mode(SyntaxT::from(&element.data), false) {
                 mode = m
             }
             elements.push(Rc::new(element));

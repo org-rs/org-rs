@@ -28,13 +28,18 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::rc::Weak;
-use xi_rope::Interval;
 
 /// Reference to a DOM node.
 pub type Handle<'a> = Rc<SyntaxNode<'a>>;
 
 /// Weak reference to a DOM node, used for parent pointers.
 pub type WeakHandle<'a> = Weak<SyntaxNode<'a>>;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Interval {
+    pub start: usize,
+    pub end: usize,
+}
 
 /// ParseTree node.
 /// https://orgmode.org/worg/dev/org-element-api.html#attributes
@@ -262,7 +267,7 @@ pub enum Syntax<'a> {
 
 impl SyntaxT {
     #[rustfmt::skip]
-    pub fn is_greater_element(&self) -> bool {
+    pub fn is_greater_element(self) -> bool {
         use SyntaxT::*;
         match self {
             CenterBlock        => true,   // Greater element
@@ -284,7 +289,7 @@ impl SyntaxT {
     }
 
     #[rustfmt::skip]
-    fn is_element(&self) -> bool {
+    fn is_element(self) -> bool {
         use SyntaxT::*;
         match self {
             BabelCall          => true,   // Element
@@ -323,7 +328,7 @@ impl SyntaxT {
     }
 
     #[rustfmt::skip]
-    fn is_object(&self) -> bool {
+    fn is_object(self) -> bool {
         use SyntaxT::*;
         match self {
             Bold              => true,  // Recursive object
@@ -354,7 +359,7 @@ impl SyntaxT {
     }
 
     #[rustfmt::skip]
-    fn is_recursive_object(&self) -> bool {
+    fn is_recursive_object(self) -> bool {
         use SyntaxT::*;
         match self {
             Bold              => true,  // Recursive object
@@ -372,7 +377,7 @@ impl SyntaxT {
     }
 
     #[rustfmt::skip]
-    fn is_object_container(&self) -> bool {
+    fn is_object_container(self) -> bool {
         use SyntaxT::*;
         match self {
             Paragraph         => true,  // Element containing objects.
@@ -392,7 +397,7 @@ impl SyntaxT {
         }
     }
 
-    fn is_container(&self) -> bool {
+    fn is_container(self) -> bool {
         self.is_greater_element() || self.is_object_container()
     }
 
@@ -408,7 +413,7 @@ impl SyntaxT {
     /// This alist also applies to secondary string.  For example, an
     /// `headline' type element doesn't directly contain objects, but
     /// still has an entry since one of its properties (`:title') does.")
-    pub fn can_contain(&self, that: SyntaxT) -> bool {
+    pub fn can_contain(self, that: SyntaxT) -> bool {
         // (standard-set (remq 'table-cell org-element-all-objects))
         fn is_from_standard_set(that: SyntaxT) -> bool {
             match that {
@@ -981,13 +986,12 @@ pub struct VerbatimData<'a> {
 mod test {
 
     use crate::data::SyntaxT;
-    use crate::data::SyntaxT::*;
 
     #[test]
     fn can_contain() {
-        let bold = Bold;
-        let br = LineBreak;
-        let verse = VerseBlock;
+        let bold = SyntaxT::Bold;
+        let br = SyntaxT::LineBreak;
+        let verse = SyntaxT::VerseBlock;
 
         fn closure_test(that: SyntaxT, restriction: impl Fn(SyntaxT) -> bool) -> bool {
             restriction(that)
@@ -995,8 +999,8 @@ mod test {
 
         // TODO find out a way to satisfy grumpy borrow checker and have can_contain method return
         // a lambda and do not get a brain damage from lifetimes
-        assert!(!bold.can_contain(VerseBlock));
-        assert!(bold.can_contain(LineBreak));
+        assert!(!bold.can_contain(SyntaxT::VerseBlock));
+        assert!(bold.can_contain(SyntaxT::LineBreak));
         assert!(closure_test(br, |that| bold.can_contain(that)));
         assert!(!closure_test(verse, |that| bold.can_contain(that)));
     }
