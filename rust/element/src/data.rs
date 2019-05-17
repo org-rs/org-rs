@@ -267,7 +267,7 @@ pub enum Syntax<'a> {
 
 impl SyntaxT {
     #[rustfmt::skip]
-    pub fn is_greater_element(&self) -> bool {
+    pub fn is_greater_element(self) -> bool {
         use SyntaxT::*;
         match self {
             CenterBlock        => true,   // Greater element
@@ -289,7 +289,7 @@ impl SyntaxT {
     }
 
     #[rustfmt::skip]
-    fn is_element(&self) -> bool {
+    fn is_element(self) -> bool {
         use SyntaxT::*;
         match self {
             BabelCall          => true,   // Element
@@ -328,7 +328,7 @@ impl SyntaxT {
     }
 
     #[rustfmt::skip]
-    fn is_object(&self) -> bool {
+    fn is_object(self) -> bool {
         use SyntaxT::*;
         match self {
             Bold              => true,  // Recursive object
@@ -359,7 +359,7 @@ impl SyntaxT {
     }
 
     #[rustfmt::skip]
-    fn is_recursive_object(&self) -> bool {
+    fn is_recursive_object(self) -> bool {
         use SyntaxT::*;
         match self {
             Bold              => true,  // Recursive object
@@ -377,7 +377,7 @@ impl SyntaxT {
     }
 
     #[rustfmt::skip]
-    fn is_object_container(&self) -> bool {
+    fn is_object_container(self) -> bool {
         use SyntaxT::*;
         match self {
             Paragraph         => true,  // Element containing objects.
@@ -397,7 +397,7 @@ impl SyntaxT {
         }
     }
 
-    fn is_container(&self) -> bool {
+    fn is_container(self) -> bool {
         self.is_greater_element() || self.is_object_container()
     }
 
@@ -413,7 +413,7 @@ impl SyntaxT {
     /// This alist also applies to secondary string.  For example, an
     /// `headline' type element doesn't directly contain objects, but
     /// still has an entry since one of its properties (`:title') does.")
-    pub fn can_contain(&self, that: SyntaxT) -> bool {
+    pub fn can_contain(self, that: SyntaxT) -> bool {
         // (standard-set (remq 'table-cell org-element-all-objects))
         fn is_from_standard_set(that: SyntaxT) -> bool {
             match that {

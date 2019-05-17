@@ -26,7 +26,6 @@ pub trait Metric {
 }
 
 pub struct BaseMetric(());
-pub struct LinesMetric(());
 
 impl Metric for BaseMetric {
     fn is_boundary(s: &str, offset: usize) -> bool {
@@ -55,6 +54,7 @@ impl Metric for BaseMetric {
     }
 }
 
+pub struct LinesMetric(());
 impl Metric for LinesMetric {
     fn is_boundary(s: &str, offset: usize) -> bool {
         if offset == 0 {
@@ -150,66 +150,10 @@ impl<'a> Cursor<'a> {
             self.prev::<M>()
         }
     }
-}
 
-/// Handy things for cursor
-pub trait CursorHelper {
     /// Skip over space, tabs and newline characters
     /// Cursor position is set before next non-whitespace char
-    fn skip_whitespace(&mut self) -> usize;
-
-    /// Moves cursor to the beginning of the current line.
-    /// Acts like "Home" button
-    /// If cursor is already at the beginning of the line - nothing happens
-    /// Returns the position of the cursor
-    fn goto_line_begin(&mut self) -> usize;
-
-    /// Moves cursor to the beginning of the next line. If there is no next line
-    /// cursor position is set to len() of the rope
-    fn goto_next_line(&mut self) -> usize;
-
-    /// Moves cursor to the beginning of the previous line.
-    /// If there is no previous line then cursor position
-    /// is set the beginning of the rope - 0
-    fn goto_prev_line(&mut self) -> usize;
-
-    /// corresponds to `line-beginning-position` in elisp
-    /// Return the character position of the first character on the current line.
-    /// If N is none then acts as `goto_line_begin`
-    /// Otherwise moves forward N - 1 lines first.
-    /// with N < 1 cursor will move to previous lines
-    ///
-    /// This function does not move the cursor (does save-excursion)
-    fn line_beginning_position(&mut self, n: Option<i32>) -> usize;
-
-    fn char_after(&mut self, offset: usize) -> Option<char>;
-
-    /// Checks if current line matches a given regex
-    /// This function determines whether the text in
-    /// the current buffer directly following cursor matches
-    /// the regular expression regexp.
-    /// “Directly following” means precisely that:
-    /// the search is “anchored” and it can succeed only
-    /// starting with the first character following point.
-    /// The result is true if so, false otherwise.
-    /// This function does not move cursor
-    fn looking_at(&self, r: &Regex) -> bool;
-
-    /// Possibly moves cursor to the beginning of the next headline
-    /// corresponds to `outline-next-heading` in emacs
-    /// If next headline is found returns it's start position
-    fn next_headline(&mut self) -> Option<(usize)>;
-
-    /// Return true if cursor is on a headline.
-    /// corresponds to `org-at-heading-p`
-    fn on_headline(&mut self) -> bool;
-
-    fn is_bol(&self) -> bool;
-}
-
-// Implementation for xi-rope
-impl<'a> CursorHelper for Cursor<'a> {
-    fn skip_whitespace(&mut self) -> usize {
+    pub fn skip_whitespace(&mut self) -> usize {
         while let Some(c) = self.get_next_char() {
             if !(c.is_whitespace()) {
                 self.get_prev_char();
@@ -221,14 +165,20 @@ impl<'a> CursorHelper for Cursor<'a> {
         self.pos()
     }
 
-    fn goto_line_begin(&mut self) -> usize {
+    /// Moves cursor to the beginning of the current line.
+    /// Acts like "Home" button
+    /// If cursor is already at the beginning of the line - nothing happens
+    /// Returns the position of the cursor
+    pub fn goto_line_begin(&mut self) -> usize {
         if self.pos() != 0 && self.at_or_prev::<LinesMetric>().is_none() {
             self.set(0);
         }
         self.pos()
     }
 
-    fn goto_next_line(&mut self) -> usize {
+    /// Moves cursor to the beginning of the next line. If there is no next line
+    /// cursor position is set to len() of the rope
+    pub fn goto_next_line(&mut self) -> usize {
         let res = self.next::<LinesMetric>();
         match res {
             None => {
@@ -239,7 +189,10 @@ impl<'a> CursorHelper for Cursor<'a> {
         }
     }
 
-    fn goto_prev_line(&mut self) -> usize {
+    /// Moves cursor to the beginning of the previous line.
+    /// If there is no previous line then cursor position
+    /// is set the beginning of the rope - 0
+    pub fn goto_prev_line(&mut self) -> usize {
         // move to the beginning of the current line
         self.goto_line_begin();
         if self.pos() == 0 {
@@ -256,7 +209,14 @@ impl<'a> CursorHelper for Cursor<'a> {
         }
     }
 
-    fn line_beginning_position(&mut self, n: Option<i32>) -> usize {
+    /// corresponds to `line-beginning-position` in elisp
+    /// Return the character position of the first character on the current line.
+    /// If N is none then acts as `goto_line_begin`
+    /// Otherwise moves forward N - 1 lines first.
+    /// with N < 1 cursor will move to previous lines
+    ///
+    /// This function does not move the cursor (does save-excursion)
+    pub fn line_beginning_position(&mut self, n: Option<i32>) -> usize {
         let pos = self.pos();
         match n {
             None | Some(1) => {
@@ -287,7 +247,7 @@ impl<'a> CursorHelper for Cursor<'a> {
         return result;
     }
 
-    fn char_after(&mut self, offset: usize) -> Option<char> {
+    pub fn char_after(&mut self, offset: usize) -> Option<char> {
         let pos = self.pos();
         self.set(offset);
         let result = self.get_next_char();
@@ -295,14 +255,23 @@ impl<'a> CursorHelper for Cursor<'a> {
         return result;
     }
 
-    fn looking_at(&self, re: &Regex) -> bool {
+    /// Checks if current line matches a given regex
+    /// This function determines whether the text in
+    /// the current buffer directly following cursor matches
+    /// the regular expression regexp.
+    /// “Directly following” means precisely that:
+    /// the search is “anchored” and it can succeed only
+    /// starting with the first character following point.
+    /// The result is true if so, false otherwise.
+    /// This function does not move cursor
+    pub fn looking_at(&self, re: &Regex) -> bool {
         re.find(&self.data[self.pos..]).is_some()
     }
 
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
-    fn next_headline(&mut self) -> Option<(usize)> {
+    pub fn next_headline(&mut self) -> Option<(usize)> {
         // make sure we don't match current headline
         self.next::<LinesMetric>();
         let beg = self.pos();
@@ -316,7 +285,8 @@ impl<'a> CursorHelper for Cursor<'a> {
     }
 
     /// Return true if cursor is on a headline.
-    fn on_headline(&mut self) -> bool {
+    /// corresponds to `org-at-heading-p`
+    pub fn on_headline(&mut self) -> bool {
         let pos = self.pos();
         self.goto_line_begin();
         let result = self.looking_at(&*REGEX_HEADLINE_SHORT);
@@ -324,7 +294,7 @@ impl<'a> CursorHelper for Cursor<'a> {
         return result;
     }
 
-    fn is_bol(&self) -> bool {
+    pub fn is_bol(&self) -> bool {
         if self.pos == 0 {
             true
         } else {
@@ -358,7 +328,6 @@ mod test {
     use std::str::FromStr;
 
     use super::Cursor;
-    use super::CursorHelper;
     use super::LinesMetric;
     use super::Metric;
 
@@ -369,7 +338,7 @@ mod test {
     use crate::cursor::BaseMetric;
 
     #[test]
-    fn essetials() {
+    fn essentials() {
         let input = "1234567890\nЗдравствуйте";
         let mut cursor = Cursor::new(&input, 0);
         assert_eq!('1', cursor.get_next_char().unwrap());

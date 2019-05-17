@@ -42,7 +42,6 @@
 //! “CAPTION”, “AUTHOR”, “DATE” and “TITLE” keywords can contain objects
 //! in their value and their optional value, if applicable.
 
-use crate::cursor::CursorHelper;
 use crate::data::SyntaxT;
 use crate::parser::Parser;
 use regex::Regex;
