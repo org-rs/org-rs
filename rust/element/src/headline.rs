@@ -96,7 +96,9 @@ const ORG_DEADLINE_STRING: &str = "DEADLINE";
 const ORG_SCHEDULED_STRING: &str = "SCHEDULED";
 
 lazy_static! {
-    pub static ref REGEX_HEADLINE_SHORT: Regex = Regex::new(r"\*+\s").unwrap();
+    pub static ref REGEX_HEADLINE_SHORT: Regex = Regex::new(r"^\*+\s").unwrap();
+
+    pub static ref REGEX_HEADLINE_MULTILINE: Regex = Regex::new(r"(?m)^\*+\s").unwrap();
 
     /// Matches a line with planning info.
     /// Matched keyword is in group 1

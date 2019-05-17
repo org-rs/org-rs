@@ -19,6 +19,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate strum_macros;
 
+extern crate memchr;
 extern crate regex;
 extern crate strum;
 
@@ -30,5 +31,4 @@ mod list;
 mod paragraph;
 mod parser;
 mod planning;
-mod rope;
 mod table;

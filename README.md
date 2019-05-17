@@ -44,10 +44,6 @@ These are the choices that were made to achieve the goals:
 
 - Rust. Because it is fast, memory safe and provides C FFI. And most importantly it is cool.
 
-- [Rope](https://en.wikipedia.org/wiki/Rope_(data_structure)) as underlying data
-structure that provides O(log n) updates. [xi-rope](http://abishov.com/xi-editor/docs/rope_science_00.html)
-is an awesome implementation from xi-editor project. 
-
 - Original elisp algorithm. While using the original elisp source as a guideline
   might result in less idiomatic Rust code it has its advantages:
 

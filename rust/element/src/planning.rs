@@ -13,7 +13,6 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::cursor::CursorHelper;
 use crate::data::SyntaxNode;
 use crate::parser::Parser;
 
