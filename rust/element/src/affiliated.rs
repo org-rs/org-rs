@@ -16,9 +16,12 @@
 //! Affiliated Keywords
 //! https://orgmode.org/worg/dev/org-syntax.html#Affiliated_keywords
 //!
-//! With the exception of inlinetasks, items, planning, clocks,
-//! node properties and table rows, every other element type
-//! can be assigned attributes.  
+//! With the exception of some elements every other element type
+//! can be assigned attributes:
+//!
+//! Elemets that can NOT have affiliated keywords:
+//! Items, Table Rows , Node Properties, Headlines
+//! Sections, Planning lines, Property Drawers, Clocks and Inlinetasks
 //!
 //! This is done by adding specific keywords, named “affiliated keywords”,
 //! just above the element considered, no blank line allowed.
@@ -39,18 +42,44 @@
 //! An affiliated keyword can appear more than once if KEY is either “CAPTION” or “HEADER”
 //! or if its pattern is “#+ATTR_BACKEND: VALUE”.  
 //!
-//! “CAPTION”, “AUTHOR”, “DATE” and “TITLE” keywords can contain objects
-//! in their value and their optional value, if applicable.
+//! “CAPTION” keyword can contain objects in both VALUE and OPTIONAL fileds.
 
+use crate::data::StringOrObject;
 use crate::data::SyntaxT;
 use crate::parser::Parser;
 use regex::Regex;
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::str::FromStr;
+use std::string::ParseError;
 
 lazy_static! {
 
    /// Regexp matching any affiliated keyword
-   /// Dual keywords are captured in groups 1 and 2
-   /// Regular into group 3 and exported attributes in 4
+   ///
+   /// This is different from original implementation for several reasons:
+   ///
+   /// ERE regexes support explicit numbering for capture groups,
+   /// which also can be repetetive. Rust's regex is PCRE, and does
+   /// not have such feature.
+   ///
+   /// Secondly, it uses different capture group arrangement to
+   /// simplify parsing and serialization of the keywords
+   ///
+   /// Thirdly, translation from old keywords already built-in
+   ///
+   /// Capture groups are named after each Keyword respectively.
+   ///
+   /// If you want to use group numbers:
+   /// CAPTION keyword is captured to group 1
+   /// RESULTS keyword is captured to group 2
+   ///
+   /// Secondary value of CAPTION or RESULTS is captured to group 3
+   ///
+   /// HEADER keyword is captured to group 4
+   /// PLOT keyword is captured to group 5
+   /// NAME keyword is captured to group 6
+   /// ATTR_ exported attribute is captured to group 7
    ///
    /// Warning! If you add more keywords then you must update this regex!
    /// Original elisp implementation dynamically creates this regex based on
@@ -61,113 +90,56 @@ lazy_static! {
    /// elisp: `org-element--affiliated-re`
    pub static ref REGEX_AFFILIATED: Regex = Regex::new(
            &format!(
-              r"[ \t]{}|{}|{}[ \t]*",
-              r"*#\+(?:((?:CAPTION|RESULTS))(?:\[(.*)\])?",
-              r"((?:DATA|HEADERS?|LABEL|NAME|PLOT|RES(?:NAME|ULT)|(?:S(?:OURC|RCNAM)|TBLNAM)E))",
-              r"(ATTR_[-_A-Za-z0-9]+)):")
+              r"(?im)^[ \t]*{}|{}|{}|{}|{}[ \t]*[^\n\r]*$",
+              r"#\+(?:(?:(?P<CAPTION>CAPTION)|(?P<RESULTS>RESULTS?))(?:\[(?P<SECONDARY>.*)\])?",   // DUAL
+              r"(?P<HEADER>HEADERS?)",
+              r"(?P<PLOT>PLOT)",
+              r"(?P<NAME>(?:DATA|LABEL|NAME|RESNAME|(?:S(?:OURC|RCNAM)|TBLNAM)E))",
+              r"(?P<ATTR>ATTR_[-_A-Za-z0-9]+)):")
        ).unwrap();
 }
 
-pub struct KeywordData<'a> {
-    /// Keyword's name (string).
-    key: &'a str,
-    /// Keyword's value (string).
-    value: &'a str,
-}
-
-pub enum Affiliated {
-    Regular,
-
-    /// In Org syntax, they can be written with optional square brackets
-    /// before the colons.  For example, RESULTS keyword can be
-    /// associated to a hash value with the following:
-    ///
-    /// #+RESULTS[hash-string]: some-source
-    Dual,
-
-    ExportAttribute,
+/// Since CAPTION is both DUAL and PARSED DualVal has to be able to store Strings or StringOrObject
+#[derive(Default, Debug)]
+pub struct DualVal<T> {
+    pub value: T,
+    pub secondary: Option<T>,
 }
 
 /// List of affiliated keywords as strings.
-/// By default, all keywords setting attributes (e.g., \"ATTR_LATEX\")
-/// are affiliated keywords and need not to be in this list.")
 /// elisp: `defconst org-element-affiliated-keywords`
-pub enum Keywords {
-    CAPTION,
-    DATA,
-    HEADER,
-    HEADERS,
-    LABEL,
-    NAME,
-    PLOT,
-    RESNAME,
-    RESULT,
-    RESULTS,
-    SOURCE,
-    SRCNAME,
-    TBLNAME,
+/// Capabilities:  
+/// DUAL - can have optional secontary value
+/// PARSED - value can be either string or an Object
+/// MULTI: can occur more than once in an element.
+pub struct AffiliatedData<'a> {
+    /// DUAL, PARSED, MULTI
+    caption: Vec<DualVal<StringOrObject<'a>>>,
+    /// MULTI
+    header: Vec<Cow<'a, str>>,
+
+    /// No special capabilities
+    name: Option<Cow<'a, str>>,
+
+    /// No special capabilities
+    plot: Option<Cow<'a, str>>,
+
+    /// DUAL
+    results: Option<DualVal<Cow<'a, str>>>,
+
+    /// MULTI
+    attr: HashMap<Cow<'a, str>, Vec<Cow<'a, str>>>,
 }
 
-impl Keywords {
-    /// Translates old keyword value into a new one
-    /// elisp: `defconst org-element-keyword-translation-alist`
-    fn translate(&mut self) {
-        use std::mem;
-        use Keywords::*;
-        match self {
-            DATA | LABEL | RESNAME | SOURCE | SRCNAME | TBLNAME => {
-                drop(mem::replace(self, Keywords::NAME))
-            }
-            RESULT => drop(mem::replace(self, Keywords::RESULTS)),
-            HEADERS => drop(mem::replace(self, Keywords::HEADER)),
-            _ => (),
-        };
-    }
-
-    /// List of affiliated keywords that can occur more than once in an element.
-    ///
-    /// Their value will be consed into a list of strings, which will be
-    /// returned as the value of the property.
-    ///
-    /// This list is checked after translations have been applied.  See
-    /// `org-element-keyword-translation-alist'.
-    ///
-    /// By default, all keywords setting attributes (e.g., \"ATTR_LATEX\")
-    /// allow multiple occurrences and need not to be in this list.
-    /// elisp: `defconst org-element-multiple-keywords '("CAPTION" "HEADER")`
-    fn is_multiple_allowed(&self) -> bool {
-        use Keywords::*;
-        match self {
-            CAPTION | HEADER => true,
-            _ => false,
-        }
-    }
-
-    /// List of affiliated keywords whose value can be parsed.
-    ///
-    /// Their value will be stored as a secondary string: a list of
-    /// strings and objects.
-    ///
-    /// elisp: `defconst org-element-parsed-keywords
-    /// This list is checked after translations have been applied.
-    /// See `traslate`, `org-element-keyword-translation-alist`
-    fn can_contain_objects(&self) -> bool {
-        use Keywords::*;
-        match &self {
-            CAPTION => true,
-            _ => false,
-        }
-    }
-
-    /// List of affiliated keywords which can have a secondary value.
-    /// elisp: `defconst org-element-dual-keywords`
-    /// This list is checked after translations have been applied.
-    /// See `traslate`, `org-element-keyword-translation-alist`
-    fn is_dual(&self) -> bool {
-        use Keywords::*;
-        match &self {
-            CAPTION | RESULTS => true,
-            _ => false,
+impl<'a> Default for AffiliatedData<'a> {
+    fn default() -> AffiliatedData<'a> {
+        AffiliatedData {
+            caption: vec![],
+            header: vec![],
+            name: None,
+            plot: None,
+            results: None,
+            attr: HashMap::new(),
         }
     }
 }
@@ -188,15 +160,16 @@ impl<'a> Parser<'a> {
     /// the line (e.g., a paragraph starting an item), CAR is current
     /// position of point and CDR is nil."
     /// elisp `defun org-element--collect-affiliated-keywords (limit)`
-    pub fn collect_affiliated_keywords(&self, limit: usize) -> (usize, Vec<Affiliated>) {
+    ///
+    /// NB: it looks like this function parses objects ignoring parser granularity settings
+    pub fn collect_affiliated_keywords(&self, limit: usize) -> (usize, AffiliatedData) {
         if !self.cursor.borrow().is_bol() {
-            return (self.cursor.borrow().pos(), vec![]);
+            return (self.cursor.borrow().pos(), Default::default());
         }
-        // Regex searches should be case insensitive
         let origin = self.cursor.borrow().pos();
         let restrict = |that| SyntaxT::Keyword.can_contain(that);
-        let mut output: ();
-        self.cursor.borrow_mut().pos();
+
+        let mut result: AffiliatedData = Default::default();
 
         loop {
             let maybe_affiliated = self.cursor.borrow().capturing_at(&*REGEX_AFFILIATED);
@@ -204,10 +177,28 @@ impl<'a> Parser<'a> {
             if current_pos >= limit || maybe_affiliated.is_none() {
                 break;
             }
-            let match_string = maybe_affiliated.expect("Captures are expected here");
-            let raw_kwd = match_string
-                .get(0)
-                .expect("0th match must always be present");
+            let captures = maybe_affiliated.expect("Captures are expected here");
+
+            if captures.name("CAPTION").is_some() {
+                // Check if secondary value is present
+                // parse value to StringOrObject
+                // parse secondary to StringOrObject
+                // Save everything to DualVal
+            } else if captures.name("RESULTS").is_some() {
+                // dual
+
+            } else if captures.name("NAME").is_some() {
+                // no special capabilities
+
+            } else if captures.name("PLOT").is_some() {
+                // no special capabilities
+
+            } else if captures.name("HEADER").is_some() {
+                // multi
+
+            } else if captures.name("ATTR").is_some() {
+                // multi
+            }
         }
 
         //       (while (and (< (point) limit) (looking-at org-element--affiliated-re))
@@ -271,19 +262,22 @@ mod test {
 
     #[test]
     fn test_re() {
-        let expected = r"[ \t]*#\+(?:((?:CAPTION|RESULTS))(?:\[(.*)\])?|((?:DATA|HEADERS?|LABEL|NAME|PLOT|RES(?:NAME|ULT)|(?:S(?:OURC|RCNAM)|TBLNAM)E))|(ATTR_[-_A-Za-z0-9]+)):[ \t]*";
+        let expected = r"(?im)^[ \t]*#\+(?:(?:(?P<CAPTION>CAPTION)|(?P<RESULTS>RESULTS?))(?:\[(?P<SECONDARY>.*)\])?|(?P<HEADER>HEADERS?)|(?P<PLOT>PLOT)|(?P<NAME>(?:DATA|LABEL|NAME|RESNAME|(?:S(?:OURC|RCNAM)|TBLNAM)E))|(?P<ATTR>ATTR_[-_A-Za-z0-9]+)):[ \t]*[^\n\r]*$";
         assert_eq!(expected, REGEX_AFFILIATED.as_str());
     }
 
     #[test]
     fn affiliated_re() {
-        let dual_full = r"#+CAPTION[GIT]: org-rs";
+        let dual_full = r"#+caPtion[GIT]: org-rs";
 
         let mut cap = REGEX_AFFILIATED.captures(dual_full).unwrap();
-        assert_eq!("CAPTION", cap.get(1).unwrap().as_str());
-        assert_eq!("GIT", cap.get(2).unwrap().as_str());
-        assert_eq!(None, cap.get(3));
+        assert_eq!("caPtion", cap.get(1).unwrap().as_str());
+        assert_eq!("GIT", cap.get(3).unwrap().as_str());
+        assert_eq!(None, cap.get(2));
         assert_eq!(None, cap.get(4));
+        assert_eq!(None, cap.get(5));
+        assert_eq!(None, cap.get(6));
+        assert_eq!(None, cap.get(7));
 
         let dual_part = r"#+CAPTION: Orgmode";
         cap = REGEX_AFFILIATED.captures(dual_part).unwrap();
@@ -294,27 +288,17 @@ mod test {
 
         let single = r"#+RESNAME: someresult";
         cap = REGEX_AFFILIATED.captures(single).unwrap();
-        assert_eq!("RESNAME", cap.get(3).unwrap().as_str());
+        assert_eq!("RESNAME", cap.get(6).unwrap().as_str());
         assert_eq!(None, cap.get(1));
         assert_eq!(None, cap.get(2));
         assert_eq!(None, cap.get(4));
 
-        let attr = r"#+ATTR_HTML: :file filename.ext";
+        let attr = r"#+attr_html: :file filename.ext";
         cap = REGEX_AFFILIATED.captures(attr).unwrap();
-        assert_eq!("ATTR_HTML", cap.get(4).unwrap().as_str());
+        assert_eq!("attr_html", cap.get(7).unwrap().as_str());
         assert_eq!(None, cap.get(1));
         assert_eq!(None, cap.get(2));
         assert_eq!(None, cap.get(3));
     }
+
 }
-
-// Not sure what to do with this yet
-// (defconst org-element--parsed-properties-alist
-//   (mapcar (lambda (k) (cons k (intern (concat ":" (downcase k)))))
-// 	  org-element-parsed-keywords)
-//   "Alist of parsed keywords and associated properties.
-// This is generated from `org-element-parsed-keywords', which
-// see.")
-
-//
-//
