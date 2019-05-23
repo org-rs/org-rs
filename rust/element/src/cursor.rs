@@ -21,6 +21,10 @@ use regex::{Captures, Match, Regex};
 
 use crate::headline::{REGEX_HEADLINE_MULTILINE, REGEX_HEADLINE_SHORT};
 
+lazy_static! {
+    pub static ref REGEX_EMPTY_LINE: Regex = Regex::new(r"^[ \t]*$").unwrap();
+}
+
 pub trait Metric {
     fn is_boundary(s: &str, offset: usize) -> bool;
     fn prev(s: &str, offset: usize) -> Option<usize>;
@@ -179,7 +183,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Moves cursor to the beginning of the next line. If there is no next line
-    /// cursor position is set to len() of the rope
+    /// cursor position is set to len() of the input
     pub fn goto_next_line(&mut self) -> usize {
         let res = self.next::<LinesMetric>();
         match res {
@@ -211,12 +215,12 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// corresponds to `line-beginning-position` in elisp
     /// Return the character position of the first character on the current line.
     /// If N is none then acts as `goto_line_begin`
     /// Otherwise moves forward N - 1 lines first.
     /// with N < 1 cursor will move to previous lines
     ///
+    /// Corresponds to `line-beginning-position` in elisp
     /// This function does not move the cursor (does save-excursion)
     pub fn line_beginning_position(&mut self, n: Option<i32>) -> usize {
         let pos = self.pos();
@@ -249,6 +253,39 @@ impl<'a> Cursor<'a> {
         return result;
     }
 
+    /// Return the character position of the last character on the current line.
+    /// With argument N not nil or 1, move forward N - 1 lines first.
+    /// If scan reaches end of buffer, return that position.
+    ///
+    /// Corresponds to `line-end-position` in elisp
+    /// This function does not move the cursor (does save-excursion)
+    pub fn line_end_position(&mut self, n: Option<i32>) -> usize {
+        let pos = self.pos();
+        match n {
+            None | Some(1) => {
+                self.goto_next_line();
+            }
+
+            Some(x) => {
+                if x > 1 {
+                    for _p in 0..x {
+                        self.goto_next_line();
+                    }
+                } else if self.pos() != 0 {
+                    for p in 0..=x.abs() {
+                        if self.prev::<LinesMetric>().is_none() {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        let result = self.prev::<BaseMetric>().unwrap_or(0);
+        self.set(pos);
+        return result;
+    }
+
     pub fn char_after(&mut self, offset: usize) -> Option<char> {
         let pos = self.pos();
         self.set(offset);
@@ -268,14 +305,29 @@ impl<'a> Cursor<'a> {
     /// This function does not move cursor
     /// Use `capturing_at` if you need capture groups.
     pub fn looking_at(&self, re: &Regex) -> Option<Match<'a>> {
-        re.find(&self.data[self.pos..])
+        let end = if !is_multiline_regex(re.as_str()) {
+            LinesMetric::next(self.data, self.pos)
+                .map(|p| p - 1) // exclude '\n' from the string'
+                .unwrap_or_else(|| self.data.len())
+        } else {
+            self.data.len()
+        };
+        re.find(&self.data[self.pos..end])
     }
 
     /// Acts exactly as `looking_at` but returns Captures
     /// This is slower than simple regex search so if you don't need
     /// capture groups use `looking_at` for better performance
     pub fn capturing_at(&self, re: &Regex) -> Option<Captures<'a>> {
-        re.captures(&self.data[self.pos..])
+        let end = if !is_multiline_regex(re.as_str()) {
+            LinesMetric::next(self.data, self.pos)
+                .map(|p| p - 1) // exclude '\n' from the string'
+                .unwrap_or_else(|| self.data.len())
+        } else {
+            self.data.len()
+        };
+
+        re.captures(&self.data[self.pos..end])
     }
 
     /// Possibly moves cursor to the beginning of the next headline
@@ -339,6 +391,7 @@ mod test {
     use super::Cursor;
     use super::LinesMetric;
     use super::Metric;
+    use super::REGEX_EMPTY_LINE;
 
     use crate::data::Syntax;
     use crate::headline::REGEX_HEADLINE_SHORT;
@@ -364,7 +417,7 @@ mod test {
     }
 
     #[test]
-    fn looking_at() {
+    fn looking_at_headline() {
         let rope = "Some text\n**** headline\n";
         let mut cursor = Cursor::new(&rope, 0);
         assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT).is_none());
@@ -383,6 +436,20 @@ mod test {
         assert_eq!(5, m.end());
         assert_eq!("**** ", m.as_str());
         assert_eq!(10, cursor.pos());
+    }
+
+    #[test]
+    fn looking_at_empty_line_re() {
+        let text = "First line\n   \n\nFourth line";
+        let mut cursor = Cursor::new(&text, 0);
+
+        assert!(cursor.looking_at(&*REGEX_EMPTY_LINE).is_none());
+        cursor.goto_next_line();
+        assert!(cursor.looking_at(&*REGEX_EMPTY_LINE).is_some());
+        cursor.goto_next_line();
+        assert!(cursor.looking_at(&*REGEX_EMPTY_LINE).is_some());
+        cursor.goto_next_line();
+        assert!(cursor.looking_at(&*REGEX_EMPTY_LINE).is_none());
     }
 
     #[test]
@@ -483,6 +550,26 @@ mod test {
         assert_eq!(cursor.line_beginning_position(Some(0)), 8);
         assert_eq!(cursor.line_beginning_position(Some(-1)), 4);
         assert_eq!(cursor.line_beginning_position(Some(-2)), 0);
+    }
+
+    #[test]
+    fn line_end_pos() {
+        let text = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
+        let mut cursor = Cursor::new(&text, 13);
+
+        assert_eq!(27, text.len());
+        // Moving forward
+        assert_eq!(cursor.line_end_position(None), 15);
+        assert_eq!(cursor.line_end_position(Some(1)), 15);
+        assert_eq!(cursor.line_end_position(Some(2)), 19);
+        assert_eq!(cursor.line_end_position(Some(3)), 23);
+        assert_eq!(cursor.line_end_position(Some(4)), 26);
+
+        //Moving backward
+        assert_eq!(cursor.line_end_position(Some(0)), 11);
+        assert_eq!(cursor.line_end_position(Some(-1)), 7);
+        assert_eq!(cursor.line_end_position(Some(-2)), 3);
+        assert_eq!(cursor.line_end_position(Some(-3)), 3);
     }
 
     #[test]

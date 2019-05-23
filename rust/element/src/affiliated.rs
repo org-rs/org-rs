@@ -44,10 +44,11 @@
 //!
 //! “CAPTION” keyword can contain objects in both VALUE and OPTIONAL fileds.
 
+use crate::cursor::REGEX_EMPTY_LINE;
 use crate::data::StringOrObject;
 use crate::data::SyntaxT;
 use crate::parser::Parser;
-use regex::Regex;
+use regex::{Match, Regex};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -90,7 +91,7 @@ lazy_static! {
    /// elisp: `org-element--affiliated-re`
    pub static ref REGEX_AFFILIATED: Regex = Regex::new(
            &format!(
-              r"(?im)^[ \t]*{}|{}|{}|{}|{}[ \t]*[^\n\r]*$",
+              r"(?i)^[ \t]*{}|{}|{}|{}|{}[ \t]*",
               r"#\+(?:(?:(?P<CAPTION>CAPTION)|(?P<RESULTS>RESULTS?))(?:\[(?P<SECONDARY>.*)\])?",   // DUAL
               r"(?P<HEADER>HEADERS?)",
               r"(?P<PLOT>PLOT)",
@@ -100,7 +101,7 @@ lazy_static! {
 }
 
 /// Since CAPTION is both DUAL and PARSED DualVal has to be able to store Strings or StringOrObject
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq)]
 pub struct DualVal<T> {
     pub value: T,
     pub secondary: Option<T>,
@@ -112,23 +113,25 @@ pub struct DualVal<T> {
 /// DUAL - can have optional secontary value
 /// PARSED - value can be either string or an Object
 /// MULTI: can occur more than once in an element.
+
+#[derive(Debug, PartialEq)]
 pub struct AffiliatedData<'a> {
     /// DUAL, PARSED, MULTI
-    caption: Vec<DualVal<StringOrObject<'a>>>,
+    pub caption: Vec<DualVal<StringOrObject<'a>>>,
     /// MULTI
-    header: Vec<Cow<'a, str>>,
+    pub header: Vec<Cow<'a, str>>,
 
     /// No special capabilities
-    name: Option<Cow<'a, str>>,
+    pub name: Option<Cow<'a, str>>,
 
     /// No special capabilities
-    plot: Option<Cow<'a, str>>,
+    pub plot: Option<Cow<'a, str>>,
 
     /// DUAL
-    results: Option<DualVal<Cow<'a, str>>>,
+    pub results: Option<DualVal<Cow<'a, str>>>,
 
     /// MULTI
-    attr: HashMap<Cow<'a, str>, Vec<Cow<'a, str>>>,
+    pub attr: HashMap<String, Vec<Cow<'a, str>>>,
 }
 
 impl<'a> Default for AffiliatedData<'a> {
@@ -162,14 +165,28 @@ impl<'a> Parser<'a> {
     /// elisp `defun org-element--collect-affiliated-keywords (limit)`
     ///
     /// NB: it looks like this function parses objects ignoring parser granularity settings
-    pub fn collect_affiliated_keywords(&self, limit: usize) -> (usize, AffiliatedData) {
+    ///
+    /// FIXME: currently CAPTION's values are not parsed into objects and can only contain
+    /// raw strings for now for the following reasons:
+    ///
+    /// - Original algorithm does not take into account granularity, and it is probably a bug.
+    ///
+    /// - It is unclear what should be the type of the field that stores the
+    /// object since it can contain many objects.
+    ///
+    /// - It is unclear who should be the "parent" of these objects.  parse-objects function says
+    /// that: "Eventually, if both ACC and PARENT are nil, the common parent is the list of
+    /// objects itself." - It is hard to encode this into a type system, since in all other
+    /// cases, apart from affiliated keywords, objects parents are nodes of syntax trees
+    /// (ACC or PARENT)
+    pub fn collect_affiliated_keywords(&self, limit: usize) -> (usize, Option<AffiliatedData>) {
         if !self.cursor.borrow().is_bol() {
-            return (self.cursor.borrow().pos(), Default::default());
+            return (self.cursor.borrow().pos(), None);
         }
         let origin = self.cursor.borrow().pos();
-        let restrict = |that| SyntaxT::Keyword.can_contain(that);
+        let _restrict = |that| SyntaxT::Keyword.can_contain(that);
 
-        let mut result: AffiliatedData = Default::default();
+        let mut output: AffiliatedData = Default::default();
 
         loop {
             let maybe_affiliated = self.cursor.borrow().capturing_at(&*REGEX_AFFILIATED);
@@ -179,98 +196,101 @@ impl<'a> Parser<'a> {
             }
             let captures = maybe_affiliated.expect("Captures are expected here");
 
-            if captures.name("CAPTION").is_some() {
-                // Check if secondary value is present
-                // parse value to StringOrObject
-                // parse secondary to StringOrObject
-                // Save everything to DualVal
-            } else if captures.name("RESULTS").is_some() {
-                // dual
+            let matched: (&str, Match) = REGEX_AFFILIATED
+                .capture_names()
+                .flatten()
+                .filter(|n| n != &"SECONDARY")
+                .filter_map(|n| Some((n, captures.name(n)?)))
+                .next()
+                .unwrap();
 
-            } else if captures.name("NAME").is_some() {
-                // no special capabilities
+            let value_begin = match captures.name("SECONDARY") {
+                None => self.cursor.borrow().pos() + matched.1.end() + 1,
+                Some(sec) => self.cursor.borrow().pos() + sec.end() + 2,
+            };
 
-            } else if captures.name("PLOT").is_some() {
-                // no special capabilities
+            let value_end = self.cursor.borrow_mut().line_end_position(None);
 
-            } else if captures.name("HEADER").is_some() {
-                // multi
+            let value = Cow::from(self.input[value_begin..value_end].trim());
 
-            } else if captures.name("ATTR").is_some() {
-                // multi
+            let secondary_value = match captures.name("SECONDARY") {
+                None => None,
+                Some(sec) => Some(Cow::from(sec.as_str().trim())),
+            };
+
+            match matched.0 {
+                "CAPTION" => output.caption.push(DualVal {
+                    value: StringOrObject::Raw(value),
+                    secondary: secondary_value.map(StringOrObject::Raw),
+                }),
+
+                "RESULTS" => {
+                    output.results = Some(DualVal {
+                        value: value,
+                        secondary: secondary_value,
+                    })
+                }
+
+                "NAME" => output.name = Some(value),
+                "PLOT" => output.plot = Some(value),
+                "HEADER" => output.header.push(value),
+                "ATTR" => {
+                    let backend = captures.name("ATTR").unwrap().as_str().to_ascii_uppercase();
+                    if let Some(vec) = output.attr.get_mut(backend.as_str()) {
+                        vec.push(value);
+                    } else {
+                        output.attr.insert(backend, vec![value]);
+                    }
+                }
+
+                _ => unreachable!(),
             }
+
+            self.cursor.borrow_mut().goto_next_line();
         }
 
-        //       (while (and (< (point) limit) (looking-at org-element--affiliated-re))
-        // 	(let* ((raw-kwd (upcase (match-string 1)))
-        // 	       ;; Apply translation to RAW-KWD.  From there, KWD is
-        // 	       ;; the official keyword.
-        // 	       (kwd (or (cdr (assoc raw-kwd
-        // 				    org-element-keyword-translation-alist))
-        // 			raw-kwd))
-        // 	       ;; Find main value for any keyword.
-        // 	       (value
-        // 		(save-match-data
-        // 		  (org-trim
-        // 		   (buffer-substring-no-properties
-        // 		    (match-end 0) (line-end-position)))))
-        // 	       ;; PARSEDP is non-nil when keyword should have its
-        // 	       ;; value parsed.
-        // 	       (parsedp (member kwd org-element-parsed-keywords))
-        // 	       ;; If KWD is a dual keyword, find its secondary
-        // 	       ;; value.  Maybe parse it.
-        // 	       (dualp (member kwd org-element-dual-keywords))
-        // 	       (dual-value
-        // 		(and dualp
-        // 		     (let ((sec (match-string-no-properties 2)))
-        // 		       (if (or (not sec) (not parsedp)) sec
-        // 			 (save-match-data
-        // 			   (org-element--parse-objects
-        // 			    (match-beginning 2) (match-end 2) nil restrict))))))
-        // 	       ;; Attribute a property name to KWD.
-        // 	       (kwd-sym (and kwd (intern (concat ":" (downcase kwd))))))
-        // 	  ;; Now set final shape for VALUE.
-        // 	  (when parsedp
-        // 	    (setq value
-        // 		  (org-element--parse-objects
-        // 		   (match-end 0)
-        // 		   (progn (end-of-line) (skip-chars-backward " \t") (point))
-        // 		   nil restrict)))
-        // 	  (when dualp
-        // 	    (setq value (and (or value dual-value) (cons value dual-value))))
-        // 	  (when (or (member kwd org-element-multiple-keywords)
-        // 		    ;; Attributes can always appear on multiple lines.
-        // 		    (string-match "^ATTR_" kwd))
-        // 	    (setq value (cons value (plist-get output kwd-sym))))
-        // 	  ;; Eventually store the new value in OUTPUT.
-        // 	  (setq output (plist-put output kwd-sym value))
-        // 	  ;; Move to next keyword.
-        // 	  (forward-line)))
-        //       ;; If affiliated keywords are orphaned: move back to first one.
-        //       ;; They will be parsed as a paragraph.
-        //       (when (looking-at "[ \t]*$") (goto-char origin) (setq output nil))
-        //       ;; Return value.
-        //       (cons origin output))))
+        // If affiliated keywords are orphaned: move back to first one.
+        // They will be parsed as a paragraph.
+        if self
+            .cursor
+            .borrow()
+            .looking_at(&*REGEX_EMPTY_LINE)
+            .is_some()
+        {
+            self.cursor.borrow_mut().set(origin);
+            return (origin, None);
+        }
 
-        unimplemented!()
+        return (origin, Some(output));
     }
 }
 
 mod test {
     use super::REGEX_AFFILIATED;
+    use crate::affiliated::DualVal;
+    use crate::cursor::{is_multiline_regex, Cursor};
+    use crate::data::RepeaterType::CatchUp;
+    use crate::data::StringOrObject;
+    use crate::parser::ParseGranularity;
+    use crate::parser::Parser;
     use regex::Match;
+    use std::borrow::Cow;
+    use std::collections::HashMap;
 
     #[test]
     fn test_re() {
-        let expected = r"(?im)^[ \t]*#\+(?:(?:(?P<CAPTION>CAPTION)|(?P<RESULTS>RESULTS?))(?:\[(?P<SECONDARY>.*)\])?|(?P<HEADER>HEADERS?)|(?P<PLOT>PLOT)|(?P<NAME>(?:DATA|LABEL|NAME|RESNAME|(?:S(?:OURC|RCNAM)|TBLNAM)E))|(?P<ATTR>ATTR_[-_A-Za-z0-9]+)):[ \t]*[^\n\r]*$";
+        let expected = r"(?i)^[ \t]*#\+(?:(?:(?P<CAPTION>CAPTION)|(?P<RESULTS>RESULTS?))(?:\[(?P<SECONDARY>.*)\])?|(?P<HEADER>HEADERS?)|(?P<PLOT>PLOT)|(?P<NAME>(?:DATA|LABEL|NAME|RESNAME|(?:S(?:OURC|RCNAM)|TBLNAM)E))|(?P<ATTR>ATTR_[-_A-Za-z0-9]+)):[ \t]*";
         assert_eq!(expected, REGEX_AFFILIATED.as_str());
     }
 
     #[test]
     fn affiliated_re() {
-        let dual_full = r"#+caPtion[GIT]: org-rs";
+        assert!(!is_multiline_regex(REGEX_AFFILIATED.as_str()));
+        let mut maybe_cap = REGEX_AFFILIATED.captures(r"  \n#+caPtion[GIT]: org-rs");
+        assert!(maybe_cap.is_none());
 
-        let mut cap = REGEX_AFFILIATED.captures(dual_full).unwrap();
+        maybe_cap = REGEX_AFFILIATED.captures(r"   #+caPtion[GIT]: org-rs");
+        let mut cap = maybe_cap.unwrap();
         assert_eq!("caPtion", cap.get(1).unwrap().as_str());
         assert_eq!("GIT", cap.get(3).unwrap().as_str());
         assert_eq!(None, cap.get(2));
@@ -299,6 +319,67 @@ mod test {
         assert_eq!(None, cap.get(1));
         assert_eq!(None, cap.get(2));
         assert_eq!(None, cap.get(3));
+    }
+
+    #[test]
+    fn looking_at_affiliated_re() {
+        let caption_txt = " \n #+caPtion[GIT]: org-rs";
+        let mut cursor = Cursor::new(caption_txt, 0);
+
+        assert!(cursor.looking_at(&*REGEX_AFFILIATED).is_none());
+        cursor.goto_next_line();
+        assert_eq!(2, cursor.pos());
+        assert!(cursor.looking_at(&*REGEX_AFFILIATED).is_some());
+    }
+
+    #[test]
+    fn capturing_at_affiliated_re() {
+        let mut text = String::new();
+        text.push_str(r"#+attr_html: :file filename.ext");
+        text.push_str("\n");
+        text.push_str(r"#+caPtion[GIT]: org-rs");
+
+        let mut cursor = Cursor::new(text.as_str(), 0);
+        let maybe_affiliated = cursor.capturing_at(&*REGEX_AFFILIATED);
+
+        assert!(maybe_affiliated.is_some());
+    }
+
+    #[test]
+    fn collect_affiliated_small() {
+        let mut text = String::new();
+        text.push_str(r"#+caPtion[GIT]: org-rs");
+        text.push_str("\n");
+        text.push_str(r"#+attr_html: :file filename.ext");
+        text.push_str("\n\n");
+        {
+            let p = Parser::new(text.as_str(), ParseGranularity::Object);
+            let maybe_collected = p.collect_affiliated_keywords(text.len());
+            assert_eq!(0, maybe_collected.0);
+            assert!(maybe_collected.1.is_none());
+        }
+        text.pop();
+        text.push_str("#+BEGIN_SRC");
+
+        let p = Parser::new(text.as_str(), ParseGranularity::Object);
+        let maybe_collected = p.collect_affiliated_keywords(text.len());
+        assert_eq!(0, maybe_collected.0);
+        assert!(maybe_collected.1.is_some());
+        let collected = maybe_collected.1.unwrap();
+        let mut test_attrs: HashMap<String, Vec<Cow<str>>> = HashMap::new();
+        test_attrs.insert(
+            "ATTR_HTML".to_string(),
+            vec![Cow::from(":file filename.ext")],
+        );
+        assert_eq!(test_attrs, collected.attr);
+
+        let mut test_caption: Vec<DualVal<StringOrObject>> = vec![];
+        test_caption.push(DualVal {
+            value: StringOrObject::Raw(Cow::from("org-rs")),
+            secondary: Some(StringOrObject::Raw(Cow::from("GIT"))),
+        });
+
+        assert_eq!(test_caption, collected.caption);
     }
 
 }

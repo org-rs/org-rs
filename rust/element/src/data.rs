@@ -26,9 +26,10 @@ use crate::table::{TableData, TableRowData};
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::fmt;
+use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 use std::rc::Weak;
-
 /// Reference to a DOM node.
 pub type Handle<'a> = Rc<SyntaxNode<'a>>;
 
@@ -511,6 +512,27 @@ impl SyntaxT {
 pub enum StringOrObject<'a> {
     Raw(Cow<'a, str>),
     Parsed(SyntaxNode<'a>),
+}
+
+impl<'a> Debug for StringOrObject<'a> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            StringOrObject::Raw(raw) => write!(f, "Raw: {:?}", raw),
+            StringOrObject::Parsed(p) => unimplemented!(),
+        }
+    }
+}
+
+impl<'a> PartialEq for StringOrObject<'a> {
+    fn eq(&self, other: &StringOrObject) -> bool {
+        match self {
+            StringOrObject::Raw(raw) => match other {
+                StringOrObject::Parsed(..) => false,
+                StringOrObject::Raw(rhs) => raw.eq(rhs),
+            },
+            StringOrObject::Parsed(p) => unimplemented!(),
+        }
+    }
 }
 
 pub struct BabelCallData<'a> {

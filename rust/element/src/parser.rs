@@ -384,7 +384,7 @@ impl<'a> Parser<'a> {
     /// Eventually, if both ACC and PARENT are nil, the common parent is
     /// the list of objects itself."
     /// (defun org-element--parse-objects (beg end acc restriction &optional parent)
-    fn parse_objects(
+    pub fn parse_objects(
         &self,
         beg: usize,
         end: usize,
