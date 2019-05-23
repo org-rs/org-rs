@@ -29,6 +29,9 @@ takes the only surefire way to get it right - use the original elisp parser
 implementation as a blueprint!
 
 
+Check out [FAQ](https://github.com/org-rs/org-rs/wiki/FAQ) for more information 
+and feel free to open an issue if you have more questions!
+
 # Goals
 
 - Be fast. Speed matters. Period.
@@ -90,7 +93,7 @@ Got a question? Stop by for a chat at [gitter](https://gitter.im/org-rs/communit
 # More about Org Mode
 
 
--  [Org-Mode Is One of the Most Reasonable Markup Languages to Use for Text](https://karl-voit.at/2017/09/23/orgmode-as-markup-only/)
+- [Org-Mode Is One of the Most Reasonable Markup Languages to Use for Text](https://karl-voit.at/2017/09/23/orgmode-as-markup-only/)
 - [Awesome guide](http://doc.norang.ca/org-mode.html) about org-mode
 - [teaser](https://github.com/novoid/org-mode-workshop/blob/master/featureshow/org-mode-teaser.org)
 

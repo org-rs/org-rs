@@ -18,17 +18,18 @@
 // https://orgmode.org/worg/dev/org-element-api.html
 // API page lists LineBreak as element, when both org-syntax page and source code list is as object
 
+use crate::affiliated::AffiliatedData;
+use crate::data::Syntax::BabelCall;
 use crate::headline::{HeadlineData, InlineTaskData, NodePropertyData};
 use crate::list::*;
-// use regex::Regex;
-use crate::affiliated::KeywordData;
-use crate::data::Syntax::BabelCall;
 use crate::table::{TableData, TableRowData};
+use std::borrow::Cow;
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::fmt;
+use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 use std::rc::Weak;
-
 /// Reference to a DOM node.
 pub type Handle<'a> = Rc<SyntaxNode<'a>>;
 
@@ -44,6 +45,7 @@ pub struct Interval {
 /// ParseTree node.
 /// https://orgmode.org/worg/dev/org-element-api.html#attributes
 /// Should be bound to the underlying rope's lifetime
+
 pub struct SyntaxNode<'a> {
     /// Parent node.
     pub parent: Cell<Option<WeakHandle<'a>>>,
@@ -505,6 +507,34 @@ impl SyntaxT {
     }
 }
 
+/// Some elements can contain objects directly in their value fields
+///
+pub enum StringOrObject<'a> {
+    Raw(Cow<'a, str>),
+    Parsed(SyntaxNode<'a>),
+}
+
+impl<'a> Debug for StringOrObject<'a> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            StringOrObject::Raw(raw) => write!(f, "Raw: {:?}", raw),
+            StringOrObject::Parsed(p) => unimplemented!(),
+        }
+    }
+}
+
+impl<'a> PartialEq for StringOrObject<'a> {
+    fn eq(&self, other: &StringOrObject) -> bool {
+        match self {
+            StringOrObject::Raw(raw) => match other {
+                StringOrObject::Parsed(..) => false,
+                StringOrObject::Raw(rhs) => raw.eq(rhs),
+            },
+            StringOrObject::Parsed(p) => unimplemented!(),
+        }
+    }
+}
+
 pub struct BabelCallData<'a> {
     /// Name of code block being called (string).
     pub call: &'a str,
@@ -635,6 +665,13 @@ pub struct FootnoteDefinitionData<'a> {
     /// beginning of the footnoote and the beginning
     /// of the contents (0, 1 or 2).
     pre_blank: u8,
+}
+
+pub struct KeywordData<'a> {
+    /// Keyword's name (string).
+    key: &'a str,
+    /// Keyword's value (string).
+    value: &'a str,
 }
 
 pub struct LatexEnvironmentData<'a> {
