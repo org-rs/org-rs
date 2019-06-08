@@ -13,7 +13,9 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 #![warn(clippy::all)]
+// This should be eventually turned off, but for now this helps reduce the noice
 #![allow(dead_code)]
+#![allow(warnings)]
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
