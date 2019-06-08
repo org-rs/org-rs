@@ -372,17 +372,20 @@ impl<'a> Cursor<'a> {
     /// None is returned. If count is not provided then 1 is used as
     /// count. Note that searching backward is not supported like it
     /// is in the elisp equivalent.
-    pub fn search_forward(&mut self, str: &str,
-                          bound: Option<usize>,
-                          count: Option<usize>) -> Option<usize> {
+    pub fn search_forward(
+        &mut self,
+        str: &str,
+        bound: Option<usize>,
+        count: Option<usize>,
+    ) -> Option<usize> {
         let count = match count {
             Some(count) => count,
-            _ => 1
+            _ => 1,
         };
 
         let bound = match bound {
             Some(bound) => bound,
-            _ => self.data.len()
+            _ => self.data.len(),
         };
 
         let pos = self.pos();
@@ -405,10 +408,8 @@ impl<'a> Cursor<'a> {
                     }
 
                     i += 1;
-                },
-                None => {
-                    return None
                 }
+                None => return None,
             }
         }
     }
@@ -418,9 +419,9 @@ impl<'a> Cursor<'a> {
         let pos = self.pos();
         let limit = match limit {
             Some(lim) => lim,
-            _ => self.data.len()
+            _ => self.data.len(),
         };
-        
+
         if pos >= limit {
             return 0;
         }
@@ -440,8 +441,6 @@ impl<'a> Cursor<'a> {
         count
     }
 }
-
-
 
 /// Given the inital byte of a UTF-8 codepoint, returns the number of
 /// bytes required to represent the codepoint.

@@ -32,15 +32,15 @@
 //! “#+KEY[OPTIONAL]: VALUE” - Dual
 //! “#+ATTR_BACKEND: VALUE”  - Exported Attribute
 //!
-//! KEY is either  “CAPTION”, “HEADER”, “NAME”, “PLOT” or “RESULTS” string.  
+//! KEY is either  “CAPTION”, “HEADER”, “NAME”, “PLOT” or “RESULTS” string.
 //!
-//! BACKEND is a string constituted of alpha-numeric characters, hyphens or underscores.  
+//! BACKEND is a string constituted of alpha-numeric characters, hyphens or underscores.
 //!
 //! OPTIONAL and VALUE can contain any character but a new line.
-//! Only “CAPTION” and “RESULTS” keywords can have an optional value.  
+//! Only “CAPTION” and “RESULTS” keywords can have an optional value.
 //!
 //! An affiliated keyword can appear more than once if KEY is either “CAPTION” or “HEADER”
-//! or if its pattern is “#+ATTR_BACKEND: VALUE”.  
+//! or if its pattern is “#+ATTR_BACKEND: VALUE”.
 //!
 //! “CAPTION” keyword can contain objects in both VALUE and OPTIONAL fileds.
 
