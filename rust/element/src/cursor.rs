@@ -363,6 +363,72 @@ impl<'a> Cursor<'a> {
             LinesMetric::is_boundary(self.data, self.pos)
         }
     }
+
+    pub fn search_forward(&mut self, str: &str,
+                          bound: Option<usize>,
+                          count: Option<i64>) -> Option<usize> {
+
+        let mut search_backward = false;
+        let count: i64 = match count {
+            Some(count) => {
+                if count < 0 {
+                    search_backward = true;
+                    (count * -1) - 1
+                } else {
+                    count - 1
+                }
+            },
+            _ => 0
+        };
+
+        let bound = match bound {
+            Some(bound) => bound,
+            _ => {
+                if search_backward {
+                    0
+                } else {
+                    self.data.len()
+                }
+            }
+        };
+
+        println!("bound: {}", bound);
+        let pos = self.pos();
+        if search_backward {
+            if bound > pos {
+                return None;
+            }
+            let matches: Vec<_> = self.data[bound..self.pos()].match_indices(str).collect();
+        } else {
+            if bound < pos {
+                return None;
+            }
+            let mut iter = self.data[pos..].match_indices(str);
+            let mut i = 0;
+            let mut prev_match: Option<usize> = None;
+            loop {
+                match iter.next() { // next index of beginning text
+                    Some(result) => {
+                        println!("count: {}", count);
+                        if result.0 + pos > bound { // bound check
+                            return prev_match;
+                        }
+                        if count == i {             // count check
+                            println!("bingo {} {} {}", result.0, pos, str.len());
+                            self.set(result.0 + pos + str.len());
+                            return Some(result.0 + pos + str.len());
+                        }
+                        i += 1;
+                        prev_match = Some(result.0);
+                    },
+                    None => { // TODO fix
+                        return None
+                    }
+                }
+            }
+        }
+        None
+    }
 }
 
 /// Given the inital byte of a UTF-8 codepoint, returns the number of
@@ -590,5 +656,19 @@ mod test {
         assert!(cursor.is_bol());
         cursor.goto_next_line();
         assert!(cursor.is_bol());
+    }
+
+    #[test]
+    fn search_forward() {
+        let str = "onetwothreefouronetwothreeonetwothreeonetwothreefouroneabababa";
+        let mut cursor = Cursor::new(&str, 0);
+        assert_eq!(cursor.search_forward("one", None, Some(2)), Some(18));
+        assert_eq!(cursor.search_forward("one", None, None), Some(29));
+        cursor.set(0);
+        assert_eq!(cursor.search_forward("threeone", Some(10), None), None); // there is no match before 10th pos
+        assert_eq!(cursor.search_forward("threeone", Some(100), Some(10)), None); // there is not a 10th match so return None
+        assert_eq!(cursor.search_forward("two", None, Some(4)), Some(43));
+        assert_eq!(cursor.pos(), 43);
+        assert_eq!(cursor.search_forward("aba", Some(10), None), None); // bound is before current pos
     }
 }
