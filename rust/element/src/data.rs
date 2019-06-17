@@ -20,7 +20,10 @@
 
 use crate::affiliated::AffiliatedData;
 use crate::data::Syntax::BabelCall;
+use crate::drawer::DrawerData;
+use crate::fixed_width::FixedWidthData;
 use crate::headline::{HeadlineData, InlineTaskData, NodePropertyData};
+use crate::keyword::KeywordData;
 use crate::list::*;
 use crate::table::{TableData, TableRowData};
 use std::borrow::Cow;
@@ -30,6 +33,9 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 use std::rc::Weak;
+
+use regex::Regex;
+
 /// Reference to a DOM node.
 pub type Handle<'a> = Rc<SyntaxNode<'a>>;
 
@@ -552,11 +558,6 @@ pub struct BabelCallData<'a> {
     pub value: &'a str,
 }
 
-pub struct DrawerData<'a> {
-    /// Drawer's name (string).
-    drawer_name: &'a str,
-}
-
 pub struct ClockData<'a> {
     /// Clock duration for a closed clock, or nil (string or nil).
     duration: &'a str,
@@ -651,11 +652,6 @@ pub struct ExportBlockData<'a> {
     value: &'a str,
 }
 
-pub struct FixedWidthData<'a> {
-    ///Contents, without colons prefix (string).
-    value: &'a str,
-}
-
 /// Greater element
 pub struct FootnoteDefinitionData<'a> {
     /// Label used for references (string).
@@ -665,13 +661,6 @@ pub struct FootnoteDefinitionData<'a> {
     /// beginning of the footnoote and the beginning
     /// of the contents (0, 1 or 2).
     pre_blank: u8,
-}
-
-pub struct KeywordData<'a> {
-    /// Keyword's name (string).
-    key: &'a str,
-    /// Keyword's value (string).
-    value: &'a str,
 }
 
 pub struct LatexEnvironmentData<'a> {
@@ -1018,6 +1007,18 @@ pub enum TimeUnit {
 pub struct VerbatimData<'a> {
     ///Contents (string).
     value: &'a str,
+}
+
+lazy_static! {
+
+    /// Used to identify the  Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
+    pub static ref REGEX_STARTS_WITH_HASHTAG: Regex = Regex::new(r"[ \t]*#").unwrap();
+
+    /// Used to identify Comments. Used together with REGEX_STARTS_WITH_HASHTAG
+    pub static ref REGEX_COLON_OR_EOL: Regex = Regex::new(r"(?: |$)").unwrap();
+
+
+
 }
 
 mod test {

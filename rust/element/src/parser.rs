@@ -21,11 +21,17 @@ use regex::Regex;
 use crate::cursor::Cursor;
 use crate::data::Handle;
 use crate::data::SyntaxT;
+use crate::data::REGEX_COLON_OR_EOL;
+use crate::data::REGEX_STARTS_WITH_HASHTAG;
 use crate::data::{Syntax, SyntaxNode};
+use crate::drawer::REGEX_DRAWER;
+use crate::fixed_width::REGEX_FIXED_WIDTH;
 use crate::headline::REGEX_CLOCK_LINE;
 use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
 use crate::headline::REGEX_PROPERTY_DRAWER;
+use crate::keyword::*;
+use crate::latex::REGEX_LATEX_BEGIN_ENVIRIONMENT;
 use crate::list::*;
 
 /// determines the depth of the recursion.
@@ -60,6 +66,12 @@ pub struct Parser<'a> {
     pub cursor: RefCell<Cursor<'a>>,
     pub input: &'a str,
     pub granularity: ParseGranularity,
+}
+
+macro_rules! looking_at {
+    ($regex:ident, $parser: ident) => {
+        $parser.cursor.borrow_mut().looking_at(&*$regex)
+    };
 }
 
 impl<'a> Parser<'a> {
@@ -251,42 +263,30 @@ impl<'a> Parser<'a> {
             use crate::parser::ParserMode::*;
 
             // Item
-            // ((eq mode 'item)
-            //(org-element-item-parser limit structure raw-secondary-p))
             if mode == Item {
                 return self.item_parser(structure, raw_secondary_p);
             }
 
             // Table Row.
-            // ((eq mode 'table-row) (org-element-table-row-parser limit))
             if mode == TableRow {
                 return self.table_row_parser();
             }
 
             // Node Property.
-            // ((eq mode 'node-property) (org-element-node-property-parser limit))
             if mode == NodeProperty {
                 return self.node_property_parser(limit);
             }
 
             // Headline.
-            // ((org-with-limited-levels (org-at-heading-p))
-            //  (org-element-headline-parser limit raw-secondary-p))
             if self.cursor.borrow_mut().on_headline() {
                 return self.headline_parser();
             }
 
             // Sections (must be checked after headline).
-
-            // ((eq mode 'section) (org-element-section-parser limit))
             if mode == Section {
                 return self.section_parser(limit);
             }
 
-            //  ((eq mode 'first-section)
-            //  (org-element-section-parser
-            //      (or (save-excursion (org-with-limited-levels (outline-next-heading)))
-            //  limit)))
             if mode == FirstSection {
                 let pos = self.cursor.borrow().pos();
                 let lim = self.cursor.borrow_mut().next_headline().unwrap_or(limit);
@@ -295,10 +295,6 @@ impl<'a> Parser<'a> {
             }
 
             // Planning.
-            // ((and (eq mode 'planning)
-            //   (eq ?* (char-after (line-beginning-position 0)))
-            //   (looking-at org-planning-line-re))
-            //  (org-element-planning-parser limit))
             {
                 let mut c = self.cursor.borrow_mut();
                 let maybe_headline_offset = c.line_beginning_position(Some(0));
@@ -313,11 +309,6 @@ impl<'a> Parser<'a> {
             }
 
             // Property drawer.
-            //     ((and (memq mode '(planning property-drawer))
-            // (eq ?* (char-after (line-beginning-position
-            //     (if (eq mode 'planning) 0 -1))))
-            // (looking-at org-property-drawer-re))
-            // (org-element-property-drawer-parser limit))
             {
                 let mut c = self.cursor.borrow_mut();
                 let delta = if mode == Planning { 0 } else { -1 };
@@ -338,31 +329,114 @@ impl<'a> Parser<'a> {
 
             // When not at bol, point is at the beginning of an item or
             // a footnote definition: next item is always a paragraph.
-            // ((not (bolp)) (org-element-paragraph-parser limit (list (point))))
             if !self.cursor.borrow().is_bol() {
                 return self.paragraph_parser(limit, self.cursor.borrow().pos());
             }
 
             // Clock.
-            // ((looking-at org-clock-line-re) (org-element-clock-parser limit))
-            if self
-                .cursor
-                .borrow_mut()
-                .looking_at(&*REGEX_CLOCK_LINE)
-                .is_some()
-            {
+            if looking_at!(REGEX_CLOCK_LINE, self).is_some() {
                 return self.clock_line_parser(limit);
             }
 
             // Inlinetask.
-            // ((org-at-heading-p)
-            //   (org-element-inlinetask-parser limit raw-secondary-p))
             if self.cursor.borrow_mut().on_headline() {
                 return self.inlinetask_parser(limit, raw_secondary_p);
             }
 
             // From there, elements can have affiliated keywords.
-            // TODO finish current_element fn
+            let (aff_start, maybe_aff) = self.collect_affiliated_keywords(limit);
+
+            // If parsing affiliated keywords left cursor off-limits
+            // then parse them as regular keywords.
+            if (maybe_aff.is_some() && self.cursor.borrow().pos() >= limit) {
+                self.cursor.borrow_mut().set(aff_start);
+                return self.keyword_parser(limit, aff_start, None);
+            }
+
+            // LaTeX Environment
+            //org-element--latex-begin-environment
+
+            if looking_at!(REGEX_LATEX_BEGIN_ENVIRIONMENT, self).is_some() {
+                return self.latex_environment_parser(limit, aff_start, maybe_aff);
+            }
+
+            // Drawer and Property Drawer.
+            if looking_at!(REGEX_DRAWER, self).is_some() {
+                return self.drawer_parser(limit, aff_start, maybe_aff);
+            }
+
+            //  Fixed Width
+            if looking_at!(REGEX_FIXED_WIDTH, self).is_some() {
+                return self.fixed_width_parser(limit, aff_start, maybe_aff);
+            }
+
+            // Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
+            if let Some(m) = looking_at!(REGEX_STARTS_WITH_HASHTAG, self) {
+                self.cursor.borrow_mut().set(m.end());
+                if looking_at!(REGEX_COLON_OR_EOL, self).is_some() {}
+
+                //    (cond
+                //       ((looking-at "\\(?: \\|$\\)")
+                //	(beginning-of-line)
+                //	(org-element-comment-parser limit affiliated))
+                //       ((looking-at "\\+BEGIN_\\(\\S-+\\)")
+                //	(beginning-of-line)
+                //	(funcall (pcase (upcase (match-string 1))
+                //		   ("CENTER"  #'org-element-center-block-parser)
+                //		   ("COMMENT" #'org-element-comment-block-parser)
+                //		   ("EXAMPLE" #'org-element-example-block-parser)
+                //		   ("EXPORT"  #'org-element-export-block-parser)
+                //		   ("QUOTE"   #'org-element-quote-block-parser)
+                //		   ("SRC"     #'org-element-src-block-parser)
+                //		   ("VERSE"   #'org-element-verse-block-parser)
+                //		   (_         #'org-element-special-block-parser))
+                //		 limit
+                //		 affiliated))
+                //       ((looking-at "\\+CALL:")
+                //	(beginning-of-line)
+                //	(org-element-babel-call-parser limit affiliated))
+                //       ((looking-at "\\+BEGIN:? ")
+                //	(beginning-of-line)
+                //	(org-element-dynamic-block-parser limit affiliated))
+                //       ((looking-at "\\+\\S-+:")
+                //	(beginning-of-line)
+                //	(org-element-keyword-parser limit affiliated))
+                //       (t
+                //	(beginning-of-line)
+                //	(org-element-paragraph-parser limit affiliated))))
+                //
+            }
+
+            //  ;; Footnote Definition.
+            //  ((looking-at org-footnote-definition-re)
+            //   (org-element-footnote-definition-parser limit affiliated))
+            //  ;; Horizontal Rule.
+            //  ((looking-at "[ \t]*-\\{5,\\}[ \t]*$")
+            //   (org-element-horizontal-rule-parser limit affiliated))
+            //  ;; Diary Sexp.
+            //  ((looking-at "%%(")
+            //   (org-element-diary-sexp-parser limit affiliated))
+            //  ;; Table.
+            //  ((or (looking-at "[ \t]*|")
+            //       ;; There is no strict definition of a table.el
+            //       ;; table.  Try to prevent false positive while being
+            //       ;; quick.
+            //       (let ((rule-regexp "[ \t]*\\+\\(-+\\+\\)+[ \t]*$")
+            //     	(next (line-beginning-position 2)))
+            //         (and (looking-at rule-regexp)
+            //     	 (save-excursion
+            //     	   (forward-line)
+            //     	   (re-search-forward "^[ \t]*\\($\\|[^|]\\)" limit t)
+            //     	   (and (> (line-beginning-position) next)
+            //     		(org-match-line rule-regexp))))))
+            //   (org-element-table-parser limit affiliated))
+            //  ;; List.
+            //  ((looking-at (org-item-re))
+            //   (org-element-plain-list-parser
+            //    limit affiliated
+            //    (or structure (org-element--list-struct limit))))
+            //  ;; Default element: Paragraph.
+            //  (t (org-element-paragraph-parser limit affiliated)))))))))
 
             return unreachable!();
         };

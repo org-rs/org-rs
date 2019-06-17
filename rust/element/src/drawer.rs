@@ -13,30 +13,33 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-#![warn(clippy::all)]
-// This should be eventually turned off, but for now this helps reduce the noice
-#![allow(dead_code)]
-#![allow(warnings)]
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate strum_macros;
+use crate::affiliated::AffiliatedData;
+use crate::data::SyntaxNode;
+use crate::parser::Parser;
+use regex::Regex;
 
-extern crate memchr;
-extern crate regex;
-extern crate strum;
+lazy_static! {
 
-mod affiliated;
-mod cursor;
-mod data;
-mod drawer;
-mod fixed_width;
-mod headline;
-mod keyword;
-mod latex;
-mod list;
-mod markup;
-mod paragraph;
-mod parser;
-mod planning;
-mod table;
+
+    /// Matches first or last line of a drawer
+    /// Group 1 contains drawer's name or \"END\"
+    pub static ref REGEX_DRAWER: Regex = Regex::new(r"^[ \t]*:((?:\w|[-_])+):[ \t]*$").unwrap();
+
+}
+
+pub struct DrawerData<'a> {
+    /// Drawer's name (string).
+    pub drawer_name: &'a str,
+}
+
+impl<'a> Parser<'a> {
+    // TODO implement drawer_parser
+    pub fn drawer_parser(
+        &self,
+        limit: usize,
+        start: usize,
+        affiliated: Option<AffiliatedData>,
+    ) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+}

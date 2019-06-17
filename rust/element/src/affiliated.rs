@@ -52,7 +52,6 @@ use regex::{Match, Regex};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::string::ParseError;
 
 lazy_static! {
 
@@ -155,18 +154,21 @@ impl<'a> Parser<'a> {
     /// that element, and, in the meantime, collect information they give
     /// into appropriate properties.  Hence the following function.
     ///
-    /// Return a list whose CAR is the position at the first of them and
-    /// CDR a plist of keywords and values and move point to the
-    /// beginning of the first line after them.
+    /// The following scenarios are possible.
+    /// - Happy path:
+    ///   Return a tuple whose first element is the position at the first of affiliated keyword and
+    ///   second is `Some(AffiliatedData)`. Cursor is moved to the beginning of the first line
+    ///   after affiliated keywords. Exception is when cursor reached the limit
+    ///   and stopped on a non-empty line - cursor remains there.
     ///
-    /// As a special case, if element doesn't start at the beginning of
-    /// the line (e.g., a paragraph starting an item), CAR is current
-    /// position of point and CDR is nil."
-    /// elisp `defun org-element--collect-affiliated-keywords (limit)`
+    /// - Short circuit: if element doesn't start at the beginning of
+    ///   the line (e.g., a paragraph starting an item), first tuple element is current
+    ///   position of the cursor and second is None.
+    ///   elisp `defun org-element--collect-affiliated-keywords (limit)`
     ///
     /// NB: it looks like this function parses objects ignoring parser granularity settings
     ///
-    /// FIXME: currently CAPTION's values are not parsed into objects and can only contain
+    /// "FIXME: currently CAPTION's values are not parsed into objects and can only contain
     /// raw strings for now for the following reasons:
     ///
     /// - Original algorithm does not take into account granularity, and it is probably a bug.
