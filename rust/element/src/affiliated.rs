@@ -191,7 +191,7 @@ impl<'a> Parser<'a> {
         let mut output: AffiliatedData = Default::default();
 
         loop {
-            let maybe_affiliated = self.cursor.borrow().capturing_at(&*REGEX_AFFILIATED);
+            let maybe_affiliated = capturing_at!(REGEX_AFFILIATED, self);
             let current_pos = self.cursor.borrow().pos();
             if current_pos >= limit || maybe_affiliated.is_none() {
                 break;
@@ -253,12 +253,7 @@ impl<'a> Parser<'a> {
 
         // If affiliated keywords are orphaned: move back to first one.
         // They will be parsed as a paragraph.
-        if self
-            .cursor
-            .borrow()
-            .looking_at(&*REGEX_EMPTY_LINE)
-            .is_some()
-        {
+        if looking_at!(REGEX_EMPTY_LINE, self).is_some() {
             self.cursor.borrow_mut().set(origin);
             return (origin, None);
         }

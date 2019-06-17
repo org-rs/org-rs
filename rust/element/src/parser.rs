@@ -19,11 +19,10 @@ use std::rc::Rc;
 use regex::Regex;
 
 use crate::cursor::Cursor;
-use crate::data::Handle;
-use crate::data::SyntaxT;
-use crate::data::REGEX_COLON_OR_EOL;
-use crate::data::REGEX_STARTS_WITH_HASHTAG;
-use crate::data::{Syntax, SyntaxNode};
+use crate::data::{
+    Handle, Syntax, SyntaxNode, SyntaxT, REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL,
+    REGEX_STARTS_WITH_HASHTAG,
+};
 use crate::drawer::REGEX_DRAWER;
 use crate::fixed_width::REGEX_FIXED_WIDTH;
 use crate::headline::REGEX_CLOCK_LINE;
@@ -71,6 +70,12 @@ pub struct Parser<'a> {
 macro_rules! looking_at {
     ($regex:ident, $parser: ident) => {
         $parser.cursor.borrow_mut().looking_at(&*$regex)
+    };
+}
+
+macro_rules! capturing_at {
+    ($regex:ident, $parser: ident) => {
+        $parser.cursor.borrow_mut().capturing_at(&*$regex)
     };
 }
 
@@ -355,7 +360,6 @@ impl<'a> Parser<'a> {
 
             // LaTeX Environment
             //org-element--latex-begin-environment
-
             if looking_at!(REGEX_LATEX_BEGIN_ENVIRIONMENT, self).is_some() {
                 return self.latex_environment_parser(limit, aff_start, maybe_aff);
             }
@@ -373,41 +377,50 @@ impl<'a> Parser<'a> {
             // Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
             if let Some(m) = looking_at!(REGEX_STARTS_WITH_HASHTAG, self) {
                 self.cursor.borrow_mut().set(m.end());
-                if looking_at!(REGEX_COLON_OR_EOL, self).is_some() {}
+                if looking_at!(REGEX_COLON_OR_EOL, self).is_some() {
+                    self.cursor.borrow_mut().goto_line_begin();
+                    return self.comment_parser(limit, aff_start, maybe_aff);
+                }
 
-                //    (cond
-                //       ((looking-at "\\(?: \\|$\\)")
-                //	(beginning-of-line)
-                //	(org-element-comment-parser limit affiliated))
-                //       ((looking-at "\\+BEGIN_\\(\\S-+\\)")
-                //	(beginning-of-line)
-                //	(funcall (pcase (upcase (match-string 1))
-                //		   ("CENTER"  #'org-element-center-block-parser)
-                //		   ("COMMENT" #'org-element-comment-block-parser)
-                //		   ("EXAMPLE" #'org-element-example-block-parser)
-                //		   ("EXPORT"  #'org-element-export-block-parser)
-                //		   ("QUOTE"   #'org-element-quote-block-parser)
-                //		   ("SRC"     #'org-element-src-block-parser)
-                //		   ("VERSE"   #'org-element-verse-block-parser)
-                //		   (_         #'org-element-special-block-parser))
-                //		 limit
-                //		 affiliated))
-                //       ((looking-at "\\+CALL:")
-                //	(beginning-of-line)
-                //	(org-element-babel-call-parser limit affiliated))
-                //       ((looking-at "\\+BEGIN:? ")
-                //	(beginning-of-line)
-                //	(org-element-dynamic-block-parser limit affiliated))
-                //       ((looking-at "\\+\\S-+:")
-                //	(beginning-of-line)
-                //	(org-element-keyword-parser limit affiliated))
-                //       (t
-                //	(beginning-of-line)
-                //	(org-element-paragraph-parser limit affiliated))))
-                //
+                if let Some(cap) = capturing_at!(REGEX_BLOCK_BEGIN, self) {
+                    self.cursor.borrow_mut().goto_line_begin();
+                    let name = cap.get(1).unwrap().as_str().to_owned().to_ascii_uppercase();
+                    match name {
+                        "CENTER" => return self.center_block_parser(limit, aff_start, maybe_aff),
+                        "COMMENT" => return self.comment_block_parser(limit, aff_start, maybe_aff),
+                        "EXAMPLE" => return self.example_block_parser(limit, aff_start, maybe_aff),
+                        "EXPORT" => return self.export_block_parser(limit, aff_start, maybe_aff),
+                        "QUOTE" => return self.quote_block_parser(limit, aff_start, maybe_aff),
+                        "SRC" => return self.src_block_parser(limit, aff_start, maybe_aff),
+                        "VERSE" => return self.verse_block_parser(limit, aff_start, maybe_aff),
+                        _ => return self.special_block_parser(limit, aff_start, maybe_aff),
+                    }
+                }
+
+                // ((looking-at "\\+CALL:")
+                if looking_at!(REGEX_BABEL_CALL, self).is_some() {
+                    self.cursor.borrow_mut().goto_line_begin();
+                    return self.babel_call_parser(limit, aff_start, maybe_aff);
+                }
+
+                // ((looking-at "\\+BEGIN:? ")
+                if looking_at!(REGEX_DYNAMIC_BLOCK, self).is_some() {
+                    self.cursor.borrow_mut().goto_line_begin();
+                    return self.dynamic_block_parser(limit, aff_start, maybe_aff);
+                }
+
+                // ((looking-at "\\+\\S-+:")
+                if looking_at!(REGEX_KEYWORD, self).is_some() {
+                    self.cursor.borrow_mut().goto_line_begin();
+                    return self.keyword_parser(limit, aff_start, maybe_aff);
+                }
+
+                // If none of the above fits then this is just a paragraph
+                self.cursor.borrow_mut().goto_line_begin();
+                return self.paragraph_parser(limit, aff_start, maybe_aff);
             }
 
-            //  ;; Footnote Definition.
+            // Footnote Definition.
             //  ((looking-at org-footnote-definition-re)
             //   (org-element-footnote-definition-parser limit affiliated))
             //  ;; Horizontal Rule.

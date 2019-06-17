@@ -1017,7 +1017,9 @@ lazy_static! {
     /// Used to identify Comments. Used together with REGEX_STARTS_WITH_HASHTAG
     pub static ref REGEX_COLON_OR_EOL: Regex = Regex::new(r"(?: |$)").unwrap();
 
-
+    /// Used to identify center, comment, example, export, quote, source, verse
+    /// and special blocks. Used together with REGEX_STARTS_WITH_HASHTAG
+    pub static ref REGEX_BLOCK_BEGIN: Regex = Regex::new(r"\+BEGIN_(\S+)").unwrap();
 
 }
 
