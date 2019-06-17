@@ -21,6 +21,10 @@ use crate::parser::Parser;
 use regex::{Match, Regex};
 use std::borrow::Cow;
 
+lazy_static! {
+    pub static ref REGEX_KEYWORD: Regex = Regex::new(r"\+\S+:").unwrap();
+}
+
 pub struct KeywordData<'a> {
     /// Keyword's name (string).
     key: &'a str,

@@ -18,13 +18,16 @@ use std::rc::Rc;
 
 use regex::Regex;
 
+use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
-use crate::data::{
-    Handle, Syntax, SyntaxNode, SyntaxT, REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL,
-    REGEX_STARTS_WITH_HASHTAG,
+use crate::data::{Handle, Syntax, SyntaxNode, SyntaxT};
+
+use crate::blocks::{
+    REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL, REGEX_DYNAMIC_BLOCK, REGEX_STARTS_WITH_HASHTAG,
 };
 use crate::drawer::REGEX_DRAWER;
 use crate::fixed_width::REGEX_FIXED_WIDTH;
+use crate::footnote_definition::REGEX_FOOTNOTE_DEFINITION;
 use crate::headline::REGEX_CLOCK_LINE;
 use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
@@ -335,7 +338,7 @@ impl<'a> Parser<'a> {
             // When not at bol, point is at the beginning of an item or
             // a footnote definition: next item is always a paragraph.
             if !self.cursor.borrow().is_bol() {
-                return self.paragraph_parser(limit, self.cursor.borrow().pos());
+                return self.paragraph_parser(limit, self.cursor.borrow().pos(), None);
             }
 
             // Clock.
@@ -385,7 +388,7 @@ impl<'a> Parser<'a> {
                 if let Some(cap) = capturing_at!(REGEX_BLOCK_BEGIN, self) {
                     self.cursor.borrow_mut().goto_line_begin();
                     let name = cap.get(1).unwrap().as_str().to_owned().to_ascii_uppercase();
-                    match name {
+                    match name.as_ref() {
                         "CENTER" => return self.center_block_parser(limit, aff_start, maybe_aff),
                         "COMMENT" => return self.comment_block_parser(limit, aff_start, maybe_aff),
                         "EXAMPLE" => return self.example_block_parser(limit, aff_start, maybe_aff),
@@ -397,19 +400,16 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                // ((looking-at "\\+CALL:")
                 if looking_at!(REGEX_BABEL_CALL, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
                     return self.babel_call_parser(limit, aff_start, maybe_aff);
                 }
 
-                // ((looking-at "\\+BEGIN:? ")
                 if looking_at!(REGEX_DYNAMIC_BLOCK, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
                     return self.dynamic_block_parser(limit, aff_start, maybe_aff);
                 }
 
-                // ((looking-at "\\+\\S-+:")
                 if looking_at!(REGEX_KEYWORD, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
                     return self.keyword_parser(limit, aff_start, maybe_aff);
@@ -420,7 +420,10 @@ impl<'a> Parser<'a> {
                 return self.paragraph_parser(limit, aff_start, maybe_aff);
             }
 
-            // Footnote Definition.
+            // Footnote Definition
+            if looking_at!(REGEX_FOOTNOTE_DEFINITION, self).is_some() {
+                return self.footnote_definition_parser(limit, aff_start, maybe_aff);
+            }
             //  ((looking-at org-footnote-definition-re)
             //   (org-element-footnote-definition-parser limit affiliated))
             //  ;; Horizontal Rule.

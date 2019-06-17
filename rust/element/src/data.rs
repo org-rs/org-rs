@@ -13,18 +13,27 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-// https://orgmode.org/worg/dev/org-syntax.html
-
 // https://orgmode.org/worg/dev/org-element-api.html
 // API page lists LineBreak as element, when both org-syntax page and source code list is as object
 
 use crate::affiliated::AffiliatedData;
+use crate::babel::BabelCallData;
+use crate::blocks::CommentBlockData;
+use crate::blocks::DynamicBlockData;
+use crate::blocks::ExampleBlockData;
+use crate::blocks::ExportBlockData;
+use crate::blocks::SpecialBlockData;
+use crate::blocks::SrcBlockData;
 use crate::data::Syntax::BabelCall;
 use crate::drawer::DrawerData;
 use crate::fixed_width::FixedWidthData;
+use crate::footnote_definition::FootnoteDefinitionData;
 use crate::headline::{HeadlineData, InlineTaskData, NodePropertyData};
 use crate::keyword::KeywordData;
+use crate::latex::LatexEnvironmentData;
+use crate::latex::LatexFragmentData;
 use crate::list::*;
+use crate::markup::CommentData;
 use crate::table::{TableData, TableRowData};
 use std::borrow::Cow;
 use std::cell::Cell;
@@ -514,7 +523,6 @@ impl SyntaxT {
 }
 
 /// Some elements can contain objects directly in their value fields
-///
 pub enum StringOrObject<'a> {
     Raw(Cow<'a, str>),
     Parsed(SyntaxNode<'a>),
@@ -541,23 +549,6 @@ impl<'a> PartialEq for StringOrObject<'a> {
     }
 }
 
-pub struct BabelCallData<'a> {
-    /// Name of code block being called (string).
-    pub call: &'a str,
-
-    /// Header arguments applied to the named code block (string or nil).
-    pub inside_header: Option<&'a str>,
-
-    /// Arguments passed to the code block (string or nil).
-    pub arguments: Option<&'a str>,
-
-    /// Header arguments applied to the calling instance (string or nil).
-    pub end_header: Option<&'a str>,
-
-    /// Raw call, as Org syntax (string).
-    pub value: &'a str,
-}
-
 pub struct ClockData<'a> {
     /// Clock duration for a closed clock, or nil (string or nil).
     duration: &'a str,
@@ -574,110 +565,14 @@ pub enum ClockStatus {
     Closed,
 }
 
-pub struct CommentData<'a> {
-    /// Comments, with pound signs (string).
-    value: &'a str,
-}
-
-pub struct CommentBlockData<'a> {
-    /// Comments, without block's boundaries (string).
-    value: &'a str,
-}
-
 pub struct DiarySexpData<'a> {
     /// Full Sexp (string).
     value: &'a str,
 }
 
-/// Greater element
-pub struct DynamicBlockData<'a> {
-    /// Block's parameters (string).
-    arguments: &'a str,
-
-    /// Block's name (string).
-    block_name: &'a str,
-
-    /// Drawer's name (string).
-    drawer_name: &'a str,
-}
-
 pub enum LineNumberingMode {
     New,
     Continued,
-}
-
-pub struct ExampleBlockData<'a> {
-    /// Format string used to write labels in current block,
-    /// if different from org_coderef_label_format (string or nil).
-    label_fmt: Option<&'a str>,
-
-    ///Language of the code in the block, if specified (string or nil).
-    language: Option<&'a str>,
-
-    /// Non_nil if code lines should be numbered.
-    /// A `new` value starts numbering from 1 wheareas
-    /// `continued` resume numbering from previous numbered block
-    /// (symbol new, continued or nil).
-    number_lines: Option<LineNumberingMode>,
-
-    /// Block's options located on the block's opening line (string)
-    options: &'a str,
-
-    /// Optional header arguments (string or nil)
-    parameters: Option<&'a str>,
-
-    /// Non_nil when indentation within the block mustn't be modified
-    /// upon export (boolean).
-    preserve_indent: bool,
-
-    /// Non_nil if labels should be kept visible upon export (boolean).
-    retain_labels: bool,
-
-    /// Optional switches for code block export (string or nil).
-    switches: Option<&'a str>,
-
-    /// Non_nil if links to labels contained in the block should
-    /// display the label instead of the line number (boolean).
-    use_labels: bool,
-
-    /// Contents (string).
-    value: &'a str,
-}
-
-pub struct ExportBlockData<'a> {
-    ///Related back_end's name (string).
-    type_s: &'a str,
-
-    ///Contents (string)
-    value: &'a str,
-}
-
-/// Greater element
-pub struct FootnoteDefinitionData<'a> {
-    /// Label used for references (string).
-    label: &'a str,
-
-    /// Number of newline characters between the
-    /// beginning of the footnoote and the beginning
-    /// of the contents (0, 1 or 2).
-    pre_blank: u8,
-}
-
-pub struct LatexEnvironmentData<'a> {
-    /// Buffer position at first affiliated keyword or
-    /// at the beginning of the first line of environment (integer).
-    begin: usize,
-
-    /// Buffer position at the first non_blank line
-    /// after last line of the environment, or buffer's end (integer).
-    end: usize,
-
-    /// Number of blank lines between last environment's
-    /// line and next non_blank line or buffer's end (integer).
-    post_blank: usize,
-
-    ///LaTeX code (string).
-    value: &'a str,
 }
 
 pub struct PlanningData<'a> {
@@ -692,47 +587,6 @@ pub struct PlanningData<'a> {
     /// Timestamp associated to scheduled keyword, if any
     /// (timestamp object or nil).
     scheduled: Option<TimestampData<'a>>,
-}
-
-pub struct SpecialBlockData<'a> {
-    /// Block's name (string).
-    type_s: &'a str,
-    /// Raw contents in block (string).
-    raw_value: &'a str,
-}
-
-pub struct SrcBlockData<'a> {
-    /// Format string used to write labels in current block,
-    /// if different from org_coderef_label_format (string or nil).
-    label_fmt: Option<&'a str>,
-
-    /// Language of the code in the block, if specified (string or nil).
-    language: Option<&'a str>,
-
-    /// Non_nil if code lines should be numbered.
-    /// A `new` value starts numbering from 1 wheareas
-    /// `continued` resume numbering from previous
-    /// numbered block (symbol new, continued or nil).
-    number_lines: Option<LineNumberingMode>,
-
-    /// Optional header arguments (string or nil).
-    parameters: Option<&'a str>,
-
-    /// Non_nil when indentation within the block
-    /// mustn't be modified upon export (boolean).
-    preserve_indent: bool,
-    ///Non_nil if labels should be kept visible upon export (boolean).
-    retain_labels: bool,
-
-    /// Optional switches for code block export (string or nil).
-    switches: Option<&'a str>,
-
-    /// Non_nil if links to labels contained in the block
-    /// should display the label instead of the line number (boolean).
-    use_labels: bool,
-
-    ///Source code (string).
-    value: &'a str,
 }
 
 // ===== Objects Data ======
@@ -813,11 +667,6 @@ pub struct InlineSrcBlockData<'a> {
     parameters: Option<&'a str>,
 
     ///Source code (string).
-    value: &'a str,
-}
-
-pub struct LatexFragmentData<'a> {
-    ///LaTeX code (string).
     value: &'a str,
 }
 
@@ -1007,20 +856,6 @@ pub enum TimeUnit {
 pub struct VerbatimData<'a> {
     ///Contents (string).
     value: &'a str,
-}
-
-lazy_static! {
-
-    /// Used to identify the  Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
-    pub static ref REGEX_STARTS_WITH_HASHTAG: Regex = Regex::new(r"[ \t]*#").unwrap();
-
-    /// Used to identify Comments. Used together with REGEX_STARTS_WITH_HASHTAG
-    pub static ref REGEX_COLON_OR_EOL: Regex = Regex::new(r"(?: |$)").unwrap();
-
-    /// Used to identify center, comment, example, export, quote, source, verse
-    /// and special blocks. Used together with REGEX_STARTS_WITH_HASHTAG
-    pub static ref REGEX_BLOCK_BEGIN: Regex = Regex::new(r"\+BEGIN_(\S+)").unwrap();
-
 }
 
 mod test {

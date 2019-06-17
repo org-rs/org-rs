@@ -26,17 +26,21 @@ extern crate memchr;
 extern crate regex;
 extern crate strum;
 
+#[macro_use]
+mod parser;
 mod affiliated;
+mod babel;
+mod blocks;
 mod cursor;
 mod data;
 mod drawer;
 mod fixed_width;
+mod footnote_definition;
 mod headline;
 mod keyword;
 mod latex;
 mod list;
 mod markup;
 mod paragraph;
-mod parser;
 mod planning;
 mod table;

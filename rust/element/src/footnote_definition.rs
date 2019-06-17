@@ -12,6 +12,7 @@
 //
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
+//
 
 use crate::affiliated::AffiliatedData;
 use crate::data::SyntaxNode;
@@ -19,29 +20,26 @@ use crate::parser::Parser;
 use regex::Regex;
 
 lazy_static! {
-    pub static ref REGEX_BABEL_CALL: Regex = Regex::new(r"\+CALL:").unwrap();
+
+    /// Regular expression matching the definition of a footnote.
+    /// Match group 1 contains definition's label
+    pub static ref REGEX_FOOTNOTE_DEFINITION: Regex = Regex::new(r"^\[fn:([-_[:word:]]+)\]").unwrap();
 }
 
-pub struct BabelCallData<'a> {
-    /// Name of code block being called (string).
-    pub call: &'a str,
+/// Greater element
+pub struct FootnoteDefinitionData<'a> {
+    /// Label used for references (string).
+    label: &'a str,
 
-    /// Header arguments applied to the named code block (string or nil).
-    pub inside_header: Option<&'a str>,
-
-    /// Arguments passed to the code block (string or nil).
-    pub arguments: Option<&'a str>,
-
-    /// Header arguments applied to the calling instance (string or nil).
-    pub end_header: Option<&'a str>,
-
-    /// Raw call, as Org syntax (string).
-    pub value: &'a str,
+    /// Number of newline characters between the
+    /// beginning of the footnoote and the beginning
+    /// of the contents (0, 1 or 2).
+    pre_blank: u8,
 }
 
 impl<'a> Parser<'a> {
-    // TODO implement babel_call_parser
-    pub fn babel_call_parser(
+    // TODO implement footnote_definition_parser
+    pub fn footnote_definition_parser(
         &self,
         limit: usize,
         start: usize,

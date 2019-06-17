@@ -43,6 +43,28 @@ lazy_static! {
 /// In ideal world this should be replaced by a proper parser
 pub static FMTSTR_LATEX_END_ENVIRONMENT: &str = r"\\end{%s}[ \t]*$";
 
+pub struct LatexEnvironmentData<'a> {
+    /// Buffer position at first affiliated keyword or
+    /// at the beginning of the first line of environment (integer).
+    begin: usize,
+
+    /// Buffer position at the first non_blank line
+    /// after last line of the environment, or buffer's end (integer).
+    end: usize,
+
+    /// Number of blank lines between last environment's
+    /// line and next non_blank line or buffer's end (integer).
+    post_blank: usize,
+
+    ///LaTeX code (string).
+    value: &'a str,
+}
+
+pub struct LatexFragmentData<'a> {
+    ///LaTeX code (string).
+    value: &'a str,
+}
+
 impl<'a> Parser<'a> {
     // TODO implement latext_environment_parser
     /// Parse a LaTeX environment.
