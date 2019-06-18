@@ -37,6 +37,7 @@ use crate::markup::REGEX_FIXED_WIDTH;
 use crate::markup::REGEX_FOOTNOTE_DEFINITION;
 use crate::markup::REGEX_HORIZONTAL_RULE;
 use crate::planning::REGEX_DIARY_SEXP;
+use crate::table::{REGEX_TABLE_RULE, REGEX_TABLE_SIDE};
 
 /// determines the depth of the recursion.
 #[derive(PartialEq)]
@@ -440,11 +441,15 @@ impl<'a> Parser<'a> {
             // Table
             // There is no strict definition of a table.
             // Try to prevent false positive while being quick.
-            let next = self.cursor.borrow_mut().line_beginning_position(Some(2));
             if looking_at!(REGEX_TABLE_SIDE, self).is_some() {
-
+                return self.table_parser(limit, aff_start, maybe_aff);
             } else {
-
+                let mut c = self.cursor.borrow_mut();
+                let pos = c.pos();
+                let next = c.goto_next_line();
+                let found =  c.re_search_forward()
+            
+                c.set(pos);
             }
 
             //  ((or (looking-at "[ \t]*|")

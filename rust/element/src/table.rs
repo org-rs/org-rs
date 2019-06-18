@@ -51,4 +51,14 @@ impl<'a> Parser<'a> {
     pub fn table_row_parser(&self) -> SyntaxNode<'a> {
         unimplemented!()
     }
+
+    // TODO implement table_parser
+    pub fn table_parser(
+        &self,
+        limit: usize,
+        start: usize,
+        maybe_aff: Option<AffiliatedData>,
+    ) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
 }
