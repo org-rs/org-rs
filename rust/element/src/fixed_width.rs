@@ -17,29 +17,3 @@ use crate::affiliated::AffiliatedData;
 use crate::data::SyntaxNode;
 use crate::parser::Parser;
 use regex::Regex;
-
-lazy_static! {
-
-    /// Fixed Width Areas
-    /// A “fixed-width line” start with a colon character and a whitespace or an end of line.
-    /// Fixed width areas can contain any number of consecutive fixed-width lines.
-    pub static ref REGEX_FIXED_WIDTH: Regex = Regex::new(r"[ \t]*:( |$)").unwrap();
-
-}
-
-pub struct FixedWidthData<'a> {
-    ///Contents, without colons prefix (string).
-    value: &'a str,
-}
-
-impl<'a> Parser<'a> {
-    // TODO implement fixed_width_parser
-    pub fn fixed_width_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        maybe_aff: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        unimplemented!()
-    }
-}

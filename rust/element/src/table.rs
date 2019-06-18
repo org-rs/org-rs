@@ -15,8 +15,15 @@
 
 // TODO add table related docs
 
+use crate::affiliated::AffiliatedData;
 use crate::data::SyntaxNode;
 use crate::parser::Parser;
+use regex::Regex;
+
+lazy_static! {
+    pub static ref REGEX_TABLE_SIDE: Regex = Regex::new(r"[ \t]*\|").unwrap();
+    pub static ref REGEX_TABLE_RULE: Regex = Regex::new(r"[ \t]*\+(-+\+)+[ \t]*$").unwrap();
+}
 
 pub struct TableData<'a> {
     /// Formulas associated to the table, if any (string or nil).

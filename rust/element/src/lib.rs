@@ -35,7 +35,6 @@ mod cursor;
 mod data;
 mod drawer;
 mod fixed_width;
-mod footnote_definition;
 mod headline;
 mod keyword;
 mod latex;

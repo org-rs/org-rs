@@ -20,8 +20,18 @@ use crate::parser::Parser;
 use regex::Regex;
 
 lazy_static! {
-    // TODO check if needed and remove if not
-    pub static ref REGEX_: Regex = Regex::new(r"").unwrap();
+    pub static ref REGEX_HORIZONTAL_RULE: Regex = Regex::new(r"[ \t]*-{5,}[ \t]*$").unwrap();
+
+    /// Regular expression matching the definition of a footnote.
+    /// Match group 1 contains definition's label
+    pub static ref REGEX_FOOTNOTE_DEFINITION: Regex = Regex::new(r"^\[fn:([-_[:word:]]+)\]").unwrap();
+
+
+    /// Fixed Width Areas
+    /// A “fixed-width line” start with a colon character and a whitespace or an end of line.
+    /// Fixed width areas can contain any number of consecutive fixed-width lines.
+    pub static ref REGEX_FIXED_WIDTH: Regex = Regex::new(r"[ \t]*:( |$)").unwrap();
+
 }
 
 pub struct CommentData<'a> {
@@ -29,13 +39,59 @@ pub struct CommentData<'a> {
     value: &'a str,
 }
 
+pub struct FixedWidthData<'a> {
+    ///Contents, without colons prefix (string).
+    value: &'a str,
+}
+
+/// Greater element
+pub struct FootnoteDefinitionData<'a> {
+    /// Label used for references (string).
+    label: &'a str,
+
+    /// Number of newline characters between the
+    /// beginning of the footnoote and the beginning
+    /// of the contents (0, 1 or 2).
+    pre_blank: u8,
+}
+
 impl<'a> Parser<'a> {
-    // TODO implement drawer_parser
+    // TODO implement comment_parser
     pub fn comment_parser(
         &self,
         limit: usize,
         start: usize,
         affiliated: Option<AffiliatedData>,
+    ) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
+    // TODO implement horizontal_rule_parser
+    pub fn horizontal_rule_parser(
+        &self,
+        limit: usize,
+        start: usize,
+        affiliated: Option<AffiliatedData>,
+    ) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
+    // TODO implement footnote_definition_parser
+    pub fn footnote_definition_parser(
+        &self,
+        limit: usize,
+        start: usize,
+        affiliated: Option<AffiliatedData>,
+    ) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
+    // TODO implement fixed_width_parser
+    pub fn fixed_width_parser(
+        &self,
+        limit: usize,
+        start: usize,
+        maybe_aff: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
         unimplemented!()
     }

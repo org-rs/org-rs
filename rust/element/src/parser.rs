@@ -26,8 +26,6 @@ use crate::blocks::{
     REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL, REGEX_DYNAMIC_BLOCK, REGEX_STARTS_WITH_HASHTAG,
 };
 use crate::drawer::REGEX_DRAWER;
-use crate::fixed_width::REGEX_FIXED_WIDTH;
-use crate::footnote_definition::REGEX_FOOTNOTE_DEFINITION;
 use crate::headline::REGEX_CLOCK_LINE;
 use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
@@ -35,6 +33,10 @@ use crate::headline::REGEX_PROPERTY_DRAWER;
 use crate::keyword::*;
 use crate::latex::REGEX_LATEX_BEGIN_ENVIRIONMENT;
 use crate::list::*;
+use crate::markup::REGEX_FIXED_WIDTH;
+use crate::markup::REGEX_FOOTNOTE_DEFINITION;
+use crate::markup::REGEX_HORIZONTAL_RULE;
+use crate::planning::REGEX_DIARY_SEXP;
 
 /// determines the depth of the recursion.
 #[derive(PartialEq)]
@@ -424,19 +426,28 @@ impl<'a> Parser<'a> {
             if looking_at!(REGEX_FOOTNOTE_DEFINITION, self).is_some() {
                 return self.footnote_definition_parser(limit, aff_start, maybe_aff);
             }
-            //  ((looking-at org-footnote-definition-re)
-            //   (org-element-footnote-definition-parser limit affiliated))
-            //  ;; Horizontal Rule.
-            //  ((looking-at "[ \t]*-\\{5,\\}[ \t]*$")
-            //   (org-element-horizontal-rule-parser limit affiliated))
-            //  ;; Diary Sexp.
-            //  ((looking-at "%%(")
-            //   (org-element-diary-sexp-parser limit affiliated))
-            //  ;; Table.
+
+            //  Horizontal Rule.
+            if looking_at!(REGEX_HORIZONTAL_RULE, self).is_some() {
+                return self.horizontal_rule_parser(limit, aff_start, maybe_aff);
+            }
+
+            // Diary Sexp.
+            if looking_at!(REGEX_DIARY_SEXP, self).is_some() {
+                return self.diary_sexp_parser(limit, aff_start, maybe_aff);
+            }
+
+            // Table
+            // There is no strict definition of a table.
+            // Try to prevent false positive while being quick.
+            let next = self.cursor.borrow_mut().line_beginning_position(Some(2));
+            if looking_at!(REGEX_TABLE_SIDE, self).is_some() {
+
+            } else {
+
+            }
+
             //  ((or (looking-at "[ \t]*|")
-            //       ;; There is no strict definition of a table.el
-            //       ;; table.  Try to prevent false positive while being
-            //       ;; quick.
             //       (let ((rule-regexp "[ \t]*\\+\\(-+\\+\\)+[ \t]*$")
             //     	(next (line-beginning-position 2)))
             //         (and (looking-at rule-regexp)
@@ -446,11 +457,13 @@ impl<'a> Parser<'a> {
             //     	   (and (> (line-beginning-position) next)
             //     		(org-match-line rule-regexp))))))
             //   (org-element-table-parser limit affiliated))
+
             //  ;; List.
             //  ((looking-at (org-item-re))
             //   (org-element-plain-list-parser
             //    limit affiliated
             //    (or structure (org-element--list-struct limit))))
+
             //  ;; Default element: Paragraph.
             //  (t (org-element-paragraph-parser limit affiliated)))))))))
 
