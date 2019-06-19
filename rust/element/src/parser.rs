@@ -37,7 +37,7 @@ use crate::markup::REGEX_FIXED_WIDTH;
 use crate::markup::REGEX_FOOTNOTE_DEFINITION;
 use crate::markup::REGEX_HORIZONTAL_RULE;
 use crate::planning::REGEX_DIARY_SEXP;
-use crate::table::{REGEX_TABLE_RULE, REGEX_TABLE_SIDE};
+use crate::table::{REGEX_TABLE_BORDER, REGEX_TABLE_PRE_BORDER, REGEX_TABLE_RULE};
 
 /// determines the depth of the recursion.
 #[derive(PartialEq)]
@@ -157,7 +157,7 @@ impl<'a> Parser<'a> {
         beg: usize,
         end: usize,
         mut mode: ParserMode,
-        structure: Option<&ListStruct>,
+        structure: Option<Rc<ListStruct>>,
     ) -> Vec<Handle> {
         let pos = self.cursor.borrow_mut().pos();
         self.cursor.borrow_mut().set(beg);
@@ -177,7 +177,11 @@ impl<'a> Parser<'a> {
 
             // Find current element's type and parse it accordingly to its category.
             // (org-element--current-element end granularity mode structure))
-            let element: SyntaxNode = self.current_element(end, mode, structure);
+            let list_struct = match &structure {
+                None => None,
+                Some(rc) => Some(rc.clone()),
+            };
+            let element: SyntaxNode = self.current_element(end, mode, list_struct);
 
             // (goto-char (org-element-property :end element))
             self.cursor.borrow_mut().set(element.location.end);
@@ -203,7 +207,7 @@ impl<'a> Parser<'a> {
                         // (and (memq type '(item plain-list))
                         // (org-element-property :structure element))
                         let list_sturct = match &element.data {
-                            Syntax::PlainList(d) => Some(&d.structure),
+                            Syntax::PlainList(d) => Some(d.structure.clone()),
                             _ => None,
                         };
 
@@ -220,7 +224,6 @@ impl<'a> Parser<'a> {
                         ));
                     }
                 }
-                // ctermfg=37 gui=italic guifg=#2aa1ae
                 // Any other element with contents, if granularity allows it
                 else {
                     // (org-element--parse-objects
@@ -264,7 +267,7 @@ impl<'a> Parser<'a> {
         &self,
         limit: usize,
         mode: ParserMode,
-        structure: Option<&ListStruct>,
+        structure: Option<Rc<ListStruct>>,
     ) -> SyntaxNode<'a> {
         let pos = self.cursor.borrow().pos();
 
@@ -439,40 +442,23 @@ impl<'a> Parser<'a> {
             }
 
             // Table
-            // There is no strict definition of a table.
-            // Try to prevent false positive while being quick.
-            if looking_at!(REGEX_TABLE_SIDE, self).is_some() {
+            // NB: table.el style tables are not supported
+            if looking_at!(REGEX_TABLE_BORDER, self).is_some() {
                 return self.table_parser(limit, aff_start, maybe_aff);
-            } else {
-                let mut c = self.cursor.borrow_mut();
-                let pos = c.pos();
-                let next = c.goto_next_line();
-                let found =  c.re_search_forward()
-            
-                c.set(pos);
             }
 
-            //  ((or (looking-at "[ \t]*|")
-            //       (let ((rule-regexp "[ \t]*\\+\\(-+\\+\\)+[ \t]*$")
-            //     	(next (line-beginning-position 2)))
-            //         (and (looking-at rule-regexp)
-            //     	 (save-excursion
-            //     	   (forward-line)
-            //     	   (re-search-forward "^[ \t]*\\($\\|[^|]\\)" limit t)
-            //     	   (and (> (line-beginning-position) next)
-            //     		(org-match-line rule-regexp))))))
-            //   (org-element-table-parser limit affiliated))
-
-            //  ;; List.
+            // List.
             //  ((looking-at (org-item-re))
             //   (org-element-plain-list-parser
             //    limit affiliated
             //    (or structure (org-element--list-struct limit))))
+            if looking_at!(REGEX_ITEM, self).is_some() {
+                let s = structure.unwrap_or(self.list_struct(limit));
+                return self.plain_list_parser(limit, aff_start, maybe_aff, s.clone());
+            }
 
-            //  ;; Default element: Paragraph.
-            //  (t (org-element-paragraph-parser limit affiliated)))))))))
-
-            return unreachable!();
+            // Default element: Paragraph.
+            return self.paragraph_parser(limit, aff_start, maybe_aff);
         };
 
         let current_element = get_current_element();

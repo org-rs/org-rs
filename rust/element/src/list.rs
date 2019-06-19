@@ -62,10 +62,49 @@
 //!     (item))))
 //!
 
+use crate::affiliated::AffiliatedData;
 use crate::data::SyntaxNode;
 use crate::parser::Parser;
+use regex::Regex;
 use std::borrow::Cow;
 use std::cell::Cell;
+use std::rc::Rc;
+
+lazy_static! {
+
+//TODO implement all regexes
+// (defconst org-list-end-re "^[ \t]*\n[ \t]*\n"
+//   "Regex matching the end of a plain list.")
+//
+// (defconst org-list-full-item-re
+//   (concat "^[ \t]*\\(\\(?:[-+*]\\|\\(?:[0-9]+\\|[A-Za-z]\\)[.)]\\)\\(?:[ \t]+\\|$\\)\\)"
+// 	  "\\(?:\\[@\\(?:start:\\)?\\([0-9]+\\|[A-Za-z]\\)\\][ \t]*\\)?"
+// 	  "\\(?:\\(\\[[ X-]\\]\\)\\(?:[ \t]+\\|$\\)\\)?"
+// 	  "\\(?:\\(.*\\)[ \t]+::\\(?:[ \t]+\\|$\\)\\)?")
+//   "Matches a list item and puts everything into groups:
+// group 1: bullet
+// group 2: counter
+// group 3: checkbox
+// group 4: description tag")
+//
+// (defun org-item-re ()
+//   "Return the correct regular expression for plain lists."
+//   (let ((term (cond
+// 	       ((eq org-plain-list-ordered-item-terminator t) "[.)]")
+// 	       ((=  org-plain-list-ordered-item-terminator ?\)) ")")
+// 	       ((=  org-plain-list-ordered-item-terminator ?.) "\\.")
+// 	       (t "[.)]")))
+// 	(alpha (if org-list-allow-alphabetical "\\|[A-Za-z]" "")))
+//     (concat "\\([ \t]*\\([-+]\\|\\(\\([0-9]+" alpha "\\)" term
+// 	    "\\)\\)\\|[ \t]+\\*\\)\\([ \t]+\\|$\\)")))
+//
+// (defsubst org-item-beginning-re ()
+//   "Regexp matching the beginning of a plain list item."
+//   (concat "^" (org-item-re)))
+
+    pub static ref REGEX_ITEM : Regex = Regex::new(r"([ \t]*([-+]|(([0-9]+)[.)]))|[ \t]+\*)([ \t]|$)").unwrap();
+
+}
 
 /// List structure
 /// This looks like an intermediate list representation, required both by
@@ -95,7 +134,7 @@ pub struct ItemData<'rope> {
 
 pub struct PlainListData {
     /// Full list's structure, as returned by org_list_struct (alist).
-    pub structure: ListStruct,
+    pub structure: Rc<ListStruct>,
 
     ///List's type (symbol descriptive, ordered, unordered).
     pub type_s: ListKind,
@@ -118,7 +157,7 @@ impl<'a> Parser<'a> {
     //https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L1253
     pub fn item_parser(
         &self,
-        structure: Option<&ListStruct>,
+        structure: Option<Rc<ListStruct>>,
         raw_secondary_p: bool,
     ) -> SyntaxNode<'a> {
         //   let mut item_data = ItemData {
@@ -140,6 +179,24 @@ impl<'a> Parser<'a> {
         //        post_blank: 0,
         //        affiliated: None
         //    }
+        unimplemented!()
+    }
+
+    // TODO implement plain_list_parser
+    pub fn plain_list_parser(
+        &self,
+        limit: usize,
+        start: usize,
+        affiliated: Option<AffiliatedData>,
+        structure: Rc<ListStruct>,
+    ) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
+    //(defun org-element--list-struct (limit)
+    ///  ;; Return structure of list at point.  Internal function.  See
+    ///  ;; `org-list-struct' for details.
+    pub fn list_struct(&self, limit: usize) -> Rc<ListStruct> {
         unimplemented!()
     }
 }
