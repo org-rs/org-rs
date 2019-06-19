@@ -12,6 +12,7 @@
 //
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
+
 #![warn(clippy::all)]
 // This should be eventually turned off, but for now this helps reduce the noice
 #![allow(dead_code)]
@@ -25,12 +26,20 @@ extern crate memchr;
 extern crate regex;
 extern crate strum;
 
+#[macro_use]
+mod parser;
 mod affiliated;
+mod babel;
+mod blocks;
 mod cursor;
 mod data;
+mod drawer;
+mod fixed_width;
 mod headline;
+mod keyword;
+mod latex;
 mod list;
+mod markup;
 mod paragraph;
-mod parser;
 mod planning;
 mod table;

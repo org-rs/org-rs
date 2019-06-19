@@ -98,6 +98,7 @@ const ORG_SCHEDULED_STRING: &str = "SCHEDULED";
 lazy_static! {
     pub static ref REGEX_HEADLINE_SHORT: Regex = Regex::new(r"^\*+\s").unwrap();
 
+    // TODO document why is it needed and what are the consequences of using multiline regex
     pub static ref REGEX_HEADLINE_MULTILINE: Regex = Regex::new(r"(?m)^\*+\s").unwrap();
 
     /// Matches a line with planning info.

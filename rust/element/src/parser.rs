@@ -18,15 +18,26 @@ use std::rc::Rc;
 
 use regex::Regex;
 
+use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
-use crate::data::Handle;
-use crate::data::SyntaxT;
-use crate::data::{Syntax, SyntaxNode};
+use crate::data::{Handle, Syntax, SyntaxNode, SyntaxT};
+
+use crate::blocks::{
+    REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL, REGEX_DYNAMIC_BLOCK, REGEX_STARTS_WITH_HASHTAG,
+};
+use crate::drawer::REGEX_DRAWER;
 use crate::headline::REGEX_CLOCK_LINE;
 use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
 use crate::headline::REGEX_PROPERTY_DRAWER;
+use crate::keyword::*;
+use crate::latex::REGEX_LATEX_BEGIN_ENVIRIONMENT;
 use crate::list::*;
+use crate::markup::REGEX_FIXED_WIDTH;
+use crate::markup::REGEX_FOOTNOTE_DEFINITION;
+use crate::markup::REGEX_HORIZONTAL_RULE;
+use crate::planning::REGEX_DIARY_SEXP;
+use crate::table::{REGEX_TABLE_BORDER, REGEX_TABLE_PRE_BORDER, REGEX_TABLE_RULE};
 
 /// determines the depth of the recursion.
 #[derive(PartialEq)]
@@ -60,6 +71,18 @@ pub struct Parser<'a> {
     pub cursor: RefCell<Cursor<'a>>,
     pub input: &'a str,
     pub granularity: ParseGranularity,
+}
+
+macro_rules! looking_at {
+    ($regex:ident, $parser: ident) => {
+        $parser.cursor.borrow_mut().looking_at(&*$regex)
+    };
+}
+
+macro_rules! capturing_at {
+    ($regex:ident, $parser: ident) => {
+        $parser.cursor.borrow_mut().capturing_at(&*$regex)
+    };
 }
 
 impl<'a> Parser<'a> {
@@ -134,7 +157,7 @@ impl<'a> Parser<'a> {
         beg: usize,
         end: usize,
         mut mode: ParserMode,
-        structure: Option<&ListStruct>,
+        structure: Option<Rc<ListStruct>>,
     ) -> Vec<Handle> {
         let pos = self.cursor.borrow_mut().pos();
         self.cursor.borrow_mut().set(beg);
@@ -154,7 +177,11 @@ impl<'a> Parser<'a> {
 
             // Find current element's type and parse it accordingly to its category.
             // (org-element--current-element end granularity mode structure))
-            let element: SyntaxNode = self.current_element(end, mode, structure);
+            let list_struct = match &structure {
+                None => None,
+                Some(rc) => Some(rc.clone()),
+            };
+            let element: SyntaxNode = self.current_element(end, mode, list_struct);
 
             // (goto-char (org-element-property :end element))
             self.cursor.borrow_mut().set(element.location.end);
@@ -180,7 +207,7 @@ impl<'a> Parser<'a> {
                         // (and (memq type '(item plain-list))
                         // (org-element-property :structure element))
                         let list_sturct = match &element.data {
-                            Syntax::PlainList(d) => Some(&d.structure),
+                            Syntax::PlainList(d) => Some(d.structure.clone()),
                             _ => None,
                         };
 
@@ -197,7 +224,6 @@ impl<'a> Parser<'a> {
                         ));
                     }
                 }
-                // ctermfg=37 gui=italic guifg=#2aa1ae
                 // Any other element with contents, if granularity allows it
                 else {
                     // (org-element--parse-objects
@@ -241,7 +267,7 @@ impl<'a> Parser<'a> {
         &self,
         limit: usize,
         mode: ParserMode,
-        structure: Option<&ListStruct>,
+        structure: Option<Rc<ListStruct>>,
     ) -> SyntaxNode<'a> {
         let pos = self.cursor.borrow().pos();
 
@@ -251,42 +277,30 @@ impl<'a> Parser<'a> {
             use crate::parser::ParserMode::*;
 
             // Item
-            // ((eq mode 'item)
-            //(org-element-item-parser limit structure raw-secondary-p))
             if mode == Item {
                 return self.item_parser(structure, raw_secondary_p);
             }
 
             // Table Row.
-            // ((eq mode 'table-row) (org-element-table-row-parser limit))
             if mode == TableRow {
                 return self.table_row_parser();
             }
 
             // Node Property.
-            // ((eq mode 'node-property) (org-element-node-property-parser limit))
             if mode == NodeProperty {
                 return self.node_property_parser(limit);
             }
 
             // Headline.
-            // ((org-with-limited-levels (org-at-heading-p))
-            //  (org-element-headline-parser limit raw-secondary-p))
             if self.cursor.borrow_mut().on_headline() {
                 return self.headline_parser();
             }
 
             // Sections (must be checked after headline).
-
-            // ((eq mode 'section) (org-element-section-parser limit))
             if mode == Section {
                 return self.section_parser(limit);
             }
 
-            //  ((eq mode 'first-section)
-            //  (org-element-section-parser
-            //      (or (save-excursion (org-with-limited-levels (outline-next-heading)))
-            //  limit)))
             if mode == FirstSection {
                 let pos = self.cursor.borrow().pos();
                 let lim = self.cursor.borrow_mut().next_headline().unwrap_or(limit);
@@ -295,10 +309,6 @@ impl<'a> Parser<'a> {
             }
 
             // Planning.
-            // ((and (eq mode 'planning)
-            //   (eq ?* (char-after (line-beginning-position 0)))
-            //   (looking-at org-planning-line-re))
-            //  (org-element-planning-parser limit))
             {
                 let mut c = self.cursor.borrow_mut();
                 let maybe_headline_offset = c.line_beginning_position(Some(0));
@@ -313,11 +323,6 @@ impl<'a> Parser<'a> {
             }
 
             // Property drawer.
-            //     ((and (memq mode '(planning property-drawer))
-            // (eq ?* (char-after (line-beginning-position
-            //     (if (eq mode 'planning) 0 -1))))
-            // (looking-at org-property-drawer-re))
-            // (org-element-property-drawer-parser limit))
             {
                 let mut c = self.cursor.borrow_mut();
                 let delta = if mode == Planning { 0 } else { -1 };
@@ -338,33 +343,122 @@ impl<'a> Parser<'a> {
 
             // When not at bol, point is at the beginning of an item or
             // a footnote definition: next item is always a paragraph.
-            // ((not (bolp)) (org-element-paragraph-parser limit (list (point))))
             if !self.cursor.borrow().is_bol() {
-                return self.paragraph_parser(limit, self.cursor.borrow().pos());
+                return self.paragraph_parser(limit, self.cursor.borrow().pos(), None);
             }
 
             // Clock.
-            // ((looking-at org-clock-line-re) (org-element-clock-parser limit))
-            if self
-                .cursor
-                .borrow_mut()
-                .looking_at(&*REGEX_CLOCK_LINE)
-                .is_some()
-            {
+            if looking_at!(REGEX_CLOCK_LINE, self).is_some() {
                 return self.clock_line_parser(limit);
             }
 
             // Inlinetask.
-            // ((org-at-heading-p)
-            //   (org-element-inlinetask-parser limit raw-secondary-p))
             if self.cursor.borrow_mut().on_headline() {
                 return self.inlinetask_parser(limit, raw_secondary_p);
             }
 
             // From there, elements can have affiliated keywords.
-            // TODO finish current_element fn
+            let (aff_start, maybe_aff) = self.collect_affiliated_keywords(limit);
 
-            return unreachable!();
+            // If parsing affiliated keywords left cursor off-limits
+            // then parse them as regular keywords.
+            if (maybe_aff.is_some() && self.cursor.borrow().pos() >= limit) {
+                self.cursor.borrow_mut().set(aff_start);
+                return self.keyword_parser(limit, aff_start, None);
+            }
+
+            // LaTeX Environment
+            //org-element--latex-begin-environment
+            if looking_at!(REGEX_LATEX_BEGIN_ENVIRIONMENT, self).is_some() {
+                return self.latex_environment_parser(limit, aff_start, maybe_aff);
+            }
+
+            // Drawer and Property Drawer.
+            if looking_at!(REGEX_DRAWER, self).is_some() {
+                return self.drawer_parser(limit, aff_start, maybe_aff);
+            }
+
+            //  Fixed Width
+            if looking_at!(REGEX_FIXED_WIDTH, self).is_some() {
+                return self.fixed_width_parser(limit, aff_start, maybe_aff);
+            }
+
+            // Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
+            if let Some(m) = looking_at!(REGEX_STARTS_WITH_HASHTAG, self) {
+                self.cursor.borrow_mut().set(m.end());
+                if looking_at!(REGEX_COLON_OR_EOL, self).is_some() {
+                    self.cursor.borrow_mut().goto_line_begin();
+                    return self.comment_parser(limit, aff_start, maybe_aff);
+                }
+
+                if let Some(cap) = capturing_at!(REGEX_BLOCK_BEGIN, self) {
+                    self.cursor.borrow_mut().goto_line_begin();
+                    let name = cap.get(1).unwrap().as_str().to_owned().to_ascii_uppercase();
+                    match name.as_ref() {
+                        "CENTER" => return self.center_block_parser(limit, aff_start, maybe_aff),
+                        "COMMENT" => return self.comment_block_parser(limit, aff_start, maybe_aff),
+                        "EXAMPLE" => return self.example_block_parser(limit, aff_start, maybe_aff),
+                        "EXPORT" => return self.export_block_parser(limit, aff_start, maybe_aff),
+                        "QUOTE" => return self.quote_block_parser(limit, aff_start, maybe_aff),
+                        "SRC" => return self.src_block_parser(limit, aff_start, maybe_aff),
+                        "VERSE" => return self.verse_block_parser(limit, aff_start, maybe_aff),
+                        _ => return self.special_block_parser(limit, aff_start, maybe_aff),
+                    }
+                }
+
+                if looking_at!(REGEX_BABEL_CALL, self).is_some() {
+                    self.cursor.borrow_mut().goto_line_begin();
+                    return self.babel_call_parser(limit, aff_start, maybe_aff);
+                }
+
+                if looking_at!(REGEX_DYNAMIC_BLOCK, self).is_some() {
+                    self.cursor.borrow_mut().goto_line_begin();
+                    return self.dynamic_block_parser(limit, aff_start, maybe_aff);
+                }
+
+                if looking_at!(REGEX_KEYWORD, self).is_some() {
+                    self.cursor.borrow_mut().goto_line_begin();
+                    return self.keyword_parser(limit, aff_start, maybe_aff);
+                }
+
+                // If none of the above fits then this is just a paragraph
+                self.cursor.borrow_mut().goto_line_begin();
+                return self.paragraph_parser(limit, aff_start, maybe_aff);
+            }
+
+            // Footnote Definition
+            if looking_at!(REGEX_FOOTNOTE_DEFINITION, self).is_some() {
+                return self.footnote_definition_parser(limit, aff_start, maybe_aff);
+            }
+
+            //  Horizontal Rule.
+            if looking_at!(REGEX_HORIZONTAL_RULE, self).is_some() {
+                return self.horizontal_rule_parser(limit, aff_start, maybe_aff);
+            }
+
+            // Diary Sexp.
+            if looking_at!(REGEX_DIARY_SEXP, self).is_some() {
+                return self.diary_sexp_parser(limit, aff_start, maybe_aff);
+            }
+
+            // Table
+            // NB: table.el style tables are not supported
+            if looking_at!(REGEX_TABLE_BORDER, self).is_some() {
+                return self.table_parser(limit, aff_start, maybe_aff);
+            }
+
+            // List.
+            //  ((looking-at (org-item-re))
+            //   (org-element-plain-list-parser
+            //    limit affiliated
+            //    (or structure (org-element--list-struct limit))))
+            if looking_at!(REGEX_ITEM, self).is_some() {
+                let s = structure.unwrap_or(self.list_struct(limit));
+                return self.plain_list_parser(limit, aff_start, maybe_aff, s.clone());
+            }
+
+            // Default element: Paragraph.
+            return self.paragraph_parser(limit, aff_start, maybe_aff);
         };
 
         let current_element = get_current_element();

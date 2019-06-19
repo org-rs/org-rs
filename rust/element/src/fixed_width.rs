@@ -17,28 +17,3 @@ use crate::affiliated::AffiliatedData;
 use crate::data::SyntaxNode;
 use crate::parser::Parser;
 use regex::Regex;
-
-lazy_static! {
-    pub static ref REGEX_DIARY_SEXP: Regex = Regex::new(r"%%\(").unwrap();
-}
-
-impl<'a> Parser<'a> {
-    // TODO implement planning_parser
-    pub fn planning_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        unimplemented!()
-    }
-    // TODO implement clock_line_parser
-    pub fn clock_line_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        unimplemented!()
-    }
-
-    // TODO implement diary_sexp_parser
-    pub fn diary_sexp_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        unimplemented!()
-    }
-}

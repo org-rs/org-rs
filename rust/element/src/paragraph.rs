@@ -13,6 +13,7 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::affiliated::AffiliatedData;
 use crate::data::SyntaxNode;
 use crate::parser::Parser;
 
@@ -31,7 +32,12 @@ use crate::parser::Parser;
 /// (defun org-element-paragraph-parser (limit affiliated)
 impl<'a> Parser<'a> {
     // TODO implement paragraph_parser
-    pub fn paragraph_parser(&self, limit: usize, affiliated_start: usize) -> SyntaxNode<'a> {
+    pub fn paragraph_parser(
+        &self,
+        limit: usize,
+        start: usize,
+        maybe_aff: Option<AffiliatedData>,
+    ) -> SyntaxNode<'a> {
         unimplemented!()
     }
 
