@@ -19,21 +19,29 @@ use crate::parser::Parser;
 use regex::Regex;
 
 lazy_static! {
-    pub static ref REGEX_DIARY_SEXP: Regex = Regex::new(r"%%\(").unwrap();
+    pub static ref REGEX_BABEL_CALL: Regex = Regex::new(r"\+CALL:").unwrap();
+}
+
+pub struct BabelCallData<'a> {
+    /// Name of code block being called (string).
+    pub call: &'a str,
+
+    /// Header arguments applied to the named code block (string or nil).
+    pub inside_header: Option<&'a str>,
+
+    /// Arguments passed to the code block (string or nil).
+    pub arguments: Option<&'a str>,
+
+    /// Header arguments applied to the calling instance (string or nil).
+    pub end_header: Option<&'a str>,
+
+    /// Raw call, as Org syntax (string).
+    pub value: &'a str,
 }
 
 impl<'a> Parser<'a> {
-    // TODO implement planning_parser
-    pub fn planning_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        unimplemented!()
-    }
-    // TODO implement clock_line_parser
-    pub fn clock_line_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        unimplemented!()
-    }
-
-    // TODO implement diary_sexp_parser
-    pub fn diary_sexp_parser(
+    // TODO implement babel_call_parser
+    pub fn babel_call_parser(
         &self,
         limit: usize,
         start: usize,

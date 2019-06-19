@@ -414,6 +414,31 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    /// (re-search-forward REGEXP &optional BOUND NOERROR COUNT)
+    ///
+    /// Search forward from point for regular expression REGEXP.
+    /// Set point to the end of the occurrence found, and return point.
+    /// The optional second argument BOUND is a buffer position that bounds
+    ///   the search.  The match found must not end after that position.  A
+    ///   value of nil means search to the end of the accessible portion of
+    ///   the buffer.
+    pub fn re_search_forward(&mut self, re: &Regex, bound: Option<usize>) -> Option<usize> {
+        let end = bound.unwrap_or(self.data.len());
+
+        if end <= self.pos {
+            return None;
+        }
+
+        /// Set point to the end of the occurrence found, and return point.
+        match re.find(&self.data[self.pos..end]) {
+            None => None,
+            Some(m) => {
+                self.set(self.pos + m.end());
+                Some(self.pos)
+            }
+        }
+    }
+
     /// Moves point forward, stopping before a char not in str, or at position limit.
     pub fn skip_chars_forward(&mut self, str: &str, limit: Option<usize>) -> usize {
         let pos = self.pos();
@@ -476,6 +501,7 @@ mod test {
 
     use crate::cursor::BaseMetric;
     use regex::Match;
+    use regex::Regex;
 
     #[test]
     fn essentials() {
@@ -696,5 +722,20 @@ mod test {
         assert_eq!(cursor.skip_chars_forward(" k\t", None), 3);
         cursor.set(0);
         assert_eq!(cursor.skip_chars_forward("* k\t", Some(2)), 3);
+    }
+
+    #[test]
+    fn re_search_forward() {
+        let text = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
+        let mut cursor = Cursor::new(&text, 0);
+
+        let re = Regex::new(r"\d").unwrap();
+        assert_eq!(Some(15), cursor.re_search_forward(&re, None));
+        assert_eq!(15, cursor.pos());
+        assert_eq!(None, cursor.re_search_forward(&re, Some(10)));
+        assert_eq!(15, cursor.pos());
+        assert_eq!(Some(25), cursor.re_search_forward(&re, Some(25)));
+        assert_eq!(None, cursor.re_search_forward(&re, Some(24)));
+        assert_eq!(25, cursor.pos());
     }
 }

@@ -15,8 +15,16 @@
 
 // TODO add table related docs
 
+use crate::affiliated::AffiliatedData;
 use crate::data::SyntaxNode;
 use crate::parser::Parser;
+use regex::Regex;
+
+lazy_static! {
+    pub static ref REGEX_TABLE_BORDER: Regex = Regex::new(r"[ \t]*\|").unwrap();
+    pub static ref REGEX_TABLE_RULE: Regex = Regex::new(r"[ \t]*\+(-+\+)+[ \t]*$").unwrap();
+    pub static ref REGEX_TABLE_PRE_BORDER: Regex = Regex::new(r"^[ \t]*($|[^|])").unwrap();
+}
 
 pub struct TableData<'a> {
     /// Formulas associated to the table, if any (string or nil).
@@ -42,6 +50,16 @@ impl<'a> Parser<'a> {
     // TODO implement table_row_parser
     // https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L2637
     pub fn table_row_parser(&self) -> SyntaxNode<'a> {
+        unimplemented!()
+    }
+
+    // TODO implement table_parser
+    pub fn table_parser(
+        &self,
+        limit: usize,
+        start: usize,
+        maybe_aff: Option<AffiliatedData>,
+    ) -> SyntaxNode<'a> {
         unimplemented!()
     }
 }

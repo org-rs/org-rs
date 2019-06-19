@@ -19,21 +19,22 @@ use crate::parser::Parser;
 use regex::Regex;
 
 lazy_static! {
-    pub static ref REGEX_DIARY_SEXP: Regex = Regex::new(r"%%\(").unwrap();
+
+
+    /// Matches first or last line of a drawer
+    /// Group 1 contains drawer's name or \"END\"
+    pub static ref REGEX_DRAWER: Regex = Regex::new(r"^[ \t]*:((?:\w|[-_])+):[ \t]*$").unwrap();
+
+}
+
+pub struct DrawerData<'a> {
+    /// Drawer's name (string).
+    pub drawer_name: &'a str,
 }
 
 impl<'a> Parser<'a> {
-    // TODO implement planning_parser
-    pub fn planning_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        unimplemented!()
-    }
-    // TODO implement clock_line_parser
-    pub fn clock_line_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        unimplemented!()
-    }
-
-    // TODO implement diary_sexp_parser
-    pub fn diary_sexp_parser(
+    // TODO implement drawer_parser
+    pub fn drawer_parser(
         &self,
         limit: usize,
         start: usize,
