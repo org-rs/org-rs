@@ -109,7 +109,7 @@ pub struct DualVal<T> {
 
 /// List of affiliated keywords as strings.
 /// elisp: `defconst org-element-affiliated-keywords`
-/// Capabilities:  
+/// Capabilities:
 /// DUAL - can have optional secontary value
 /// PARSED - value can be either string or an Object
 /// MULTI: can occur more than once in an element.
