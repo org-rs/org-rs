@@ -8,26 +8,6 @@
   - [[https://orgmode.org/worg/dev/org-element-api.html][Org Element API]]
   - [[https://orgmode.org/worg/dev/org-syntax.html][Org Syntax]]
 
-** Current scope
-
-- [X] data structures (with some minor exceptions)
-- [-] [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4071][parse_buffer]]
-  - [X] [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4340][parse_elements]]
-  - [ ] [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L3833][current_element]]
-    - [ ] specific data structure parsers
-  - [ ] parse_objects
-- [ ] interpret_data
-- ...
-
-
-Things outside of the scope (for now):
-
-- Visibility 
-- Incremental parsing
-
-For the time being complete buffer re-parsing is the only way to update the
-parse tree.
-
 
 ** Coding guide
 
@@ -86,7 +66,34 @@ parse tree.
        its items - [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4348][example]]
      - Parse Tree. Whole, or part of it - [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4072][example]]
 
+     *CAR/CDR* - head and tail of the list
 
-*CAR/CDR* - head and tail of the list
+     *plist/alist* - [[https://www.emacswiki.org/emacs/AlistVsPlist][AlistVsPlist]]. In Org-rs these are mostly represented as structs or 
+     as maps(rarely)
 
-*plist/alist* - tbd
+
+** Things Out of Scope
+
+- *Incremental parsing* For the time being complete buffer re-parsing is the only
+   way to update the parse tree. Incremental parsing is planned and will be added
+   once core of the parsing algorithm is finished
+
+- *Visibility* is not supported. Thinking whether current char/line is visible 
+   or not is a problem of a front-end. 
+
+- *Affiliated keywords can't have objects*. This one might go away if the 
+  underlying problem is resolved. See ~collect_affiliated_keywords~ docstring 
+  for details. As of now I decided to focus on more important things.
+
+- *table.el style tables are not supported*. Original parser implementation
+  supports tables from a third-party module. Those tables have more complicated
+  encoding, which makes parsing them slow and prone to false-positives. Org-native tables
+  are much simpler to parse and supporting an out-of-scope table implementation seems
+  like a not reasonable time investment for now.
+
+- *Inlinetasks* are not supported. Inlinetasks exist in emacs purely for reason of 
+  evading folding/cycling mechanisms. A user has to define a minimum level of headline that will
+  be treated as inlinetask. Org-rs is a parser and it is not concerned with representation
+  of the elements. So the reason is basically the same as for visibility. Frontends are
+  free to treat some headlines as inlinetasks if they want to.
+
