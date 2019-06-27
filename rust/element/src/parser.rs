@@ -293,7 +293,7 @@ impl<'a> Parser<'a> {
 
             // Headline.
             if self.cursor.borrow_mut().on_headline() {
-                return self.headline_parser();
+                return self.headline_parser(limit, raw_secondary_p);
             }
 
             // Sections (must be checked after headline).

@@ -90,6 +90,7 @@
 use crate::data::{SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use regex::Regex;
+use std::borrow::Cow;
 
 const ORG_CLOSED_STRING: &str = "CLOSED";
 const ORG_DEADLINE_STRING: &str = "DEADLINE";
@@ -117,6 +118,18 @@ lazy_static! {
 
     pub static ref REGEX_CLOCK_LINE: Regex = Regex::new(r"^[ \t]*CLOCK:").unwrap();
 
+
+// org-todo-regexp is a variable defined in ‘org.el’.
+// Its value is "\\(CANCELED\\|DONE\\|TODO\\|WAIT\\)"
+// Local in buffer project-home.org; global value is nil
+//
+//   Automatically becomes buffer-local when set.
+//
+// Documentation:
+// Matches any of the TODO state keywords.
+// Since TODO keywords are case-sensitive, ‘case-fold-search’ is
+// expected to be bound to nil when matching against this regexp.
+
 }
 
 pub struct HeadlineData<'a> {
@@ -143,13 +156,13 @@ pub struct HeadlineData<'a> {
     pre_blank: usize,
 
     /// Headline's priority, as a character (integer).
-    priority: usize,
+    priority: Option<usize>,
 
     /// Non_nil if the headline contains a quote keyword (boolean).
     quotedp: bool,
 
     /// Raw headline's text, without the stars and the tags (string).
-    raw_value: &'a str,
+    raw_value: Cow<'a, str>,
 
     /// Headline's SCHEDULED reference, if any (timestamp object or nil).
     scheduled: Option<TimestampData<'a>>,
@@ -160,43 +173,12 @@ pub struct HeadlineData<'a> {
 
     /// Parsed headline's text, without the stars
     /// and the tags (secondary string).
-    title: &'a str,
+    title: Option<Cow<'a, str>>,
 
     /// Headline's TODO keyword without quote and comment
     /// strings, if any (string or nil).
     /// also used instead of todo-type
-    todo_keyword: TodoKeyword,
-}
-
-pub struct InlineTaskData<'a> {
-    /// Inlinetask's CLOSED reference, if any (timestamp object or nil)
-    closed: Option<TimestampData<'a>>,
-
-    /// Inlinetask's DEADLINE reference, if any (timestamp object or nil).
-    deadline: Option<TimestampData<'a>>,
-
-    /// Reduced level of the inlinetask (integer).
-    level: usize,
-
-    /// Headline's priority, as a character (integer).
-    priority: usize,
-
-    /// Raw inlinetask's text, without the stars and the tags (string).
-    raw_value: &'a str,
-
-    /// Inlinetask's SCHEDULED reference, if any (timestamp object or nil).
-    scheduled: Option<TimestampData<'a>>,
-
-    /// Inlinetask's tags, if any (list of strings).
-    tags: Vec<Tag<'a>>,
-
-    /// Parsed inlinetask's text, without the stars
-    /// and the tags (secondary string).
-    title: &'a str,
-
-    /// Inlinetask's TODO keyword, if any (string or nil).
-    /// Type of inlinetask's TODO keyword, if any (symbol done, todo).
-    todo_keyword: Option<TodoKeyword>,
+    todo_keyword: Option<TodoKeyword<'a>>,
 }
 
 // A planning is an element with the following pattern:
@@ -212,21 +194,142 @@ pub struct InlineTaskData<'a> {
 // In particular, no blank line is allowed between PLANNING and HEADLINE.
 
 pub struct NodePropertyData<'a> {
-    key: &'a str,
-    value: &'a str,
+    key: Cow<'a, str>,
+    value: Cow<'a, str>,
 }
 
-pub struct Tag<'a>(&'a str);
+pub struct Tag<'a>(Cow<'a, str>);
 
-pub enum TodoKeyword {
-    TODO,
-    DONE,
-}
+pub struct TodoKeyword<'a>(Cow<'a, str>);
 
 impl<'a> Parser<'a> {
-    // TODO implement headline_parser
-    pub fn headline_parser(&self) -> SyntaxNode<'a> {
+    /// Compute the effective level of a heading.
+    /// This takes into account the setting of `org-odd-levels-only'."
+    /// TODO add support for odd_levels_only?
+    fn reduced_level(l: usize, odd_levels_only: bool) -> usize {
+        match l {
+            0 => 0,
+            x if odd_levels_only => 1 + l / 2,
+            x => x,
+        }
+    }
+
+    /// Parse a headline.
+    /// Return a list whose CAR is `headline' and CDR is a plist
+    /// containing `:raw-value', `:title', `:begin', `:end',
+    /// `:pre-blank', `:contents-begin' and `:contents-end', `:level',
+    /// `:priority', `:tags', `:todo-keyword',`:todo-type', `:scheduled',
+    /// `:deadline', `:closed', `:archivedp', `:commentedp'
+    /// `:footnote-section-p', `:post-blank' and `:post-affiliated'
+    /// keywords.
+    ///
+    /// The plist also contains any property set in the property drawer,
+    /// with its name in upper cases and colons added at the
+    /// beginning (e.g., `:CUSTOM_ID').
+    ///
+    /// LIMIT is a buffer position bounding the search.
+    ///
+    /// When RAW-SECONDARY-P is non-nil, headline's title will not be
+    /// parsed as a secondary string, but as a plain string instead.
+    ///
+    /// Assume point is at beginning of the headline."
+
+    pub fn headline_parser(&self, limit: usize, raw_secondary_p: bool) -> SyntaxNode<'a> {
+        let mut cursor = self.cursor.borrow_mut();
+        let begin = cursor.pos();
+
+        let level = Parser::reduced_level(cursor.skip_chars_forward("*", Some(limit)), false);
+        cursor.skip_chars_forward(" \t", Some(limit));
+        
+        let todo = match cursor.looking_at(TODO_REGEX) {
+            None => None,
+            Some(m) => unimplemented!
+
+        };
+
+        cursor.set(begin);
         unimplemented!()
+        //   (save-excursion
+        //     (let* ((begin (point))
+        // 	   (level (prog1 (org-reduced-level (skip-chars-forward "*"))
+        // 		    (skip-chars-forward " \t")))
+        // 	   (todo (and org-todo-regexp
+        // 		      (let (case-fold-search) (looking-at (concat org-todo-regexp " ")))
+        // 		      (progn (goto-char (match-end 0))
+        // 			     (skip-chars-forward " \t")
+        // 			     (match-string 1))))
+        // 	   (todo-type
+        // 	    (and todo (if (member todo org-done-keywords) 'done 'todo)))
+        // 	   (priority (and (looking-at "\\[#.\\][ \t]*")
+        // 			  (progn (goto-char (match-end 0))
+        // 				 (aref (match-string 0) 2))))
+        // 	   (commentedp
+        // 	    (and (let (case-fold-search) (looking-at org-comment-string))
+        // 		 (goto-char (match-end 0))))
+        // 	   (title-start (point))
+        // 	   (tags (when (re-search-forward
+        // 			"[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$"
+        // 			(line-end-position)
+        // 			'move)
+        // 		   (goto-char (match-beginning 0))
+        // 		   (org-split-string (match-string 1) ":")))
+        // 	   (title-end (point))
+        // 	   (raw-value (org-trim
+        // 		       (buffer-substring-no-properties title-start title-end)))
+        // 	   (archivedp (member org-archive-tag tags))
+        // 	   (footnote-section-p (and org-footnote-section
+        // 				    (string= org-footnote-section raw-value)))
+        // 	   (standard-props (org-element--get-node-properties))
+        // 	   (time-props (org-element--get-time-properties))
+        // 	   (end (min (save-excursion (org-end-of-subtree t t)) limit))
+        // 	   (contents-begin (save-excursion
+        // 			     (forward-line)
+        // 			     (skip-chars-forward " \r\t\n" end)
+        // 			     (and (/= (point) end) (line-beginning-position))))
+        // 	   (contents-end (and contents-begin
+        // 			      (progn (goto-char end)
+        // 				     (skip-chars-backward " \r\t\n")
+        // 				     (line-beginning-position 2)))))
+        //       (let ((headline
+        // 	     (list 'headline
+        // 		   (nconc
+        // 		    (list :raw-value raw-value
+        // 			  :begin begin
+        // 			  :end end
+        // 			  :pre-blank
+        // 			  (if (not contents-begin) 0
+        // 			    (1- (count-lines begin contents-begin)))
+        // 			  :contents-begin contents-begin
+        // 			  :contents-end contents-end
+        // 			  :level level
+        // 			  :priority priority
+        // 			  :tags tags
+        // 			  :todo-keyword todo
+        // 			  :todo-type todo-type
+        // 			  :post-blank
+        // 			  (if contents-end
+        // 			      (count-lines contents-end end)
+        // 			    (1- (count-lines begin end)))
+        // 			  :footnote-section-p footnote-section-p
+        // 			  :archivedp archivedp
+        // 			  :commentedp commentedp
+        // 			  :post-affiliated begin)
+        // 		    time-props
+        // 		    standard-props))))
+        // 	(org-element-put-property
+        // 	 headline :title
+        // 	 (if raw-secondary-p raw-value
+        // 	   (org-element--parse-objects
+        // 	    (progn (goto-char title-start)
+        // 		   (skip-chars-forward " \t")
+        // 		   (point))
+        // 	    (progn (goto-char title-end)
+        // 		   (skip-chars-backward " \t")
+        // 		   (point))
+        // 	    nil
+        // 	    (org-element-restriction 'headline)
+        // 	    headline)))))))
+        //
     }
 
     // TODO implement inlinetask_parser
