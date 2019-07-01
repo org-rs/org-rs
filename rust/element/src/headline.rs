@@ -113,22 +113,23 @@ lazy_static! {
     /// Requires multiline match
     /// correspond to org-property-drawer-re in org.el
     pub static ref REGEX_PROPERTY_DRAWER: Regex = Regex::new(
-        r"^[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?: .*)?[ \t]*\n)*?[ \t]*:END:[ \t]*")
+        r"(?i)^[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?: .*)?[ \t]*\n)*?[ \t]*:END:[ \t]*")
             .unwrap();
 
-    pub static ref REGEX_CLOCK_LINE: Regex = Regex::new(r"^[ \t]*CLOCK:").unwrap();
+    pub static ref REGEX_CLOCK_LINE: Regex = Regex::new(r"(?i)^[ \t]*CLOCK:").unwrap();
+
+    /// Matches any of the TODO state keywords.
+    /// TODO parametrize
+    pub static ref REGEX_TODO: Regex = Regex::new(r"(?i)(TODO|DONE)[ \t]").unwrap();
+
+    
+    /// TODO parametrize
+    /// check how org-done-keywords are set
+    pub static ref REGEX_TODO_DONE: Regex = Regex::new(r"(?i)DONE").unwrap();
 
 
-// org-todo-regexp is a variable defined in ‘org.el’.
-// Its value is "\\(CANCELED\\|DONE\\|TODO\\|WAIT\\)"
-// Local in buffer project-home.org; global value is nil
-//
-//   Automatically becomes buffer-local when set.
-//
-// Documentation:
-// Matches any of the TODO state keywords.
-// Since TODO keywords are case-sensitive, ‘case-fold-search’ is
-// expected to be bound to nil when matching against this regexp.
+    pub static ref REGEX_HEADLINE_PRIORITY: Regex = Regex::new(r"\[#.\][ \t]*").unwrap();
+
 
 }
 
@@ -202,17 +203,21 @@ pub struct Tag<'a>(Cow<'a, str>);
 
 pub struct TodoKeyword<'a>(Cow<'a, str>);
 
-impl<'a> Parser<'a> {
-    /// Compute the effective level of a heading.
-    /// This takes into account the setting of `org-odd-levels-only'."
-    /// TODO add support for odd_levels_only?
-    fn reduced_level(l: usize, odd_levels_only: bool) -> usize {
-        match l {
-            0 => 0,
-            x if odd_levels_only => 1 + l / 2,
-            x => x,
-        }
+
+// TODO this have to be defined by user set vaiable
+impl<'a> TodoKeyword<'a> {
+    fn is_done(&self) -> bool {
+        REGEX_TODO_DONE.find(&self.0).is_some()
     }
+
+}
+
+pub enum TodoType {
+    TODO,
+    DONE,
+}
+
+impl<'a> Parser<'a> {
 
     /// Parse a headline.
     /// Return a list whose CAR is `headline' and CDR is a plist
@@ -238,14 +243,36 @@ impl<'a> Parser<'a> {
         let mut cursor = self.cursor.borrow_mut();
         let begin = cursor.pos();
 
-        let level = Parser::reduced_level(cursor.skip_chars_forward("*", Some(limit)), false);
+        let level = cursor.skip_chars_forward("*", Some(limit));
         cursor.skip_chars_forward(" \t", Some(limit));
-        
-        let todo = match cursor.looking_at(TODO_REGEX) {
-            None => None,
-            Some(m) => unimplemented!
 
+        let todo = match cursor.capturing_at(&*REGEX_TODO) {
+            None => None,
+            Some(m) => {
+                let m0 = m.get(0).unwrap();
+                let m1 = m.get(1).unwrap();
+                cursor.set(m0.end());
+                cursor.skip_chars_forward(" \t", Some(limit));
+                Some(Cow::from(&self.input[m1.start()..m1.end()]))
+            }
         };
+
+        // todo_type was moved into a method
+
+        let priority = match cursor.looking_at(&*REGEX_HEADLINE_PRIORITY) {
+            None => None,
+            Some(m) => {
+                cursor.set(m.end());
+                //FIXME integer??
+                Some()
+            }
+
+        }
+
+        // 	   (priority (and (looking-at "\\[#.\\][ \t]*")
+        // 			  (progn (goto-char (match-end 0))
+        // 				 (aref (match-string 0) 2))))
+
 
         cursor.set(begin);
         unimplemented!()

@@ -66,10 +66,18 @@
        its items - [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4348][example]]
      - Parse Tree. Whole, or part of it - [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4072][example]]
 
-     *CAR/CDR* - head and tail of the list
+     *CAR/CDR* - head and tail of the list.
 
-     *plist/alist* - [[https://www.emacswiki.org/emacs/AlistVsPlist][AlistVsPlist]]. In Org-rs these are mostly represented as structs or 
-     as maps(rarely)
+     *plist/alist* - [[https://www.emacswiki.org/emacs/AlistVsPlist][AlistVsPlist]]
+     In org-rs these are primarily represented as structs or as maps(rarely).
+
+
+     *BOL* - acronym. Beginning Of Line.
+
+     *point* - cursor position.
+
+     *predicate* - any identifier that ends with "p" usually means boolean variable
+      or function (example: bolp - is beginning of line?).
 
 
 ** Things Out of Scope
