@@ -94,6 +94,10 @@ impl<'a> Cursor<'a> {
         self.pos = pos;
     }
 
+    pub fn inc(&mut self, inc: usize) {
+        self.pos = self.pos + inc;
+    }
+
     pub fn pos(&self) -> usize {
         self.pos
     }

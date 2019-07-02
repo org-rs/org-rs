@@ -122,7 +122,7 @@ lazy_static! {
     /// TODO parametrize
     pub static ref REGEX_TODO: Regex = Regex::new(r"(?i)(TODO|DONE)[ \t]").unwrap();
 
-    
+
     /// TODO parametrize
     /// check how org-done-keywords are set
     pub static ref REGEX_TODO_DONE: Regex = Regex::new(r"(?i)DONE").unwrap();
@@ -130,6 +130,8 @@ lazy_static! {
 
     pub static ref REGEX_HEADLINE_PRIORITY: Regex = Regex::new(r"\[#.\][ \t]*").unwrap();
 
+    // org-comment-string
+    pub static ref REGEX_HEADLINE_COMMENT: Regex = Regex::new(r"(?i)COMMENT").unwrap();
 
 }
 
@@ -157,7 +159,7 @@ pub struct HeadlineData<'a> {
     pre_blank: usize,
 
     /// Headline's priority, as a character (integer).
-    priority: Option<usize>,
+    priority: Option<Priority>,
 
     /// Non_nil if the headline contains a quote keyword (boolean).
     quotedp: bool,
@@ -182,6 +184,9 @@ pub struct HeadlineData<'a> {
     todo_keyword: Option<TodoKeyword<'a>>,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Priority(char);
+
 // A planning is an element with the following pattern:
 // HEADLINE
 // PLANNING
@@ -203,13 +208,11 @@ pub struct Tag<'a>(Cow<'a, str>);
 
 pub struct TodoKeyword<'a>(Cow<'a, str>);
 
-
 // TODO this have to be defined by user set vaiable
 impl<'a> TodoKeyword<'a> {
     fn is_done(&self) -> bool {
         REGEX_TODO_DONE.find(&self.0).is_some()
     }
-
 }
 
 pub enum TodoType {
@@ -218,7 +221,6 @@ pub enum TodoType {
 }
 
 impl<'a> Parser<'a> {
-
     /// Parse a headline.
     /// Return a list whose CAR is `headline' and CDR is a plist
     /// containing `:raw-value', `:title', `:begin', `:end',
@@ -251,28 +253,37 @@ impl<'a> Parser<'a> {
             Some(m) => {
                 let m0 = m.get(0).unwrap();
                 let m1 = m.get(1).unwrap();
-                cursor.set(m0.end());
+                let res =
+                    Cow::from(&self.input[cursor.pos() + m1.start()..cursor.pos() + m1.end()]);
+                cursor.inc(m0.end());
                 cursor.skip_chars_forward(" \t", Some(limit));
-                Some(Cow::from(&self.input[m1.start()..m1.end()]))
+                Some(res)
             }
         };
 
-        // todo_type was moved into a method
+        // todo_type field was moved into a method
 
-        let priority = match cursor.looking_at(&*REGEX_HEADLINE_PRIORITY) {
+        let priority: Option<Priority> = match cursor.looking_at(&*REGEX_HEADLINE_PRIORITY) {
             None => None,
             Some(m) => {
-                cursor.set(m.end());
-                //FIXME integer??
-                Some()
+                let c = &self.input[cursor.pos() + m.start() + 2..]
+                    .chars()
+                    .next()
+                    .expect("Must be at char boundary");
+                cursor.inc(m.end());
+                Some(Priority(*c))
             }
+        };
 
-        }
+        let commentedp: bool = match cursor.looking_at(&*REGEX_HEADLINE_COMMENT) {
+            None => false,
+            Some(m) => {
+                cursor.inc(m.end());
+                true
+            }
+        };
 
-        // 	   (priority (and (looking-at "\\[#.\\][ \t]*")
-        // 			  (progn (goto-char (match-end 0))
-        // 				 (aref (match-string 0) 2))))
-
+        let title_start = cursor.pos();
 
         cursor.set(begin);
         unimplemented!()
@@ -357,11 +368,6 @@ impl<'a> Parser<'a> {
         // 	    (org-element-restriction 'headline)
         // 	    headline)))))))
         //
-    }
-
-    // TODO implement inlinetask_parser
-    pub fn inlinetask_parser(&self, limit: usize, raw_secondary_p: bool) -> SyntaxNode<'a> {
-        unimplemented!()
     }
 
     // TODO implement property_drawer_parser

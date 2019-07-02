@@ -26,7 +26,7 @@ use crate::blocks::SpecialBlockData;
 use crate::blocks::SrcBlockData;
 use crate::data::Syntax::BabelCall;
 use crate::drawer::DrawerData;
-use crate::headline::{HeadlineData, InlineTaskData, NodePropertyData};
+use crate::headline::{HeadlineData, NodePropertyData};
 use crate::keyword::KeywordData;
 use crate::latex::LatexEnvironmentData;
 use crate::latex::LatexFragmentData;
@@ -151,13 +151,6 @@ pub enum Syntax<'a> {
 
     /// Element
     HorizontalRule,
-
-    /// Greater element
-    /// In addition to the following list, any property specified
-    /// in a property drawer attached to the headline
-    /// will be accessible as an attribute
-    /// (with an uppercase name, e.g. CUSTOM_ID).
-    InlineTask(Box<InlineTaskData<'a>>),
 
     /// Greater element
     Item(Box<ItemData<'a>>),
@@ -465,7 +458,7 @@ impl SyntaxT {
             // (headline ,@standard-set-no-line-break)
             // (inlinetask ,@standard-set-no-line-break)
             // (item ,@standard-set-no-line-break)
-            Headline | InlineTask | Item => is_from_standard_set_no_line_break(that),
+            Headline | Item => is_from_standard_set_no_line_break(that),
 
             // (keyword ,@(remq 'footnote-reference standard-set))
             Keyword => match that {
