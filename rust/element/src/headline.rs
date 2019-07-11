@@ -296,11 +296,12 @@ impl<'a> Parser<'a> {
 
         let title_start = cursor.pos();
 
-        // let tags: Vec<Tag> = match cursor.re_search_forward(&*REGEX_HEDLINE_TAGS, Some(cursor.line_end_position(None))) {
-        //     None => vec![],
-        //     Some(m) =>
-
-        // };
+        let tags: Vec<Tag> = match cursor
+            .re_search_forward(&*REGEX_HEDLINE_TAGS, Some(cursor.line_end_position(None)))
+        {
+            None => vec![],
+            Some(m) => {}
+        };
 
         //   (tags (when (re-search-forward
         //		"[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$"
