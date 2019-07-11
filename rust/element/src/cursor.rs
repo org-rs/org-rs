@@ -418,15 +418,19 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// (re-search-forward REGEXP &optional BOUND NOERROR COUNT)
     ///
     /// Search forward from point for regular expression REGEXP.
-    /// Set point to the end of the occurrence found, and return point.
+    /// Set point to the end of the occurrence found, and return Match.
+    /// Original function returns end position of the match, but since emacs
+    /// functions modify global state variable we return Match here, since
+    /// Match contains the end position
+    ///
     /// The optional second argument BOUND is a buffer position that bounds
     ///   the search.  The match found must not end after that position.  A
     ///   value of nil means search to the end of the accessible portion of
     ///   the buffer.
-    pub fn re_search_forward(&mut self, re: &Regex, bound: Option<usize>) -> Option<usize> {
+    /// elisp:`(re-search-forward REGEXP &optional BOUND NOERROR COUNT)`
+    pub fn re_search_forward(&mut self, re: &Regex, bound: Option<usize>) -> Option<Match> {
         let end = bound.unwrap_or(self.data.len());
 
         if end <= self.pos {
@@ -438,7 +442,7 @@ impl<'a> Cursor<'a> {
             None => None,
             Some(m) => {
                 self.set(self.pos + m.end());
-                Some(self.pos)
+                Some(m)
             }
         }
     }
@@ -734,11 +738,11 @@ mod test {
         let mut cursor = Cursor::new(&text, 0);
 
         let re = Regex::new(r"\d").unwrap();
-        assert_eq!(Some(15), cursor.re_search_forward(&re, None));
+        assert_eq!(15, cursor.re_search_forward(&re, None).unwrap().end());
         assert_eq!(15, cursor.pos());
         assert_eq!(None, cursor.re_search_forward(&re, Some(10)));
         assert_eq!(15, cursor.pos());
-        assert_eq!(Some(25), cursor.re_search_forward(&re, Some(25)));
+        assert_eq!(25, cursor.re_search_forward(&re, Some(25)).unwrap().end());
         assert_eq!(None, cursor.re_search_forward(&re, Some(24)));
         assert_eq!(25, cursor.pos());
     }

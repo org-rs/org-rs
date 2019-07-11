@@ -133,6 +133,7 @@ lazy_static! {
     // org-comment-string
     pub static ref REGEX_HEADLINE_COMMENT: Regex = Regex::new(r"(?i)COMMENT").unwrap();
 
+    pub static ref REGEX_HEDLINE_TAGS: Regex = Regex::new(r"[ \t]+(:[[:alnum:]_@#%:]+:)[ \t]*$").unwrap();
 }
 
 pub struct HeadlineData<'a> {
@@ -180,8 +181,9 @@ pub struct HeadlineData<'a> {
 
     /// Headline's TODO keyword without quote and comment
     /// strings, if any (string or nil).
-    /// also used instead of todo-type
     todo_keyword: Option<TodoKeyword<'a>>,
+
+    todo_type: Option<TodoType>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -257,11 +259,20 @@ impl<'a> Parser<'a> {
                     Cow::from(&self.input[cursor.pos() + m1.start()..cursor.pos() + m1.end()]);
                 cursor.inc(m0.end());
                 cursor.skip_chars_forward(" \t", Some(limit));
-                Some(res)
+                Some(TodoKeyword(res))
             }
         };
 
-        // todo_type field was moved into a method
+        let todo_type: Option<TodoType> = match todo {
+            Some(t) => {
+                if t.is_done() {
+                    Some(TodoType::DONE)
+                } else {
+                    Some(TodoType::TODO)
+                }
+            }
+            None => None,
+        };
 
         let priority: Option<Priority> = match cursor.looking_at(&*REGEX_HEADLINE_PRIORITY) {
             None => None,
@@ -285,13 +296,20 @@ impl<'a> Parser<'a> {
 
         let title_start = cursor.pos();
 
-        let tags = unimplemented!();
-        // 	   (tags (when (re-search-forward
-        // 			"[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$"
-        // 			(line-end-position)
-        // 			'move)
-        // 		   (goto-char (match-beginning 0))
-        // 		   (org-split-string (match-string 1) ":")))
+        // let tags: Vec<Tag> = match cursor.re_search_forward(&*REGEX_HEDLINE_TAGS, Some(cursor.line_end_position(None))) {
+        //     None => vec![],
+        //     Some(m) =>
+
+        // };
+
+        //   (tags (when (re-search-forward
+        //		"[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$"
+        //		(line-end-position)
+        //		'move)
+        //	   (goto-char (match-beginning 0))
+        //	   (org-split-string (match-string 1) ":")))
+
+        let title_end = cursor.pos();
 
         cursor.set(begin);
         unimplemented!()

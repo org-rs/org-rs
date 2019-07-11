@@ -21,6 +21,7 @@ use regex::Regex;
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
 use crate::data::{Handle, Syntax, SyntaxNode, SyntaxT};
+use std::cmp::PartialEq;
 
 use crate::blocks::{
     REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL, REGEX_DYNAMIC_BLOCK, REGEX_STARTS_WITH_HASHTAG,
