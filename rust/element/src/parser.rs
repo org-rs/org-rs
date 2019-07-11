@@ -352,11 +352,6 @@ impl<'a> Parser<'a> {
                 return self.clock_line_parser(limit);
             }
 
-            // Inlinetask.
-            if self.cursor.borrow_mut().on_headline() {
-                return self.inlinetask_parser(limit, raw_secondary_p);
-            }
-
             // From there, elements can have affiliated keywords.
             let (aff_start, maybe_aff) = self.collect_affiliated_keywords(limit);
 

@@ -285,8 +285,17 @@ impl<'a> Parser<'a> {
 
         let title_start = cursor.pos();
 
+        let tags = unimplemented!();
+        // 	   (tags (when (re-search-forward
+        // 			"[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$"
+        // 			(line-end-position)
+        // 			'move)
+        // 		   (goto-char (match-beginning 0))
+        // 		   (org-split-string (match-string 1) ":")))
+
         cursor.set(begin);
         unimplemented!()
+
         //   (save-excursion
         //     (let* ((begin (point))
         // 	   (level (prog1 (org-reduced-level (skip-chars-forward "*"))
