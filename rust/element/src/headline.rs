@@ -296,21 +296,20 @@ impl<'a> Parser<'a> {
 
         let title_start = cursor.pos();
 
-        let tags: Vec<Tag> = match cursor
-            .re_search_forward(&*REGEX_HEDLINE_TAGS, Some(cursor.line_end_position(None)))
-        {
-            None => vec![],
-            Some(m) => {}
-        };
-
-        //   (tags (when (re-search-forward
-        //		"[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$"
-        //		(line-end-position)
-        //		'move)
-        //	   (goto-char (match-beginning 0))
-        //	   (org-split-string (match-string 1) ":")))
+        let line_end_pos = cursor.line_end_position(None);
+        let tags: Vec<Tag> =
+            match cursor.re_search_forward(&*REGEX_HEDLINE_TAGS, Some(line_end_pos)) {
+                None => vec![],
+                Some(m) => (&self.input[m.start + 1..m.end])
+                    .split(':')
+                    .map(|t| Tag(Cow::from(t)))
+                    .collect(),
+            };
 
         let title_end = cursor.pos();
+
+        // 	   (raw-value (org-trim
+        // 		       (buffer-substring-no-properties title-start title-end)))
 
         cursor.set(begin);
         unimplemented!()

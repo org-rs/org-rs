@@ -40,6 +40,7 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
+use std::marker::PhantomData;
 use std::rc::Rc;
 use std::rc::Weak;
 
@@ -51,10 +52,21 @@ pub type Handle<'a> = Rc<SyntaxNode<'a>>;
 /// Weak reference to a DOM node, used for parent pointers.
 pub type WeakHandle<'a> = Weak<SyntaxNode<'a>>;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Interval {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Interval<'a> {
     pub start: usize,
     pub end: usize,
+    phantom: PhantomData<&'a str>,
+}
+
+impl<'a> Interval<'a> {
+    pub fn new(start: usize, end: usize, phantom: &'a str) -> Interval<'a> {
+        Interval {
+            start,
+            end,
+            phantom: PhantomData,
+        }
+    }
 }
 
 /// ParseTree node.
@@ -70,10 +82,10 @@ pub struct SyntaxNode<'a> {
     pub data: Syntax<'a>,
 
     /// holds `begin` and `end`
-    pub location: Interval,
+    pub location: Interval<'a>,
 
     /// holds `contents_begin` and `contents_end`
-    pub content_location: Option<Interval>,
+    pub content_location: Option<Interval<'a>>,
 
     /// Holds the number of blank lines, or white spaces, at its end
     /// As a consequence whitespaces or newlines after an element or object
@@ -92,7 +104,11 @@ impl<'a> SyntaxNode<'a> {
             parent: Cell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::OrgData,
-            location: Interval { start: 0, end: 0 },
+            location: Interval {
+                start: 0,
+                end: 0,
+                phantom: PhantomData,
+            },
             content_location: None,
             post_blank: 0,
             affiliated: None,
@@ -853,6 +869,7 @@ pub struct VerbatimData<'a> {
 
 mod test {
 
+    use crate::data::Interval;
     use crate::data::SyntaxT;
 
     #[test]

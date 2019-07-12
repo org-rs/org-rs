@@ -16,6 +16,7 @@
 // Parts of the cursor code are shamelessly copied from xi-rope
 // https://github.com/xi-editor/xi-editor/tree/master/rust/rope
 
+use crate::data::Interval;
 use memchr::{memchr, memrchr};
 use regex::{Captures, Match, Regex};
 
@@ -420,14 +421,17 @@ impl<'a> Cursor<'a> {
 
     ///
     /// Search forward from point for regular expression REGEXP.
-    /// Set point to the end of the occurrence found, and return cursor position.
+    /// Set point to the end of the occurrence found, and return match Interval
+    /// with absolute positions.
+    /// Original implementation returned cursor position and modified global variables
+    /// with match data
     ///
     /// The optional second argument BOUND is a buffer position that bounds
     ///   the search.  The match found must not end after that position.  A
     ///   value of nil means search to the end of the accessible portion of
     ///   the buffer.
     /// elisp:`(re-search-forward REGEXP &optional BOUND NOERROR COUNT)`
-    pub fn re_search_forward(&mut self, re: &Regex, bound: Option<usize>) -> Option<usize> {
+    pub fn re_search_forward(&mut self, re: &Regex, bound: Option<usize>) -> Option<Interval> {
         let end = bound.unwrap_or(self.data.len());
 
         if end <= self.pos {
@@ -438,8 +442,9 @@ impl<'a> Cursor<'a> {
         match re.find(&self.data[self.pos..end]) {
             None => None,
             Some(m) => {
+                let res = Interval::new(self.pos + m.start(), self.pos + m.end(), self.data);
                 self.set(self.pos + m.end());
-                Some(self.pos)
+                Some(res)
             }
         }
     }
@@ -735,11 +740,12 @@ mod test {
         let mut cursor = Cursor::new(&text, 0);
 
         let re = Regex::new(r"\d").unwrap();
-        assert_eq!(Some(15), cursor.re_search_forward(&re, None));
+        assert_eq!(14, cursor.re_search_forward(&re, None).unwrap().start);
         assert_eq!(15, cursor.pos());
         assert_eq!(None, cursor.re_search_forward(&re, Some(10)));
         assert_eq!(15, cursor.pos());
-        assert_eq!(Some(25), cursor.re_search_forward(&re, Some(25)));
+        assert_eq!(24, cursor.re_search_forward(&re, Some(25)).unwrap().start);
+        assert_eq!(25, cursor.pos());
         assert_eq!(None, cursor.re_search_forward(&re, Some(24)));
         assert_eq!(25, cursor.pos());
     }
