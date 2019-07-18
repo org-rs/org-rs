@@ -91,6 +91,10 @@ use crate::data::{SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use regex::Regex;
 use std::borrow::Cow;
+use std::error::Error;
+use std::fmt;
+use std::fmt::Display;
+use std::str::FromStr;
 
 const ORG_CLOSED_STRING: &str = "CLOSED";
 const ORG_DEADLINE_STRING: &str = "DEADLINE";
@@ -201,13 +205,31 @@ pub struct Priority(char);
 //
 // In particular, no blank line is allowed between PLANNING and HEADLINE.
 
+#[derive(Debug, PartialEq)]
 pub struct NodePropertyData<'a> {
     key: Cow<'a, str>,
     value: Cow<'a, str>,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Tag<'a>(Cow<'a, str>);
 
+impl<'a> Tag<'a> {
+    fn new(s: &'a str) -> Tag<'a> {
+        Tag(Cow::from(s))
+    }
+}
+
+macro_rules! tag {
+    ($s:literal) => {
+        &Tag::new($s)
+    };
+}
+
+#[derive(Debug)]
+pub struct TagParseError;
+
+#[derive(Debug, PartialEq)]
 pub struct TodoKeyword<'a>(Cow<'a, str>);
 
 // TODO this have to be defined by user set vaiable
@@ -307,9 +329,8 @@ impl<'a> Parser<'a> {
             };
 
         let title_end = cursor.pos();
-
-        // 	   (raw-value (org-trim
-        // 		       (buffer-substring-no-properties title-start title-end)))
+        let raw_value = Cow::from(&self.input[title_start..title_end]);
+        let archivedp = tags.contains(tag!("ARCHIVED"));
 
         cursor.set(begin);
         unimplemented!()
