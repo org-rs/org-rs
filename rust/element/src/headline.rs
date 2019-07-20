@@ -100,7 +100,14 @@ const ORG_CLOSED_STRING: &str = "CLOSED";
 const ORG_DEADLINE_STRING: &str = "DEADLINE";
 const ORG_SCHEDULED_STRING: &str = "SCHEDULED";
 
+const ORG_FOOTNOTE_SECTION: &str = "Footnotes";
+
 lazy_static! {
+
+
+    /// Matches any of the 3 keywords, together with the time stamp.
+    pub static ref REGEX_TIME_NOT_CLOCK : Regex = Regex::new(r"((?:CLOSED|DEADLINE|SCHEDULED):) *[[<]([^]>]+)[]>]").unwrap();
+
     pub static ref REGEX_HEADLINE_SHORT: Regex = Regex::new(r"^\*+\s").unwrap();
 
     // TODO document why is it needed and what are the consequences of using multiline regex
@@ -138,6 +145,10 @@ lazy_static! {
     pub static ref REGEX_HEADLINE_COMMENT: Regex = Regex::new(r"(?i)COMMENT").unwrap();
 
     pub static ref REGEX_HEDLINE_TAGS: Regex = Regex::new(r"[ \t]+(:[[:alnum:]_@#%:]+:)[ \t]*$").unwrap();
+
+
+
+
 }
 
 pub struct HeadlineData<'a> {
@@ -188,6 +199,8 @@ pub struct HeadlineData<'a> {
     todo_keyword: Option<TodoKeyword<'a>>,
 
     todo_type: Option<TodoType>,
+
+    properties: NodePropertyData<'a>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -317,7 +330,6 @@ impl<'a> Parser<'a> {
         };
 
         let title_start = cursor.pos();
-
         let line_end_pos = cursor.line_end_position(None);
         let tags: Vec<Tag> =
             match cursor.re_search_forward(&*REGEX_HEDLINE_TAGS, Some(line_end_pos)) {
@@ -330,52 +342,34 @@ impl<'a> Parser<'a> {
 
         let title_end = cursor.pos();
         let raw_value = Cow::from(&self.input[title_start..title_end]);
+
+        // TODO add tests
         let archivedp = tags.contains(tag!("ARCHIVED"));
+        let footnote_section_p = raw_value == ORG_FOOTNOTE_SECTION;
+        let standard_props = self.get_node_properties();
+        let time_props = self.get_time_poperties();
+
+        let mut saved_excursion = cursor.pos();
+        // (end (min (save-excursion (org-end-of-subtree t t)) limit))
+        let end = std::cmp::min(self.end_of_subtree(), limit);
+        cursor.set(saved_excursion);
+
+        let contents_begin = {
+            // (forward-line)
+            // (skip-chars-forward " \r\t\n" end)
+            // (and (/= (point) end) (line-beginning-position))))
+        };
+        cursor.set(saved_excursion);
+
+        let contents_end = {
+            // (progn (goto-char end)
+            //      (skip-chars-backward " \r\t\n")
+            //      (line-beginning-position 2)))))
+        };
 
         cursor.set(begin);
         unimplemented!()
 
-        //   (save-excursion
-        //     (let* ((begin (point))
-        // 	   (level (prog1 (org-reduced-level (skip-chars-forward "*"))
-        // 		    (skip-chars-forward " \t")))
-        // 	   (todo (and org-todo-regexp
-        // 		      (let (case-fold-search) (looking-at (concat org-todo-regexp " ")))
-        // 		      (progn (goto-char (match-end 0))
-        // 			     (skip-chars-forward " \t")
-        // 			     (match-string 1))))
-        // 	   (todo-type
-        // 	    (and todo (if (member todo org-done-keywords) 'done 'todo)))
-        // 	   (priority (and (looking-at "\\[#.\\][ \t]*")
-        // 			  (progn (goto-char (match-end 0))
-        // 				 (aref (match-string 0) 2))))
-        // 	   (commentedp
-        // 	    (and (let (case-fold-search) (looking-at org-comment-string))
-        // 		 (goto-char (match-end 0))))
-        // 	   (title-start (point))
-        // 	   (tags (when (re-search-forward
-        // 			"[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$"
-        // 			(line-end-position)
-        // 			'move)
-        // 		   (goto-char (match-beginning 0))
-        // 		   (org-split-string (match-string 1) ":")))
-        // 	   (title-end (point))
-        // 	   (raw-value (org-trim
-        // 		       (buffer-substring-no-properties title-start title-end)))
-        // 	   (archivedp (member org-archive-tag tags))
-        // 	   (footnote-section-p (and org-footnote-section
-        // 				    (string= org-footnote-section raw-value)))
-        // 	   (standard-props (org-element--get-node-properties))
-        // 	   (time-props (org-element--get-time-properties))
-        // 	   (end (min (save-excursion (org-end-of-subtree t t)) limit))
-        // 	   (contents-begin (save-excursion
-        // 			     (forward-line)
-        // 			     (skip-chars-forward " \r\t\n" end)
-        // 			     (and (/= (point) end) (line-beginning-position))))
-        // 	   (contents-end (and contents-begin
-        // 			      (progn (goto-char end)
-        // 				     (skip-chars-backward " \r\t\n")
-        // 				     (line-beginning-position 2)))))
         //       (let ((headline
         // 	     (list 'headline
         // 		   (nconc
@@ -416,6 +410,80 @@ impl<'a> Parser<'a> {
         // 	    (org-element-restriction 'headline)
         // 	    headline)))))))
         //
+    }
+
+    /// Goto to the end of a subtree.
+    /// (defun org-end-of-subtree (&optional invisible-ok to-heading)
+    fn end_of_subtree(&self) -> usize {
+        //  (org-back-to-heading invisible-ok)
+        //  (let ((first t)
+        //	(level (funcall outline-level)))
+        //    (if (and (derived-mode-p 'org-mode) (< level 1000))
+        //	;; A true heading (not a plain list item), in Org
+        //	;; This means we can easily find the end by looking
+        //	;; only for the right number of stars.  Using a regexp to do
+        //	;; this is so much faster than using a Lisp loop.
+        //	(let ((re (concat "^\\*\\{1," (int-to-string level) "\\} ")))
+        //	  (forward-char 1)
+        //	  (and (re-search-forward re nil 'move) (beginning-of-line 1)))
+        //      ;; something else, do it the slow way
+        //      (while (and (not (eobp))
+        //		  (or first (> (funcall outline-level) level)))
+        //	(setq first nil)
+        //	(outline-next-heading)))
+        //    (unless to-heading
+        //      (when (memq (preceding-char) '(?\n ?\^M))
+        //	;; Go to end of line before heading
+        //	(forward-char -1)
+        //	(when (memq (preceding-char) '(?\n ?\^M))
+        //	  ;; leave blank line before heading
+        //	  (forward-char -1)))))
+        //  (point))
+        unimplemented!();
+    }
+
+    /// Return node properties associated to headline at point.
+    /// Upcase property names.  It avoids confusion between properties
+    /// obtained through property drawer and default properties from the
+    /// parser (e.g. `:end' and :END:).  Return value is a plist."
+    /// (defun org-element--get-node-properties ()
+    fn get_node_properties(&self) -> Vec<NodePropertyData> {
+        //   (save-excursion
+        //     (forward-line)
+        //     (when (looking-at-p org-planning-line-re) (forward-line))
+        //     (when (looking-at org-property-drawer-re)
+        //       (forward-line)
+        //       (let ((end (match-end 0)) properties)
+        // 	(while (< (line-end-position) end)
+        // 	  (looking-at org-property-re)
+        // 	  (push (match-string-no-properties 3) properties)
+        // 	  (push (intern (concat ":" (upcase (match-string 2)))) properties)
+        // 	  (forward-line))
+        // 	properties))))
+
+        unimplemented!()
+    }
+
+    /// Return time properties associated to headline at point.
+    /// Return value is a plist."
+    /// (defun org-element--get-time-properties ()
+    fn get_time_poperties(&self) {
+
+        //  (save-excursion
+        //    (when (progn (forward-line) (looking-at org-planning-line-re))
+        //      (let ((end (line-end-position)) plist)
+        //	(while (re-search-forward org-keyword-time-not-clock-regexp end t)
+        //	  (goto-char (match-end 1))
+        //	  (skip-chars-forward " \t")
+        //	  (let ((keyword (match-string 1))
+        //		(time (org-element-timestamp-parser)))
+        //	    (cond ((equal keyword org-scheduled-string)
+        //		   (setq plist (plist-put plist :scheduled time)))
+        //		  ((equal keyword org-deadline-string)
+        //		   (setq plist (plist-put plist :deadline time)))
+        //		  (t (setq plist (plist-put plist :closed time))))))
+        //	plist))))
+
     }
 
     // TODO implement property_drawer_parser
