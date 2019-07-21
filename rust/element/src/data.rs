@@ -72,7 +72,6 @@ impl<'a> Interval<'a> {
 /// ParseTree node.
 /// https://orgmode.org/worg/dev/org-element-api.html#attributes
 /// Should be bound to the underlying rope's lifetime
-
 pub struct SyntaxNode<'a> {
     /// Parent node.
     pub parent: Cell<Option<WeakHandle<'a>>>,

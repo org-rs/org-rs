@@ -27,6 +27,7 @@ use crate::blocks::{
     REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL, REGEX_DYNAMIC_BLOCK, REGEX_STARTS_WITH_HASHTAG,
 };
 use crate::drawer::REGEX_DRAWER;
+use crate::headline::HeadlineMetric;
 use crate::headline::REGEX_CLOCK_LINE;
 use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
@@ -164,9 +165,12 @@ impl<'a> Parser<'a> {
         self.cursor.borrow_mut().set(beg);
 
         // When parsing only headlines, skip any text before first one.
-        if self.granularity == ParseGranularity::Headline && !self.cursor.borrow_mut().on_headline()
+        if self.granularity == ParseGranularity::Headline
+            && !self.cursor.borrow_mut().is_boundary::<HeadlineMetric>()
         {
-            self.cursor.borrow_mut().next_headline();
+            if let None = self.cursor.borrow_mut().next::<HeadlineMetric>() {
+                return vec![];
+            }
         }
 
         let mut elements: Vec<Handle> = vec![];
@@ -293,7 +297,7 @@ impl<'a> Parser<'a> {
             }
 
             // Headline.
-            if self.cursor.borrow_mut().on_headline() {
+            if self.cursor.borrow_mut().is_boundary::<HeadlineMetric>() {
                 return self.headline_parser(limit, raw_secondary_p);
             }
 
@@ -304,7 +308,11 @@ impl<'a> Parser<'a> {
 
             if mode == FirstSection {
                 let pos = self.cursor.borrow().pos();
-                let lim = self.cursor.borrow_mut().next_headline().unwrap_or(limit);
+                let lim = self
+                    .cursor
+                    .borrow_mut()
+                    .next::<HeadlineMetric>()
+                    .unwrap_or(limit);
                 self.cursor.borrow_mut().set(pos);
                 return self.section_parser(lim);
             }

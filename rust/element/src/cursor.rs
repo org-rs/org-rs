@@ -99,8 +99,20 @@ impl<'a> Cursor<'a> {
         self.pos = self.pos + inc;
     }
 
+    pub fn dec(&mut self, dec: usize) {
+        if dec > self.pos {
+            self.pos = 0;
+        } else {
+            self.pos = self.pos - dec;
+        }
+    }
+
     pub fn pos(&self) -> usize {
         self.pos
+    }
+
+    pub fn data(&self) -> &str {
+        self.data
     }
 
     /// Get next codepoint after cursor position, and advance cursor.
@@ -335,32 +347,6 @@ impl<'a> Cursor<'a> {
         re.captures(&self.data[self.pos..end])
     }
 
-    /// Possibly moves cursor to the beginning of the next headline
-    /// corresponds to `outline-next-heading` in emacs
-    /// If next headline is found returns it's start position
-    pub fn next_headline(&mut self) -> Option<(usize)> {
-        // make sure we don't match current headline
-        self.next::<LinesMetric>();
-        let beg = self.pos();
-        match REGEX_HEADLINE_MULTILINE.find(&self.data[beg..]) {
-            Some(p) => {
-                self.pos = beg + p.start();
-                Some(beg + p.start())
-            }
-            None => None,
-        }
-    }
-
-    /// Return true if cursor is on a headline.
-    /// corresponds to `org-at-heading-p`
-    pub fn on_headline(&mut self) -> bool {
-        let pos = self.pos();
-        self.goto_line_begin();
-        let result = self.looking_at(&*REGEX_HEADLINE_SHORT).is_some();
-        self.set(pos);
-        return result;
-    }
-
     pub fn is_bol(&self) -> bool {
         if self.pos == 0 {
             true
@@ -475,6 +461,38 @@ impl<'a> Cursor<'a> {
         }
         count
     }
+
+    /// Move point backward, stopping after a char not in str, or at `limit`
+    /// `limit` - is an absolute buffer position
+    /// Returns the distance traveled.
+    ///
+    /// Difference with Emacs variant is that emacs returs negative number
+    ///
+    /// (skip-chars-backward STRING &optional LIM)
+    pub fn skip_chars_backward(&mut self, str: &str, limit: Option<usize>) -> usize {
+        let limit = match limit {
+            Some(lim) => lim,
+            _ => 0,
+        };
+
+        if self.pos <= limit {
+            return 0;
+        }
+
+        let mut count = 0;
+        while let Some(c) = self.get_prev_char() {
+            if !str.contains(c) {
+                self.get_next_char();
+                return count;
+            }
+            if self.pos < limit {
+                self.get_next_char();
+                return count;
+            }
+            count += 1;
+        }
+        count
+    }
 }
 
 /// Given the inital byte of a UTF-8 codepoint, returns the number of
@@ -563,39 +581,6 @@ mod test {
         assert!(cursor.looking_at(&*REGEX_EMPTY_LINE).is_some());
         cursor.goto_next_line();
         assert!(cursor.looking_at(&*REGEX_EMPTY_LINE).is_none());
-    }
-
-    #[test]
-    fn on_headline() {
-        let rope = "Some text\n**** headline\n";
-        let mut cursor = Cursor::new(&rope, 0);
-
-        assert!(!cursor.on_headline());
-
-        cursor.set(4);
-        assert!(!cursor.on_headline());
-        assert_eq!(4, cursor.pos());
-
-        cursor.set(15);
-        assert!(cursor.on_headline());
-
-        cursor.set(10);
-        assert!(cursor.on_headline());
-        assert_eq!(10, cursor.pos());
-    }
-
-    #[test]
-    fn next_headline() {
-        let string = "Some text\n**** headline\n";
-        let mut cursor = Cursor::new(&string, 0);
-
-        assert_eq!(Some(10), cursor.next_headline());
-        assert_eq!(10, cursor.pos());
-
-        let string2 = "* First\n** Second\n";
-        cursor = Cursor::new(&string2, 0);
-        assert_eq!(Some(8), cursor.next_headline());
-        assert_eq!(8, cursor.pos());
     }
 
     #[test]
@@ -732,6 +717,23 @@ mod test {
         assert_eq!(cursor.skip_chars_forward(" k\t", None), 3);
         cursor.set(0);
         assert_eq!(cursor.skip_chars_forward("* k\t", Some(2)), 3);
+    }
+
+    #[test]
+    fn skip_chars_backward() {
+        let text = "This is some text 123 \t\n\r";
+        let mut cursor = Cursor::new(&text, text.len());
+        assert_eq!(8, cursor.skip_chars_backward(" \t\n\r123", None));
+        assert_eq!(17, cursor.pos());
+        assert_eq!(' ', cursor.get_next_char().unwrap());
+
+        cursor.set(text.len());
+        assert_eq!(1, cursor.skip_chars_backward(" \t\n\r", Some(24)));
+        assert_eq!('\r', cursor.get_next_char().unwrap());
+
+        let txt2 = "Text";
+        cursor = Cursor::new(&txt2, txt2.len());
+        assert_eq!(0, cursor.skip_chars_backward("", None));
     }
 
     #[test]

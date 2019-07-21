@@ -87,14 +87,13 @@
 //!    (headline))))
 //!
 
+use crate::cursor::Cursor;
+use crate::cursor::LinesMetric;
+use crate::cursor::Metric;
 use crate::data::{SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use regex::Regex;
 use std::borrow::Cow;
-use std::error::Error;
-use std::fmt;
-use std::fmt::Display;
-use std::str::FromStr;
 
 const ORG_CLOSED_STRING: &str = "CLOSED";
 const ORG_DEADLINE_STRING: &str = "DEADLINE";
@@ -149,6 +148,80 @@ lazy_static! {
 
 
 
+}
+
+pub struct HeadlineMetric(());
+
+impl Metric for HeadlineMetric {
+    /// Return true if offset is on a headline.
+    /// Any position on headline is considered to be a boundary
+    fn is_boundary(s: &str, offset: usize) -> bool {
+        let beg = if offset == 0 || LinesMetric::is_boundary(s, offset) {
+            offset
+        } else {
+            match LinesMetric::prev(s, offset) {
+                Some(p) => p,
+                None => 0,
+            }
+        };
+
+        let end = match LinesMetric::next(s, offset) {
+            Some(p) => p,
+            None => s.len(),
+        };
+
+        REGEX_HEADLINE_SHORT.is_match(&s[beg..end])
+    }
+
+    fn prev(s: &str, offset: usize) -> Option<usize> {
+        let mut pos = offset;
+
+        loop {
+            if pos == 0 {
+                return None;
+            }
+
+            let end = if LinesMetric::is_boundary(s, pos) {
+                pos
+            } else {
+                match LinesMetric::prev(s, pos) {
+                    Some(p) => p,
+                    // No previos line - no previous headline
+                    None => return None,
+                }
+            };
+
+            let beg = match LinesMetric::prev(s, end) {
+                Some(p) => p,
+                None => 0,
+            };
+
+            if REGEX_HEADLINE_SHORT.is_match(&s[beg..end]) {
+                return Some(beg);
+            } else {
+                pos = beg;
+            }
+        }
+    }
+
+    /// Possibly finds beginning of the next headline
+    /// corresponds to `outline-next-heading` in emacs
+    /// If next headline is found returns it's start position
+    fn next(s: &str, offset: usize) -> Option<usize> {
+        let beg = if HeadlineMetric::is_boundary(s, offset) {
+            match LinesMetric::next(s, offset) {
+                Some(p) => p,
+                None => return None,
+            }
+        } else {
+            offset
+        };
+
+        match REGEX_HEADLINE_MULTILINE.find(&s[beg..]) {
+            Some(p) => Some(beg + p.start()),
+            None => None,
+        }
+    }
 }
 
 pub struct HeadlineData<'a> {
@@ -354,18 +427,18 @@ impl<'a> Parser<'a> {
         let end = std::cmp::min(self.end_of_subtree(), limit);
         cursor.set(saved_excursion);
 
-        let contents_begin = {
-            // (forward-line)
-            // (skip-chars-forward " \r\t\n" end)
-            // (and (/= (point) end) (line-beginning-position))))
+        cursor.goto_next_line();
+        cursor.skip_chars_forward("\r\t\n", Some(end));
+        let contents_begin = if cursor.pos() != end {
+            Some(cursor.line_beginning_position(None))
+        } else {
+            None
         };
         cursor.set(saved_excursion);
 
-        let contents_end = {
-            // (progn (goto-char end)
-            //      (skip-chars-backward " \r\t\n")
-            //      (line-beginning-position 2)))))
-        };
+        cursor.set(end);
+        // cursor.skip_chars_backward(" \r\t\n");
+        let contents_end = cursor.line_beginning_position(Some(2));
 
         cursor.set(begin);
         unimplemented!()
@@ -495,4 +568,75 @@ impl<'a> Parser<'a> {
     pub fn node_property_parser(&self, limit: usize) -> SyntaxNode<'a> {
         unimplemented!()
     }
+}
+
+mod test {
+
+    use crate::cursor::Cursor;
+    use crate::headline::HeadlineMetric;
+
+    #[test]
+    fn headline_boundary() {
+        let rope = "Some text\n**** headline\nNot headline again";
+        let mut cursor = Cursor::new(&rope, 0);
+
+        assert!(!cursor.is_boundary::<HeadlineMetric>());
+
+        cursor.set(4);
+        assert!(!cursor.is_boundary::<HeadlineMetric>());
+        assert_eq!(4, cursor.pos());
+
+        cursor.set(15);
+        assert!(cursor.is_boundary::<HeadlineMetric>());
+
+        cursor.set(10);
+        assert!(cursor.is_boundary::<HeadlineMetric>());
+        assert_eq!(10, cursor.pos());
+    }
+
+    #[test]
+    fn next_headline() {
+        let string = "Some text\n** headline\nAnother line\n** another headline\n";
+        let mut cursor = Cursor::new(&string, 0);
+        assert_eq!(Some(10), cursor.at_or_next::<HeadlineMetric>());
+        assert_eq!(10, cursor.pos());
+        assert_eq!(Some(35), cursor.next::<HeadlineMetric>());
+        assert_eq!(35, cursor.pos());
+        assert_eq!(None, cursor.next::<HeadlineMetric>());
+
+        let string2 = "* 1\n* 2\n* 3\n* 4\n* 5";
+        cursor = Cursor::new(&string2, 0);
+        assert_eq!(Some(0), cursor.at_or_next::<HeadlineMetric>());
+
+        assert_eq!(Some(4), cursor.next::<HeadlineMetric>());
+        assert_eq!(Some(8), cursor.next::<HeadlineMetric>());
+        assert_eq!(Some(12), cursor.next::<HeadlineMetric>());
+        assert_eq!(Some(16), cursor.next::<HeadlineMetric>());
+        assert_eq!(16, cursor.pos());
+    }
+
+    #[test]
+    fn prev_headline() {
+        let string = "Some text\n** headline\nAnother line\n** another headline\n* ";
+        let mut cursor = Cursor::new(&string, string.len());
+
+        assert_eq!(Some(string.len()), cursor.at_or_prev::<HeadlineMetric>());
+        assert_eq!(string.len(), cursor.pos());
+
+        assert_eq!(Some(35), cursor.prev::<HeadlineMetric>());
+        assert_eq!(35, cursor.pos());
+        assert_eq!(Some(10), cursor.prev::<HeadlineMetric>());
+        assert_eq!(10, cursor.pos());
+        assert_eq!(None, cursor.prev::<HeadlineMetric>());
+
+        let string2 = "* 1\n* 2\n* 3\n* 4\n* 5\n";
+        cursor = Cursor::new(&string2, string2.len());
+        assert_eq!(Some(16), cursor.prev::<HeadlineMetric>());
+        assert_eq!(Some(12), cursor.prev::<HeadlineMetric>());
+        assert_eq!(Some(8), cursor.prev::<HeadlineMetric>());
+        assert_eq!(Some(4), cursor.prev::<HeadlineMetric>());
+        assert_eq!(Some(0), cursor.prev::<HeadlineMetric>());
+        assert_eq!(None, cursor.prev::<HeadlineMetric>());
+    }
+
 }
