@@ -88,8 +88,8 @@
 //!
 
 use crate::cursor::Cursor;
-use crate::cursor::LinesMetric;
 use crate::cursor::Metric;
+use crate::cursor::NewlineMetric;
 use crate::data::{SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use regex::Regex;
@@ -156,16 +156,16 @@ impl Metric for HeadlineMetric {
     /// Return true if offset is on a headline.
     /// Any position on headline is considered to be a boundary
     fn is_boundary(s: &str, offset: usize) -> bool {
-        let beg = if offset == 0 || LinesMetric::is_boundary(s, offset) {
+        let beg = if offset == 0 || NewlineMetric::is_boundary(s, offset) {
             offset
         } else {
-            match LinesMetric::prev(s, offset) {
+            match NewlineMetric::prev_boundary(s, offset) {
                 Some(p) => p,
                 None => 0,
             }
         };
 
-        let end = match LinesMetric::next(s, offset) {
+        let end = match NewlineMetric::next_boundary(s, offset) {
             Some(p) => p,
             None => s.len(),
         };
@@ -173,7 +173,7 @@ impl Metric for HeadlineMetric {
         REGEX_HEADLINE_SHORT.is_match(&s[beg..end])
     }
 
-    fn prev(s: &str, offset: usize) -> Option<usize> {
+    fn prev_boundary(s: &str, offset: usize) -> Option<usize> {
         let mut pos = offset;
 
         loop {
@@ -181,17 +181,17 @@ impl Metric for HeadlineMetric {
                 return None;
             }
 
-            let end = if LinesMetric::is_boundary(s, pos) {
+            let end = if NewlineMetric::is_boundary(s, pos) {
                 pos
             } else {
-                match LinesMetric::prev(s, pos) {
+                match NewlineMetric::prev_boundary(s, pos) {
                     Some(p) => p,
                     // No previos line - no previous headline
                     None => return None,
                 }
             };
 
-            let beg = match LinesMetric::prev(s, end) {
+            let beg = match NewlineMetric::prev_boundary(s, end) {
                 Some(p) => p,
                 None => 0,
             };
@@ -207,9 +207,9 @@ impl Metric for HeadlineMetric {
     /// Possibly finds beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
-    fn next(s: &str, offset: usize) -> Option<usize> {
+    fn next_boundary(s: &str, offset: usize) -> Option<usize> {
         let beg = if HeadlineMetric::is_boundary(s, offset) {
-            match LinesMetric::next(s, offset) {
+            match NewlineMetric::next_boundary(s, offset) {
                 Some(p) => p,
                 None => return None,
             }

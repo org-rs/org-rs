@@ -53,19 +53,14 @@ pub type Handle<'a> = Rc<SyntaxNode<'a>>;
 pub type WeakHandle<'a> = Weak<SyntaxNode<'a>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Interval<'a> {
+pub struct Interval {
     pub start: usize,
     pub end: usize,
-    phantom: PhantomData<&'a str>,
 }
 
-impl<'a> Interval<'a> {
-    pub fn new(start: usize, end: usize, phantom: &'a str) -> Interval<'a> {
-        Interval {
-            start,
-            end,
-            phantom: PhantomData,
-        }
+impl Interval {
+    pub fn new(start: usize, end: usize) -> Interval {
+        Interval { start, end }
     }
 }
 
@@ -81,10 +76,10 @@ pub struct SyntaxNode<'a> {
     pub data: Syntax<'a>,
 
     /// holds `begin` and `end`
-    pub location: Interval<'a>,
+    pub location: Interval,
 
     /// holds `contents_begin` and `contents_end`
-    pub content_location: Option<Interval<'a>>,
+    pub content_location: Option<Interval>,
 
     /// Holds the number of blank lines, or white spaces, at its end
     /// As a consequence whitespaces or newlines after an element or object
@@ -103,11 +98,7 @@ impl<'a> SyntaxNode<'a> {
             parent: Cell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::OrgData,
-            location: Interval {
-                start: 0,
-                end: 0,
-                phantom: PhantomData,
-            },
+            location: Interval { start: 0, end: 0 },
             content_location: None,
             post_blank: 0,
             affiliated: None,

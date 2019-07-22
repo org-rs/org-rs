@@ -19,6 +19,7 @@
 use crate::data::Interval;
 use memchr::{memchr, memrchr};
 use regex::{Captures, Match, Regex};
+use std::borrow::Cow;
 
 use crate::headline::{REGEX_HEADLINE_MULTILINE, REGEX_HEADLINE_SHORT};
 
@@ -26,15 +27,54 @@ lazy_static! {
     pub static ref REGEX_EMPTY_LINE: Regex = Regex::new(r"^[ \t]*$").unwrap();
 }
 
+/// Metric is an addrress of special kind of marker.
+/// Metric by itself does represent a user-facing value (e.g. char, string..)
 pub trait Metric {
+    /// Is this metric located by given offset in a given string
     fn is_boundary(s: &str, offset: usize) -> bool;
+
+    /// Try to find previous metric relative the given offset in a given string
     fn prev(s: &str, offset: usize) -> Option<usize>;
+
+    /// Try to find next metric relative the given offset in a given string
     fn next(s: &str, offset: usize) -> Option<usize>;
+
+    fn at_or_next(s: &str, offset: usize) -> Option<usize> {
+        if Self::is_boundary(s, offset) {
+            Some(offset)
+        } else {
+            Self::next(s, offset)
+        }
+    }
+
+    fn at_or_prev(s: &str, offset: usize) -> Option<usize> {
+        if Self::is_boundary(s, offset) {
+            Some(offset)
+        } else {
+            Self::prev(s, offset)
+        }
+    }
 }
 
-pub struct BaseMetric(());
+/// UTF Char metric. The addrress of UTF char is is the address of it's first byte
+pub struct CharMetric;
 
-impl Metric for BaseMetric {
+impl CharMetric {
+    /// Given the inital byte of a UTF-8 codepoint, returns the number of
+    /// bytes required to represent the codepoint.
+    /// RFC reference : https://tools.ietf.org/html/rfc3629#section-4
+    /// TODO maybe rename to len()
+    pub fn len_utf8_from_first_byte(b: u8) -> usize {
+        match b {
+            b if b < 0x80 => 1,
+            b if b < 0xe0 => 2,
+            b if b < 0xf0 => 3,
+            _ => 4,
+        }
+    }
+}
+
+impl Metric for CharMetric {
     fn is_boundary(s: &str, offset: usize) -> bool {
         s.is_char_boundary(offset)
     }
@@ -56,13 +96,15 @@ impl Metric for BaseMetric {
             None
         } else {
             let b = s.as_bytes()[offset];
-            Some(offset + len_utf8_from_first_byte(b))
+            Some(offset + CharMetric::len_utf8_from_first_byte(b))
         }
     }
 }
 
-pub struct LinesMetric(());
-impl Metric for LinesMetric {
+/// Newline metric. Literally the addrress of '\n' byte
+pub struct NewlineMetric;
+
+impl Metric for NewlineMetric {
     fn is_boundary(s: &str, offset: usize) -> bool {
         if offset == 0 {
             false
@@ -81,12 +123,92 @@ impl Metric for LinesMetric {
     }
 }
 
-pub struct Cursor<'a> {
+struct Addressable<T> {
+    value: T,
+    address: usize,
+}
+
+/// Lexeme is anything that represents a meaaningful value to a parser (e.g. char, string).
+/// Usually lexeme is delimited by:
+/// - 2 metrics, e.g. [CharMetric..CharMetric) == char
+/// - beginning of input and a metric, e.g. [..NewlineMetric] == Line
+/// - metric and end of input - char or line and the end of input
+pub trait Lexeme {
+    type Item;
+
+    fn prev(s: &str, offset: usize) -> Option<Addressable<Self::Item>>;
+
+    fn next(s: &str, offset: usize) -> Option<Addressable<Self::Item>>;
+}
+
+struct CharLexeme;
+
+impl Lexeme for CharLexeme {
+    type Item = char;
+
+    fn prev(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
+        if let Some(a) = CharMetric::prev(s, offset) {
+            s[a..].chars().next().map(|c| Addressable {
+                value: c,
+                address: a,
+            })
+        } else {
+            None
+        }
+    }
+
+    fn next(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
+        if let Some(a) = CharMetric::next(s, offset) {
+            s[a..].chars().next().map(|c| Addressable {
+                value: c,
+                address: a,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+struct LineLexeme;
+
+impl<'a> Lexeme for LineLexeme {
+    type Item = Cow<'a, str>;
+
+    fn prev(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
+        unimplemented!()
+    }
+
+    fn next(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
+        unimplemented!()
+    }
+}
+
+pub trait Cursor {
+    // total length of the underlying data
+    fn data_len() -> usize;
+
+    fn pos() -> usize;
+    fn set(pos: usize) -> ();
+
+    fn inc(inc: usize) -> usize;
+    fn dec(dec: usize) -> usize;
+
+    fn is_boundary<M: Metric>(&self) -> bool;
+    fn goto_prev<M: Metric>(&mut self) -> Option<usize>;
+    fn goto_next<M: Metric>(&mut self) -> Option<usize>;
+    fn at_or_next<M: Metric>(&mut self) -> Option<usize>;
+    fn at_or_prev<M: Metric>(&mut self) -> Option<usize>;
+
+    fn prev<M: Lexeme>(&mut self) -> Option<M::Item>;
+    fn next<M: Lexeme>(&mut self) -> Option<M::Item>;
+}
+
+pub struct StrCursor<'a> {
     data: &'a str,
     pos: usize,
 }
 
-impl<'a> Cursor<'a> {
+impl<'a> StrCursor<'a> {
     pub fn new(data: &'a str, pos: usize) -> Cursor<'a> {
         Cursor { data, pos }
     }
@@ -115,31 +237,10 @@ impl<'a> Cursor<'a> {
         self.data
     }
 
-    /// Get next codepoint after cursor position, and advance cursor.
-    pub fn get_next_char(&mut self) -> Option<char> {
-        let pos = self.pos;
-        if let Some(offset) = self.next::<BaseMetric>() {
-            self.pos = offset;
-            self.data[pos..].chars().next()
-        } else {
-            None
-        }
-    }
-
-    /// Get previous codepoint before cursor position, and advance cursor backwards.
-    pub fn get_prev_char(&mut self) -> Option<char> {
-        if let Some(offset) = self.prev::<BaseMetric>() {
-            self.pos = offset;
-            self.data[offset..].chars().next()
-        } else {
-            None
-        }
-    }
-
     pub fn next<M: Metric>(&mut self) -> Option<usize> {
-        if let Some(offset) = M::next(self.data, self.pos) {
-            self.pos = offset;
-            Some(offset)
+        if let Some(l) = M::next(self.data, self.pos) {
+            self.pos = l;
+            Some(l)
         } else {
             None
         }
@@ -155,22 +256,6 @@ impl<'a> Cursor<'a> {
             Some(offset)
         } else {
             None
-        }
-    }
-
-    pub fn at_or_next<M: Metric>(&mut self) -> Option<usize> {
-        if self.is_boundary::<M>() {
-            Some(self.pos())
-        } else {
-            self.next::<M>()
-        }
-    }
-
-    pub fn at_or_prev<M: Metric>(&mut self) -> Option<usize> {
-        if self.is_boundary::<M>() {
-            Some(self.pos())
-        } else {
-            self.prev::<M>()
         }
     }
 
@@ -193,7 +278,7 @@ impl<'a> Cursor<'a> {
     /// If cursor is already at the beginning of the line - nothing happens
     /// Returns the position of the cursor
     pub fn goto_line_begin(&mut self) -> usize {
-        if self.pos() != 0 && self.at_or_prev::<LinesMetric>().is_none() {
+        if self.pos() != 0 && self.at_or_prev::<NewlineMetric>().is_none() {
             self.set(0);
         }
         self.pos()
@@ -202,7 +287,7 @@ impl<'a> Cursor<'a> {
     /// Moves cursor to the beginning of the next line. If there is no next line
     /// cursor position is set to len() of the input
     pub fn goto_next_line(&mut self) -> usize {
-        let res = self.next::<LinesMetric>();
+        let res = self.next::<NewlineMetric>();
         match res {
             None => {
                 self.set(self.data.len());
@@ -221,7 +306,7 @@ impl<'a> Cursor<'a> {
         if self.pos() == 0 {
             return 0;
         }
-        let res = self.prev::<LinesMetric>();
+        let res = self.prev::<NewlineMetric>();
 
         match res {
             None => {
@@ -255,7 +340,7 @@ impl<'a> Cursor<'a> {
                     self.goto_line_begin();
                     if self.pos() != 0 {
                         for p in 0..(x - 1).abs() {
-                            if self.prev::<LinesMetric>().is_none() {
+                            if self.prev::<NewlineMetric>().is_none() {
                                 self.set(0);
                                 break;
                             }
@@ -290,7 +375,7 @@ impl<'a> Cursor<'a> {
                     }
                 } else if self.pos() != 0 {
                     for p in 0..=x.abs() {
-                        if self.prev::<LinesMetric>().is_none() {
+                        if self.prev::<NewlineMetric>().is_none() {
                             break;
                         }
                     }
@@ -298,11 +383,12 @@ impl<'a> Cursor<'a> {
             }
         }
 
-        let result = self.prev::<BaseMetric>().unwrap_or(0);
+        let result = self.prev::<CharMetric>().unwrap_or(0);
         self.set(pos);
         return result;
     }
 
+    // TODO refactor to use BaseMetric
     pub fn char_after(&mut self, offset: usize) -> Option<char> {
         let pos = self.pos();
         self.set(offset);
@@ -323,7 +409,7 @@ impl<'a> Cursor<'a> {
     /// Use `capturing_at` if you need capture groups.
     pub fn looking_at(&self, re: &Regex) -> Option<Match<'a>> {
         let end = if !is_multiline_regex(re.as_str()) {
-            LinesMetric::next(self.data, self.pos)
+            NewlineMetric::next(self.data, self.pos)
                 .map(|p| p - 1) // exclude '\n' from the string'
                 .unwrap_or_else(|| self.data.len())
         } else {
@@ -337,7 +423,7 @@ impl<'a> Cursor<'a> {
     /// capture groups use `looking_at` for better performance
     pub fn capturing_at(&self, re: &Regex) -> Option<Captures<'a>> {
         let end = if !is_multiline_regex(re.as_str()) {
-            LinesMetric::next(self.data, self.pos)
+            NewlineMetric::next(self.data, self.pos)
                 .map(|p| p - 1) // exclude '\n' from the string'
                 .unwrap_or_else(|| self.data.len())
         } else {
@@ -351,7 +437,7 @@ impl<'a> Cursor<'a> {
         if self.pos == 0 {
             true
         } else {
-            LinesMetric::is_boundary(self.data, self.pos)
+            NewlineMetric::is_boundary(self.data, self.pos)
         }
     }
 
@@ -428,7 +514,7 @@ impl<'a> Cursor<'a> {
         match re.find(&self.data[self.pos..end]) {
             None => None,
             Some(m) => {
-                let res = Interval::new(self.pos + m.start(), self.pos + m.end(), self.data);
+                let res = Interval::new(self.pos + m.start(), self.pos + m.end());
                 self.set(self.pos + m.end());
                 Some(res)
             }
@@ -495,18 +581,6 @@ impl<'a> Cursor<'a> {
     }
 }
 
-/// Given the inital byte of a UTF-8 codepoint, returns the number of
-/// bytes required to represent the codepoint.
-/// RFC reference : https://tools.ietf.org/html/rfc3629#section-4
-pub fn len_utf8_from_first_byte(b: u8) -> usize {
-    match b {
-        b if b < 0x80 => 1,
-        b if b < 0xe0 => 2,
-        b if b < 0xf0 => 3,
-        _ => 4,
-    }
-}
-
 /// Checks if a regular expression can match multiple lines.
 pub fn is_multiline_regex(regex: &str) -> bool {
     // regex characters that match line breaks
@@ -519,15 +593,15 @@ pub fn is_multiline_regex(regex: &str) -> bool {
 mod test {
 
     use super::Cursor;
-    use super::LinesMetric;
     use super::Metric;
+    use super::NewlineMetric;
     use super::REGEX_EMPTY_LINE;
 
     use crate::data::Syntax;
     use crate::headline::REGEX_HEADLINE_SHORT;
     use crate::parser::Parser;
 
-    use crate::cursor::BaseMetric;
+    use crate::cursor::CharMetric;
     use regex::Match;
     use regex::Regex;
 
@@ -539,12 +613,12 @@ mod test {
         assert_eq!(1, cursor.pos());
         assert_eq!('2', cursor.get_next_char().unwrap());
         assert_eq!(2, cursor.pos());
-        assert_eq!(11, cursor.next::<LinesMetric>().unwrap());
-        assert!(cursor.is_boundary::<LinesMetric>());
+        assert_eq!(11, cursor.next::<NewlineMetric>().unwrap());
+        assert!(cursor.is_boundary::<NewlineMetric>());
         assert_eq!('З', cursor.get_next_char().unwrap());
         assert_eq!(13, cursor.pos());
         cursor.set(12);
-        assert!(!cursor.is_boundary::<BaseMetric>());
+        assert!(!cursor.is_boundary::<CharMetric>());
     }
 
     #[test]
@@ -682,7 +756,7 @@ mod test {
         cursor.set(rope.len());
         assert!(!cursor.is_bol());
 
-        cursor.prev::<LinesMetric>();
+        cursor.prev::<NewlineMetric>();
         assert!(cursor.is_bol());
         cursor.goto_prev_line();
         assert!(cursor.is_bol());
