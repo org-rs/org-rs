@@ -44,6 +44,7 @@
 //!
 //! “CAPTION” keyword can contain objects in both VALUE and OPTIONAL fileds.
 
+use crate::cursor::NewlineMetric;
 use crate::cursor::REGEX_EMPTY_LINE;
 use crate::data::StringOrObject;
 use crate::data::SyntaxT;
@@ -248,7 +249,14 @@ impl<'a> Parser<'a> {
                 _ => unreachable!(),
             }
 
-            self.cursor.borrow_mut().goto_next_line();
+            if self
+                .cursor
+                .borrow_mut()
+                .goto_next::<NewlineMetric>()
+                .is_none()
+            {
+                break;
+            }
         }
 
         // If affiliated keywords are orphaned: move back to first one.
@@ -265,7 +273,7 @@ impl<'a> Parser<'a> {
 mod test {
     use super::REGEX_AFFILIATED;
     use crate::affiliated::DualVal;
-    use crate::cursor::{is_multiline_regex, Cursor};
+    use crate::cursor::{is_multiline_regex, Cursor, NewlineMetric};
     use crate::data::RepeaterType::CatchUp;
     use crate::data::StringOrObject;
     use crate::parser::ParseGranularity;
@@ -324,7 +332,7 @@ mod test {
         let mut cursor = Cursor::new(caption_txt, 0);
 
         assert!(cursor.looking_at(&*REGEX_AFFILIATED).is_none());
-        cursor.goto_next_line();
+        cursor.goto_next::<NewlineMetric>();
         assert_eq!(2, cursor.pos());
         assert!(cursor.looking_at(&*REGEX_AFFILIATED).is_some());
     }

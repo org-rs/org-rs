@@ -123,7 +123,7 @@ impl Metric for NewlineMetric {
     }
 }
 
-struct Addressable<T> {
+pub struct Addressable<T> {
     pub value: T,
     pub address: usize,
 }
@@ -136,6 +136,8 @@ struct Addressable<T> {
 pub trait Lexeme {
     type Item;
 
+    fn is_on(s: &str, offset: usize) -> bool;
+
     fn prev(s: &str, offset: usize) -> Option<Addressable<Self::Item>>;
 
     fn next(s: &str, offset: usize) -> Option<Addressable<Self::Item>>;
@@ -145,6 +147,11 @@ struct CharLexeme;
 
 impl Lexeme for CharLexeme {
     type Item = char;
+
+    // Any valid offset is some char
+    fn is_on(s: &str, offset: usize) -> bool {
+        offset < s.len()
+    }
 
     fn prev(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
         if let Some(a) = CharMetric::prev(s, offset) {
@@ -171,8 +178,14 @@ impl Lexeme for CharLexeme {
 
 struct LineLexeme;
 
-impl<'a> Lexeme for LineLexeme {
-    type Item = Cow<'a, str>;
+impl Lexeme for LineLexeme {
+    // Allocates!
+    type Item = String;
+
+    // Any valid offset is some line
+    fn is_on(s: &str, offset: usize) -> bool {
+        offset <= s.len()
+    }
 
     /// Finds the the previous line relative to the offset.
     /// If no fist NewlineMetric found - offset is already on first line
@@ -194,7 +207,7 @@ impl<'a> Lexeme for LineLexeme {
 
         return Some(Addressable {
             address: beg,
-            value: Cow::from(&s[beg..end]),
+            value: String::from(&s[beg..end]),
         });
     }
 
@@ -218,29 +231,69 @@ impl<'a> Lexeme for LineLexeme {
 
         return Some(Addressable {
             address: beg,
-            value: Cow::from(&s[beg..end]),
+            value: String::from(&s[beg..end]),
         });
     }
 }
 
-pub trait Cursor {
+pub struct Cursor<'a> {
+    data: &'a str,
+    pos: usize,
+}
+
+impl<'a> Cursor<'a> {
+    pub fn new(data: &'a str, pos: usize) -> Cursor<'a> {
+        Cursor { data, pos }
+    }
+
     // total length of the underlying data
-    fn data_len(&self) -> usize;
+    pub fn data_len(&self) -> usize {
+        self.data.len()
+    }
 
-    fn pos(&self) -> usize;
-    fn set(&mut self, pos: usize) -> ();
+    pub fn pos(&self) -> usize {
+        self.pos
+    }
 
-    fn inc(&mut self, inc: usize) -> usize;
-    fn dec(&mut self, dec: usize) -> usize;
+    pub fn set(&mut self, pos: usize) {
+        self.pos = pos;
+    }
 
-    fn is_boundary<M: Metric>(&self) -> bool;
-    fn goto_prev<M: Metric>(&mut self) -> Option<usize>;
-    fn goto_next<M: Metric>(&mut self) -> Option<usize>;
+    pub fn inc(&mut self, inc: usize) {
+        self.pos = self.pos + inc;
+    }
 
-    fn prev<L: Lexeme>(&mut self) -> Option<L::Item>;
-    fn next<L: Lexeme>(&mut self) -> Option<L::Item>;
+    pub fn dec(&mut self, dec: usize) {
+        if dec > self.pos {
+            self.pos = 0;
+        } else {
+            self.pos = self.pos - dec;
+        }
+    }
 
-    fn at_or_next<M: Metric>(&mut self) -> Option<usize> {
+    pub fn is_boundary<M: Metric>(&self) -> bool {
+        M::is_boundary(self.data, self.pos)
+    }
+
+    pub fn goto_next<M: Metric>(&mut self) -> Option<usize> {
+        if let Some(l) = M::next(self.data, self.pos) {
+            self.pos = l;
+            Some(l)
+        } else {
+            None
+        }
+    }
+
+    pub fn goto_prev<M: Metric>(&mut self) -> Option<usize> {
+        if let Some(offset) = M::prev(self.data, self.pos) {
+            self.pos = offset;
+            Some(offset)
+        } else {
+            None
+        }
+    }
+
+    pub fn at_or_next<M: Metric>(&mut self) -> Option<usize> {
         if self.is_boundary::<M>() {
             Some(self.pos())
         } else {
@@ -248,7 +301,7 @@ pub trait Cursor {
         }
     }
 
-    fn at_or_prev<M: Metric>(&mut self) -> Option<usize> {
+    pub fn at_or_prev<M: Metric>(&mut self) -> Option<usize> {
         if self.is_boundary::<M>() {
             Some(self.pos())
         } else {
@@ -256,54 +309,36 @@ pub trait Cursor {
         }
     }
 
-    /// Skip over space, tabs and newline characters
-    /// Cursor position is set before next non-whitespace char
-    fn skip_whitespace(&mut self) -> usize {
-        while let Some(c) = self.next::<CharLexeme>() {
-            if !(c.is_whitespace()) {
-                self.prev::<CharLexeme>();
-                break;
-            }
-            // else {
-            //     self.next::<CharLexeme>();
-            // }
-        }
-        self.pos()
+    pub fn is_on<L: Lexeme>(&self) -> bool {
+        L::is_on(self.data, self.pos)
     }
 
-    fn is_bol(&self) -> bool {
+    pub fn prev<L: Lexeme>(&mut self) -> Option<L::Item> {
+        match L::prev(self.data, self.pos) {
+            None => None,
+            Some(a) => {
+                self.set(a.address);
+                Some(a.value)
+            }
+        }
+    }
+
+    pub fn next<L: Lexeme>(&mut self) -> Option<L::Item> {
+        match L::next(self.data, self.pos) {
+            None => None,
+            Some(a) => {
+                self.set(a.address);
+                Some(a.value)
+            }
+        }
+    }
+
+    pub fn is_bol(&self) -> bool {
         if self.pos() == 0 {
             true
         } else {
             self.is_boundary::<NewlineMetric>()
         }
-    }
-
-    /// Moves point forward, stopping before a char not in str, or at position limit.
-    fn skip_chars_forward(&mut self, str: &str, limit: Option<usize>) -> usize {
-        let pos = self.pos();
-        let limit = match limit {
-            Some(lim) => lim,
-            _ => self.data_len(),
-        };
-
-        if pos >= limit {
-            return 0;
-        }
-
-        let mut count = 0;
-        while let Some(c) = self.next::<CharLexeme>() {
-            if !str.contains(c) {
-                self.goto_prev::<CharMetric>();
-                return count;
-            }
-            if count + pos > limit {
-                self.goto_prev::<CharMetric>();
-                return count;
-            }
-            count += 1;
-        }
-        count
     }
 
     /// Move point backward, stopping after a char not in str, or at `limit`
@@ -313,7 +348,7 @@ pub trait Cursor {
     /// Difference with Emacs variant is that emacs returs negative number
     ///
     /// (skip-chars-backward STRING &optional LIM)
-    fn skip_chars_backward(&mut self, str: &str, limit: Option<usize>) -> usize {
+    pub fn skip_chars_backward(&mut self, str: &str, limit: Option<usize>) -> usize {
         let limit = match limit {
             Some(lim) => lim,
             _ => 0,
@@ -342,7 +377,7 @@ pub trait Cursor {
     /// Acts like "Home" button
     /// If cursor is already at the beginning of the line - nothing happens
     /// Returns the position of the cursor
-    fn goto_line_begin(&mut self) -> usize {
+    pub fn goto_line_begin(&mut self) -> usize {
         if self.pos() != 0 && self.at_or_prev::<NewlineMetric>().is_none() {
             self.set(0);
         }
@@ -356,7 +391,7 @@ pub trait Cursor {
     ///
     /// Corresponds to `line-beginning-position` in elisp
     /// This function does not move the cursor (does save-excursion)
-    fn line_beginning_position(&mut self, n: Option<i32>) -> Option<usize> {
+    pub fn line_beginning_position(&mut self, n: Option<i32>) -> usize {
         let pos = self.pos();
         match n {
             None | Some(1) => {
@@ -366,13 +401,15 @@ pub trait Cursor {
             Some(x) => {
                 if x > 1 {
                     for _p in 0..x - 1 {
-                        self.goto_next::<NewlineMetric>();
+                        if self.goto_next::<NewlineMetric>().is_none() {
+                            break;
+                        }
                     }
                 } else {
                     self.goto_line_begin();
                     if self.pos() != 0 {
                         for p in 0..(x - 1).abs() {
-                            if self.prev::<NewlineMetric>().is_none() {
+                            if self.goto_prev::<NewlineMetric>().is_none() {
                                 self.set(0);
                                 break;
                             }
@@ -393,21 +430,23 @@ pub trait Cursor {
     ///
     /// Corresponds to `line-end-position` in elisp
     /// This function does not move the cursor (does save-excursion)
-    fn line_end_position(&mut self, n: Option<i32>) -> usize {
+    pub fn line_end_position(&mut self, n: Option<i32>) -> usize {
         let pos = self.pos();
         match n {
             None | Some(1) => {
-                self.goto_next_line();
+                self.goto_next::<NewlineMetric>();
             }
 
             Some(x) => {
                 if x > 1 {
                     for _p in 0..x {
-                        self.goto_next_line();
+                        if self.goto_next::<NewlineMetric>().is_none() {
+                            break;
+                        }
                     }
                 } else if self.pos() != 0 {
                     for p in 0..=x.abs() {
-                        if self.prev::<NewlineMetric>().is_none() {
+                        if self.goto_prev::<NewlineMetric>().is_none() {
                             break;
                         }
                     }
@@ -415,18 +454,60 @@ pub trait Cursor {
             }
         }
 
-        let result = self.prev::<CharMetric>().unwrap_or(0);
+        let result = self.goto_prev::<CharMetric>().unwrap_or(0);
         self.set(pos);
         return result;
     }
 
     // TODO refactor to use BaseMetric
-    fn char_after(&mut self, offset: usize) -> Option<char> {
+    pub fn char_after(&mut self, offset: usize) -> Option<char> {
         let pos = self.pos();
         self.set(offset);
-        let result = self.get_next_char();
+        let result = self.next();
         self.set(pos);
         return result;
+    }
+
+    /// Moves point forward, stopping before a char not in str, or at position limit.
+    pub fn skip_chars_forward(&mut self, str: &str, limit: Option<usize>) -> usize {
+        let pos = self.pos();
+        let limit = match limit {
+            Some(lim) => lim,
+            _ => self.data_len(),
+        };
+
+        if pos >= limit {
+            return 0;
+        }
+
+        let mut count = 0;
+        while let Some(c) = self.next::<CharLexeme>() {
+            if !str.contains(c) {
+                self.goto_prev::<CharMetric>();
+                return count;
+            }
+            if count + pos > limit {
+                self.goto_prev::<CharMetric>();
+                return count;
+            }
+            count += 1;
+        }
+        count
+    }
+
+    /// Skip over space, tabs and newline characters
+    /// Cursor position is set before next non-whitespace char
+    pub fn skip_whitespace(&mut self) -> usize {
+        while let Some(c) = self.next::<CharLexeme>() {
+            if !(c.is_whitespace()) {
+                self.prev::<CharLexeme>();
+                break;
+            }
+            // else {
+            //     self.next::<CharLexeme>();
+            // }
+        }
+        self.pos()
     }
 
     /// Checks if current line matches a given regex
@@ -439,121 +520,7 @@ pub trait Cursor {
     /// The result is true if so, false otherwise.
     /// This function does not move cursor
     /// Use `capturing_at` if you need capture groups.
-    fn looking_at(&self, re: &Regex) -> Option<Match>;
-
-    /// Acts exactly as `looking_at` but returns Captures
-    /// This is slower than simple regex search so if you don't need
-    /// capture groups use `looking_at` for better performance
-    fn capturing_at(&self, re: &Regex) -> Option<Captures>;
-
-    /// Search forward from point to str. Sets point to the end of the
-    /// occurence found and returns point. bound is a position in the
-    /// buffer. The match found must not end after that position. If
-    /// None then search to end of the buffer. If count is specified,
-    /// find the countth occurence. If countth occurence is not found
-    /// None is returned. If count is not provided then 1 is used as
-    /// count. Note that searching backward is not supported like it
-    /// is in the elisp equivalent.
-    fn search_forward(
-        &mut self,
-        str: &str,
-        bound: Option<usize>,
-        count: Option<usize>,
-    ) -> Option<usize>;
-
-    /// Search forward from point for regular expression REGEXP.
-    /// Set point to the end of the occurrence found, and return match Interval
-    /// with absolute positions.
-    /// Original implementation returned cursor position and modified global variables
-    /// with match data
-    ///
-    /// The optional second argument BOUND is a buffer position that bounds
-    ///   the search.  The match found must not end after that position.  A
-    ///   value of nil means search to the end of the accessible portion of
-    ///   the buffer.
-    /// elisp:`(re-search-forward REGEXP &optional BOUND NOERROR COUNT)`
-    fn re_search_forward(&mut self, re: &Regex, bound: Option<usize>) -> Option<Interval>;
-}
-
-pub struct StrCursor<'a> {
-    data: &'a str,
-    pos: usize,
-}
-
-impl<'a> StrCursor<'a> {
-    pub fn new(data: &'a str, pos: usize) -> StrCursor<'a> {
-        StrCursor { data, pos }
-    }
-}
-
-impl<'a> Cursor for StrCursor<'a> {
-    fn data_len(&self) -> usize {
-        self.data.len()
-    }
-
-    fn pos(&self) -> usize {
-        self.pos
-    }
-
-    fn set(&mut self, pos: usize) {
-        self.pos = pos;
-    }
-
-    fn inc(&mut self, inc: usize) {
-        self.pos = self.pos + inc;
-    }
-
-    fn dec(&mut self, dec: usize) {
-        if dec > self.pos {
-            self.pos = 0;
-        } else {
-            self.pos = self.pos - dec;
-        }
-    }
-
-    fn is_boundary<M: Metric>(&self) -> bool {
-        M::is_boundary(self.data, self.pos)
-    }
-
-    fn goto_next<M: Metric>(&mut self) -> Option<usize> {
-        if let Some(l) = M::next(self.data, self.pos) {
-            self.pos = l;
-            Some(l)
-        } else {
-            None
-        }
-    }
-
-    fn goto_prev<M: Metric>(&mut self) -> Option<usize> {
-        if let Some(offset) = M::prev(self.data, self.pos) {
-            self.pos = offset;
-            Some(offset)
-        } else {
-            None
-        }
-    }
-
-    fn prev<L: Lexeme>(&mut self) -> Option<L::Item> {
-        match L::prev(self.data, self.pos) {
-            None => None,
-            Some(a) => {
-                self.set(a.address);
-                Some(a.value)
-            }
-        }
-    }
-
-    fn next<L: Lexeme>(&mut self) -> Option<L::Item> {
-        match L::next(self.data, self.pos) {
-            None => None,
-            Some(a) => {
-                self.set(a.address);
-                Some(a.value)
-            }
-        }
-    }
-
-    fn looking_at(&self, re: &Regex) -> Option<Match<'a>> {
+    pub fn looking_at(&self, re: &Regex) -> Option<Match<'a>> {
         let end = if !is_multiline_regex(re.as_str()) {
             NewlineMetric::next(self.data, self.pos)
                 .map(|p| p - 1) // exclude '\n' from the string'
@@ -567,7 +534,7 @@ impl<'a> Cursor for StrCursor<'a> {
     /// Acts exactly as `looking_at` but returns Captures
     /// This is slower than simple regex search so if you don't need
     /// capture groups use `looking_at` for better performance
-    fn capturing_at(&self, re: &Regex) -> Option<Captures<'a>> {
+    pub fn capturing_at(&self, re: &Regex) -> Option<Captures<'a>> {
         let end = if !is_multiline_regex(re.as_str()) {
             NewlineMetric::next(self.data, self.pos)
                 .map(|p| p - 1) // exclude '\n' from the string'
@@ -587,7 +554,7 @@ impl<'a> Cursor for StrCursor<'a> {
     /// None is returned. If count is not provided then 1 is used as
     /// count. Note that searching backward is not supported like it
     /// is in the elisp equivalent.
-    fn search_forward(
+    pub fn search_forward(
         &mut self,
         str: &str,
         bound: Option<usize>,
@@ -641,7 +608,7 @@ impl<'a> Cursor for StrCursor<'a> {
     ///   value of nil means search to the end of the accessible portion of
     ///   the buffer.
     /// elisp:`(re-search-forward REGEXP &optional BOUND NOERROR COUNT)`
-    fn re_search_forward(&mut self, re: &Regex, bound: Option<usize>) -> Option<Interval> {
+    pub fn re_search_forward(&mut self, re: &Regex, bound: Option<usize>) -> Option<Interval> {
         let end = bound.unwrap_or(self.data.len());
 
         if end <= self.pos {
@@ -678,7 +645,6 @@ mod test {
     use super::LineLexeme;
     use super::Metric;
     use super::NewlineMetric;
-    use super::StrCursor;
     use super::REGEX_EMPTY_LINE;
 
     use crate::data::Syntax;
@@ -693,7 +659,7 @@ mod test {
     #[test]
     fn essentials() {
         let input = "1234567890\nЗдравствуйте";
-        let mut cursor = StrCursor::new(&input, 0);
+        let mut cursor = Cursor::new(&input, 0);
         assert_eq!('1', cursor.next::<CharLexeme>().unwrap());
         assert_eq!(1, cursor.pos());
         assert_eq!('2', cursor.next().unwrap());
@@ -709,7 +675,7 @@ mod test {
     #[test]
     fn looking_at_headline() {
         let rope = "Some text\n**** headline\n";
-        let mut cursor = StrCursor::new(&rope, 0);
+        let mut cursor = Cursor::new(&rope, 0);
         assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT).is_none());
 
         cursor.set(4);
@@ -731,7 +697,7 @@ mod test {
     #[test]
     fn looking_at_empty_line_re() {
         let text = "First line\n   \n\nFourth line";
-        let mut cursor = StrCursor::new(&text, 0);
+        let mut cursor = Cursor::new(&text, 0);
 
         assert!(cursor.looking_at(&*REGEX_EMPTY_LINE).is_none());
         cursor.goto_next::<NewlineMetric>();
@@ -745,18 +711,18 @@ mod test {
     #[test]
     fn skip_whitespaces() {
         let rope = " \n\t\rorg-mode ";
-        let mut cursor = StrCursor::new(&rope, 0);
+        let mut cursor = Cursor::new(&rope, 0);
         cursor.skip_whitespace();
         assert_eq!(cursor.next().unwrap(), 'o');
 
         let rope2 = "no_whitespace_for_you!";
-        cursor = StrCursor::new(&rope2, 0);
+        cursor = Cursor::new(&rope2, 0);
         cursor.skip_whitespace();
         assert_eq!(cursor.next().unwrap(), 'n');
 
         // Skipping all the remaining whitespace results in invalid cursor at the end of the rope
         let rope3 = " ";
-        cursor = StrCursor::new(&rope3, 0);
+        cursor = Cursor::new(&rope3, 0);
         cursor.skip_whitespace();
         assert_eq!(None, cursor.next::<CharLexeme>());
     }
@@ -764,7 +730,7 @@ mod test {
     #[test]
     fn line_begin() {
         let rope = "First line\nSecond line\r\nThird line";
-        let mut cursor = StrCursor::new(&rope, 13);
+        let mut cursor = Cursor::new(&rope, 13);
         assert_eq!(cursor.goto_line_begin(), 11);
         assert_eq!(cursor.goto_line_begin(), 11);
         assert_eq!(cursor.goto_line_begin(), 11);
@@ -782,9 +748,9 @@ mod test {
     #[test]
     fn prev_line() {
         let rope = "First line\nSecond line\r\nThird line\nFour";
-        let mut cursor = StrCursor::new(&rope, rope.len());
+        let mut cursor = Cursor::new(&rope, rope.len());
 
-        assert_eq!(cursor.prev::<LineLexeme>(), Some(Cow::from("Third line")));
+        assert_eq!(cursor.prev::<LineLexeme>(), Some("Third line".to_owned()));
         //     assert_eq!(cursor.get_next_char().unwrap(), 'T');
 
         //     assert_eq!(cursor.goto_prev_line(), 11);
@@ -797,7 +763,7 @@ mod test {
     #[test]
     fn line_begin_pos() {
         let rope = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
-        let mut cursor = StrCursor::new(&rope, 13);
+        let mut cursor = Cursor::new(&rope, 13);
 
         assert_eq!(cursor.line_beginning_position(None), 12);
         assert_eq!(cursor.line_beginning_position(Some(1)), 12);
@@ -812,7 +778,7 @@ mod test {
     #[test]
     fn line_end_pos() {
         let text = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
-        let mut cursor = StrCursor::new(&text, 13);
+        let mut cursor = Cursor::new(&text, 13);
 
         assert_eq!(27, text.len());
         // Moving forward
@@ -832,7 +798,7 @@ mod test {
     #[test]
     fn is_bol() {
         let rope = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
-        let mut cursor = StrCursor::new(&rope, 0);
+        let mut cursor = Cursor::new(&rope, 0);
         assert!(cursor.is_bol());
         cursor.set(2);
         assert!(!cursor.is_bol());
@@ -841,18 +807,18 @@ mod test {
         cursor.set(rope.len());
         assert!(!cursor.is_bol());
 
-        cursor.prev::<NewlineMetric>();
+        cursor.goto_prev::<NewlineMetric>();
         assert!(cursor.is_bol());
-        cursor.goto_prev_line();
+        cursor.goto_prev::<NewlineMetric>();
         assert!(cursor.is_bol());
-        cursor.goto_next_line();
+        cursor.goto_next::<NewlineMetric>();
         assert!(cursor.is_bol());
     }
 
     #[test]
     fn search_forward() {
         let str = "onetwothreefouronetwothreeonetwothreeonetwothreefouroneabababa";
-        let mut cursor = StrCursor::new(&str, 0);
+        let mut cursor = Cursor::new(&str, 0);
         assert_eq!(cursor.search_forward("one", None, Some(2)), Some(18));
         assert_eq!(cursor.search_forward("one", None, None), Some(29));
         cursor.set(0);
@@ -870,7 +836,7 @@ mod test {
     #[test]
     fn skip_chars_forward() {
         let str = "  k\t **hello";
-        let mut cursor = StrCursor::new(&str, 0);
+        let mut cursor = Cursor::new(&str, 0);
         assert_eq!(cursor.skip_chars_forward(" ", None), 2);
         assert_eq!(cursor.pos(), 2);
         assert_eq!(cursor.skip_chars_forward(" k\t", None), 3);
@@ -881,24 +847,24 @@ mod test {
     #[test]
     fn skip_chars_backward() {
         let text = "This is some text 123 \t\n\r";
-        let mut cursor = StrCursor::new(&text, text.len());
+        let mut cursor = Cursor::new(&text, text.len());
         assert_eq!(8, cursor.skip_chars_backward(" \t\n\r123", None));
         assert_eq!(17, cursor.pos());
-        assert_eq!(' ', cursor.get_next_char().unwrap());
+        assert_eq!(' ', cursor.next().unwrap());
 
         cursor.set(text.len());
         assert_eq!(1, cursor.skip_chars_backward(" \t\n\r", Some(24)));
-        assert_eq!('\r', cursor.get_next_char().unwrap());
+        assert_eq!('\r', cursor.next().unwrap());
 
         let txt2 = "Text";
-        cursor = StrCursor::new(&txt2, txt2.len());
+        cursor = Cursor::new(&txt2, txt2.len());
         assert_eq!(0, cursor.skip_chars_backward("", None));
     }
 
     #[test]
     fn re_search_forward() {
         let text = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
-        let mut cursor = StrCursor::new(&text, 0);
+        let mut cursor = Cursor::new(&text, 0);
 
         let re = Regex::new(r"\d").unwrap();
         assert_eq!(14, cursor.re_search_forward(&re, None).unwrap().start);

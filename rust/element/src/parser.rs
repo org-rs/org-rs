@@ -27,7 +27,7 @@ use crate::blocks::{
     REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL, REGEX_DYNAMIC_BLOCK, REGEX_STARTS_WITH_HASHTAG,
 };
 use crate::drawer::REGEX_DRAWER;
-use crate::headline::HeadlineMetric;
+use crate::headline::HeadlineLexeme;
 use crate::headline::REGEX_CLOCK_LINE;
 use crate::headline::REGEX_HEADLINE_SHORT;
 use crate::headline::REGEX_PLANNING_LINE;
@@ -166,9 +166,9 @@ impl<'a> Parser<'a> {
 
         // When parsing only headlines, skip any text before first one.
         if self.granularity == ParseGranularity::Headline
-            && !self.cursor.borrow_mut().is_boundary::<HeadlineMetric>()
+            && !self.cursor.borrow_mut().is_on::<HeadlineLexeme>()
         {
-            if let None = self.cursor.borrow_mut().next::<HeadlineMetric>() {
+            if let None = self.cursor.borrow_mut().next::<HeadlineLexeme>() {
                 return vec![];
             }
         }
@@ -297,7 +297,7 @@ impl<'a> Parser<'a> {
             }
 
             // Headline.
-            if self.cursor.borrow_mut().is_boundary::<HeadlineMetric>() {
+            if self.cursor.borrow_mut().is_on::<HeadlineLexeme>() {
                 return self.headline_parser(limit, raw_secondary_p);
             }
 
@@ -311,7 +311,7 @@ impl<'a> Parser<'a> {
                 let lim = self
                     .cursor
                     .borrow_mut()
-                    .next::<HeadlineMetric>()
+                    .next::<HeadlineLexeme>()
                     .unwrap_or(limit);
                 self.cursor.borrow_mut().set(pos);
                 return self.section_parser(lim);
