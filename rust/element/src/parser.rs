@@ -168,7 +168,7 @@ impl<'a> Parser<'a> {
         if self.granularity == ParseGranularity::Headline
             && !self.cursor.borrow_mut().is_on::<HeadlineLexeme>()
         {
-            if let None = self.cursor.borrow_mut().next::<HeadlineLexeme>() {
+            if let None = self.cursor.borrow_mut().lnext::<HeadlineLexeme>() {
                 return vec![];
             }
         }
@@ -311,7 +311,7 @@ impl<'a> Parser<'a> {
                 let lim = self
                     .cursor
                     .borrow_mut()
-                    .next::<HeadlineLexeme>()
+                    .lnext::<HeadlineLexeme>()
                     .unwrap_or(limit);
                 self.cursor.borrow_mut().set(pos);
                 return self.section_parser(lim);

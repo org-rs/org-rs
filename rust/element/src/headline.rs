@@ -90,8 +90,8 @@
 use crate::cursor::Addressable;
 use crate::cursor::Cursor;
 use crate::cursor::Lexeme;
+use crate::cursor::LinesMetric;
 use crate::cursor::Metric;
-use crate::cursor::NewlineMetric;
 use crate::data::{SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use regex::Regex;
@@ -157,16 +157,16 @@ impl Lexeme for HeadlineLexeme {
     /// Return true if offset is on a headline.
     /// Any position on headline is considered to be a boundary
     fn is_on(s: &str, offset: usize) -> bool {
-        let beg = if offset == 0 || NewlineMetric::is_boundary(s, offset) {
+        let beg = if offset == 0 || LinesMetric::is_boundary(s, offset) {
             offset
         } else {
-            match NewlineMetric::prev(s, offset) {
+            match LinesMetric::prev(s, offset) {
                 Some(p) => p,
                 None => 0,
             }
         };
 
-        let end = match NewlineMetric::next(s, offset) {
+        let end = match LinesMetric::next(s, offset) {
             Some(p) => p,
             None => s.len(),
         };
@@ -174,7 +174,7 @@ impl Lexeme for HeadlineLexeme {
         REGEX_HEADLINE_SHORT.is_match(&s[beg..end])
     }
 
-    fn prev(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
+    fn get_prev(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
         let mut pos = offset;
 
         loop {
@@ -182,17 +182,17 @@ impl Lexeme for HeadlineLexeme {
                 return None;
             }
 
-            let end = if NewlineMetric::is_boundary(s, pos) {
+            let end = if LinesMetric::is_boundary(s, pos) {
                 pos
             } else {
-                match NewlineMetric::prev(s, pos) {
+                match LinesMetric::prev(s, pos) {
                     Some(p) => p,
                     // No previos line - no previous headline
                     None => return None,
                 }
             };
 
-            let beg = match NewlineMetric::prev(s, end) {
+            let beg = match LinesMetric::prev(s, end) {
                 Some(p) => p,
                 None => 0,
             };
@@ -211,9 +211,9 @@ impl Lexeme for HeadlineLexeme {
     /// Possibly finds beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
-    fn next(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
+    fn get_next(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
         let beg = if HeadlineLexeme::is_on(s, offset) {
-            match NewlineMetric::next(s, offset) {
+            match LinesMetric::next(s, offset) {
                 Some(p) => p,
                 None => return None,
             }
@@ -228,6 +228,14 @@ impl Lexeme for HeadlineLexeme {
             }),
             None => None,
         }
+    }
+
+    fn goto_next(s: &str, offset: usize) -> Option<Interval> {
+        unimplemented!()
+    }
+
+    fn goto_prev(s: &str, offset: usize) -> Option<Interval> {
+        unimplemented!()
     }
 }
 
@@ -607,27 +615,27 @@ mod test {
         let mut cursor = Cursor::new(&string, 0);
         assert_eq!(
             Some("** headline\n".to_owned()),
-            cursor.next::<HeadlineLexeme>()
+            cursor.lnext::<HeadlineLexeme>()
         );
         assert_eq!(10, cursor.pos());
         assert_eq!(
             Some("** another headline\n".to_owned()),
-            cursor.next::<HeadlineLexeme>()
+            cursor.lnext::<HeadlineLexeme>()
         );
         assert_eq!(35, cursor.pos());
-        assert_eq!(None, cursor.next::<HeadlineLexeme>());
+        assert_eq!(None, cursor.lnext::<HeadlineLexeme>());
 
         let string2 = "* 1\n* 2\n* 3\n* 4\n* 5";
         cursor = Cursor::new(&string2, 0);
-        cursor.next::<HeadlineLexeme>();
+        cursor.lnext::<HeadlineLexeme>();
         assert_eq!(4, cursor.pos());
-        cursor.next::<HeadlineLexeme>();
+        cursor.lnext::<HeadlineLexeme>();
         assert_eq!(8, cursor.pos());
-        cursor.next::<HeadlineLexeme>();
+        cursor.lnext::<HeadlineLexeme>();
         assert_eq!(12, cursor.pos());
-        cursor.next::<HeadlineLexeme>();
+        cursor.lnext::<HeadlineLexeme>();
         assert_eq!(16, cursor.pos());
-        cursor.next::<HeadlineLexeme>();
+        cursor.lnext::<HeadlineLexeme>();
         assert_eq!(16, cursor.pos());
     }
 
@@ -636,36 +644,36 @@ mod test {
         let string = "Some text\n** headline\nAnother line\n** another headline\n* ";
         let mut cursor = Cursor::new(&string, string.len());
 
-        cursor.prev::<HeadlineLexeme>();
+        cursor.lprev::<HeadlineLexeme>();
         assert_eq!(55, cursor.pos());
 
         assert_eq!(
             Some("** another headline\n".to_owned()),
-            cursor.prev::<HeadlineLexeme>()
+            cursor.lprev::<HeadlineLexeme>()
         );
         assert_eq!(35, cursor.pos());
         assert_eq!(
             Some("** headline\n".to_owned()),
-            cursor.prev::<HeadlineLexeme>()
+            cursor.lprev::<HeadlineLexeme>()
         );
         assert_eq!(10, cursor.pos());
-        assert_eq!(None, cursor.prev::<HeadlineLexeme>());
+        assert_eq!(None, cursor.lprev::<HeadlineLexeme>());
 
         let string2 = "* 1\n* 2\n* 3\n* 4\n* 5\n";
         cursor = Cursor::new(&string2, string2.len());
 
-        cursor.prev::<HeadlineLexeme>();
+        cursor.lprev::<HeadlineLexeme>();
         assert_eq!(16, cursor.pos());
-        cursor.prev::<HeadlineLexeme>();
+        cursor.lprev::<HeadlineLexeme>();
         assert_eq!(12, cursor.pos());
-        cursor.prev::<HeadlineLexeme>();
+        cursor.lprev::<HeadlineLexeme>();
         assert_eq!(8, cursor.pos());
-        cursor.prev::<HeadlineLexeme>();
+        cursor.lprev::<HeadlineLexeme>();
         assert_eq!(4, cursor.pos());
-        cursor.prev::<HeadlineLexeme>();
+        cursor.lprev::<HeadlineLexeme>();
         assert_eq!(0, cursor.pos());
-        cursor.prev::<HeadlineLexeme>();
-        assert_eq!(None, cursor.prev::<HeadlineLexeme>());
+        cursor.lprev::<HeadlineLexeme>();
+        assert_eq!(None, cursor.lprev::<HeadlineLexeme>());
     }
 
 }
