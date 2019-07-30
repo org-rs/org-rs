@@ -192,7 +192,7 @@ impl Lexeme for CharLexeme {
 
     fn get_next(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
         if let Some(i) = Self::goto_next(s, offset) {
-            s[i.start..].chars().next().map(|c| Addressable {
+            s[offset..].chars().next().map(|c| Addressable {
                 value: c,
                 address: i,
             })
@@ -233,7 +233,7 @@ impl Lexeme for LineLexeme {
 
         return Some(Interval {
             start: beg,
-            end: end,
+            end: end , //
         });
     }
 
@@ -304,6 +304,15 @@ impl<'a> Cursor<'a> {
 
     pub fn set(&mut self, pos: usize) {
         self.pos = pos;
+    }
+
+    pub fn end(&mut self) {
+        self.pos = self.data.len();
+    }
+
+
+    pub fn start(&mut self) {
+        self.pos = 0;
     }
 
     pub fn inc(&mut self, inc: usize) {
@@ -496,6 +505,7 @@ impl<'a> Cursor<'a> {
                 if x > 1 {
                     for _p in 0..x - 1 {
                         if self.mnext::<LinesMetric>().is_none() {
+                            self.end();
                             break;
                         }
                     }
@@ -504,7 +514,7 @@ impl<'a> Cursor<'a> {
                     if self.pos() != 0 {
                         for p in 0..(x - 1).abs() {
                             if self.mprev::<LinesMetric>().is_none() {
-                                self.set(0);
+                                self.start();
                                 break;
                             }
                         }
@@ -535,7 +545,7 @@ impl<'a> Cursor<'a> {
                 if x > 1 {
                     for _p in 0..x {
                         if self.mnext::<LinesMetric>().is_none() {
-                            break;
+                            self.end()
                         }
                     }
                 } else if self.pos() != 0 {
@@ -557,7 +567,7 @@ impl<'a> Cursor<'a> {
     pub fn char_after(&mut self, offset: usize) -> Option<char> {
         let pos = self.pos();
         self.set(offset);
-        let result = self.get_lnext();
+        let result = self.get_lnext::<CharLexeme>();
         self.set(pos);
         return result;
     }
@@ -727,13 +737,13 @@ mod test {
     fn essentials() {
         let input = "1234567890\nЗдравствуйте";
         let mut cursor = Cursor::new(&input, 0);
-        assert_eq!('1', cursor.lnext::<CharLexeme>().unwrap());
+        assert_eq!('1', cursor.get_lnext::<CharLexeme>().unwrap());
         assert_eq!(1, cursor.pos());
-        assert_eq!('2', cursor.lnext().unwrap());
+        assert_eq!('2', cursor.get_lnext::<CharLexeme>().unwrap());
         assert_eq!(2, cursor.pos());
         assert_eq!(11, cursor.mnext::<LinesMetric>().unwrap());
         assert!(cursor.is_boundary::<LinesMetric>());
-        assert_eq!('З', cursor.lnext().unwrap());
+        assert_eq!('З', cursor.get_lnext::<CharLexeme>().unwrap());
         assert_eq!(13, cursor.pos());
         cursor.set(12);
         assert!(!cursor.is_boundary::<CharMetric>());
@@ -780,12 +790,12 @@ mod test {
         let rope = " \n\t\rorg-mode ";
         let mut cursor = Cursor::new(&rope, 0);
         cursor.skip_whitespace();
-        assert_eq!(cursor.lnext().unwrap(), 'o');
+        assert_eq!(cursor.get_lnext::<CharLexeme>().unwrap(), 'o');
 
         let rope2 = "no_whitespace_for_you!";
         cursor = Cursor::new(&rope2, 0);
         cursor.skip_whitespace();
-        assert_eq!(cursor.lnext().unwrap(), 'n');
+        assert_eq!(cursor.get_lnext::<CharLexeme>().unwrap(), 'n');
 
         // Skipping all the remaining whitespace results in invalid cursor at the end of the rope
         let rope3 = " ";
@@ -804,12 +814,12 @@ mod test {
         cursor.set(26);
         assert_eq!(cursor.goto_line_begin(), 24);
         assert!(cursor.is_bol());
-        assert_eq!(cursor.lnext().unwrap(), 'T');
+        assert_eq!(cursor.get_lnext::<CharLexeme>().unwrap(), 'T');
         assert_eq!(cursor.goto_line_begin(), 24);
-        assert_eq!(cursor.lnext().unwrap(), 'T');
+        assert_eq!(cursor.get_lnext::<CharLexeme>().unwrap(), 'T');
         cursor.set(3);
         assert_eq!(cursor.goto_line_begin(), 0);
-        assert_eq!(cursor.lnext().unwrap(), 'F');
+        assert_eq!(cursor.get_lnext::<CharLexeme>().unwrap(), 'F');
     }
 
     #[test]
@@ -817,14 +827,14 @@ mod test {
         let rope = "First line\nSecond line\r\nThird line\nFour";
         let mut cursor = Cursor::new(&rope, rope.len());
 
-        assert_eq!(cursor.lprev::<LineLexeme>(), Some("Third line".to_owned()));
-        //     assert_eq!(cursor.get_next_char().unwrap(), 'T');
+        assert_eq!(cursor.get_lprev::<LineLexeme>(), Some("Third line\n".to_owned()));
+        assert_eq!(cursor.get_lnext::<CharLexeme>().unwrap(), 'T');
 
-        //     assert_eq!(cursor.goto_prev_line(), 11);
-        //     assert_eq!(cursor.get_next_char().unwrap(), 'S');
+        assert_eq!(cursor.lprev::<LineLexeme>().unwrap().start, 11);
+        assert_eq!(cursor.get_lnext::<CharLexeme>().unwrap(), 'S');
 
-        //     assert_eq!(cursor.goto_prev_line(), 0);
-        //     assert_eq!(cursor.get_next_char().unwrap(), 'F');
+        assert_eq!(cursor.lprev::<LineLexeme>().unwrap().start, 0);
+        assert_eq!(cursor.get_lnext::<CharLexeme>().unwrap(), 'F');
     }
 
     #[test]
@@ -917,11 +927,11 @@ mod test {
         let mut cursor = Cursor::new(&text, text.len());
         assert_eq!(8, cursor.skip_chars_backward(" \t\n\r123", None));
         assert_eq!(17, cursor.pos());
-        assert_eq!(' ', cursor.lnext().unwrap());
+        assert_eq!(' ', cursor.get_lnext::<CharLexeme>().unwrap());
 
         cursor.set(text.len());
         assert_eq!(1, cursor.skip_chars_backward(" \t\n\r", Some(24)));
-        assert_eq!('\r', cursor.lnext().unwrap());
+        assert_eq!('\r', cursor.get_lnext::<CharLexeme>().unwrap());
 
         let txt2 = "Text";
         cursor = Cursor::new(&txt2, txt2.len());

@@ -92,7 +92,7 @@ use crate::cursor::Cursor;
 use crate::cursor::Lexeme;
 use crate::cursor::LinesMetric;
 use crate::cursor::Metric;
-use crate::data::{SyntaxNode, TimestampData};
+use crate::data::{Interval, SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use regex::Regex;
 use std::borrow::Cow;
@@ -175,6 +175,56 @@ impl Lexeme for HeadlineLexeme {
     }
 
     fn get_prev(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
+        if let Some(i) = Self::goto_prev(s, offset) {
+            return Some(Addressable {
+                address: i,
+                value: String::from(&s[i.start..i.end]),
+            });
+        } else {
+            None
+        }
+    }
+
+    /// Possibly finds beginning of the next headline
+    /// corresponds to `outline-next-heading` in emacs
+    /// If next headline is found returns it's start position
+    fn get_next(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
+
+        if let Some(i) = Self::goto_next(s, offset) {
+            return Some(Addressable {
+                address: i,
+                value: String::from(&s[i.start..i.end]),
+            });
+        } else {
+            None
+        }
+
+    }
+
+    fn goto_next(s: &str, offset: usize) -> Option<Interval> {
+        let beg = if HeadlineLexeme::is_on(s, offset) {
+            match LinesMetric::next(s, offset) {
+                Some(p) => p,
+                None => return None,
+            }
+        } else {
+            offset
+        };
+
+        match REGEX_HEADLINE_MULTILINE.find(&s[beg..]) {
+            Some(p) => {
+                let end = LinesMetric::at_or_next(s, beg + p.end()).unwrap_or(s.len());
+                Some(Interval {
+                        start: beg + p.start(),
+                        end,
+                    })
+            },
+            None => None,
+        }
+    }
+
+    fn goto_prev(s: &str, offset: usize) -> Option<Interval> {
+
         let mut pos = offset;
 
         loop {
@@ -198,44 +248,11 @@ impl Lexeme for HeadlineLexeme {
             };
 
             if REGEX_HEADLINE_SHORT.is_match(&s[beg..end]) {
-                return Some(Addressable {
-                    address: beg,
-                    value: String::from(&s[beg..end]),
-                });
+                return Some(Interval { start: beg, end })
             } else {
                 pos = beg;
             }
         }
-    }
-
-    /// Possibly finds beginning of the next headline
-    /// corresponds to `outline-next-heading` in emacs
-    /// If next headline is found returns it's start position
-    fn get_next(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
-        let beg = if HeadlineLexeme::is_on(s, offset) {
-            match LinesMetric::next(s, offset) {
-                Some(p) => p,
-                None => return None,
-            }
-        } else {
-            offset
-        };
-
-        match REGEX_HEADLINE_MULTILINE.find(&s[beg..]) {
-            Some(p) => Some(Addressable {
-                address: beg + p.start(),
-                value: String::from(&s[beg + p.start()..beg + p.end()]),
-            }),
-            None => None,
-        }
-    }
-
-    fn goto_next(s: &str, offset: usize) -> Option<Interval> {
-        unimplemented!()
-    }
-
-    fn goto_prev(s: &str, offset: usize) -> Option<Interval> {
-        unimplemented!()
     }
 }
 
@@ -371,7 +388,7 @@ impl<'a> Parser<'a> {
         let begin = cursor.pos();
 
         let level = cursor.skip_chars_forward("*", Some(limit));
-        cursor.skip_chars_forward(" \t", Some(limit));
+        cursor.skip_chars_forward(" \t", None);
 
         let todo = match cursor.capturing_at(&*REGEX_TODO) {
             None => None,
@@ -434,70 +451,83 @@ impl<'a> Parser<'a> {
         // TODO add tests
         let archivedp = tags.contains(tag!("ARCHIVED"));
         let footnote_section_p = raw_value == ORG_FOOTNOTE_SECTION;
+
+        // TODO implement props parsers
         let standard_props = self.get_node_properties();
         let time_props = self.get_time_poperties();
 
         let mut saved_excursion = cursor.pos();
         // (end (min (save-excursion (org-end-of-subtree t t)) limit))
+
+        // TODO implement end_of_subtree
         let end = std::cmp::min(self.end_of_subtree(), limit);
         cursor.set(saved_excursion);
 
-        cursor.goto_next_line();
-        cursor.skip_chars_forward("\r\t\n", Some(end));
-        let contents_begin = if cursor.pos() != end {
-            Some(cursor.line_beginning_position(None))
-        } else {
-            None
+        let contents_begin = {
+            if cursor.mnext::<LinesMetric>().is_none() {
+                cursor.end()
+            }
+
+            cursor.skip_chars_forward("\r\t\n", Some(end));
+            if cursor.pos() != end {
+                Some(cursor.line_beginning_position(None))
+            } else {
+                None
+            }
         };
         cursor.set(saved_excursion);
 
-        cursor.set(end);
-        // cursor.skip_chars_backward(" \r\t\n");
-        let contents_end = cursor.line_beginning_position(Some(2));
+        let contents_end = if contents_begin.is_some() {
+            cursor.set(end);
+            cursor.skip_chars_backward(" \r\t\n", None);
+            Some(cursor.line_beginning_position(Some(2)))
+        } else {
+            None
+        };
+
+
+//      (let ((headline
+//	     (list 'headline
+//		   (nconc
+//		    (list :raw-value raw-value
+//			  :begin begin
+//			  :end end
+//			  :pre-blank
+//			  (if (not contents-begin) 0
+//			    (1- (count-lines begin contents-begin)))
+//			  :contents-begin contents-begin
+//			  :contents-end contents-end
+//			  :level level
+//			  :priority priority
+//			  :tags tags
+//			  :todo-keyword todo
+//			  :todo-type todo-type
+//			  :post-blank
+//			  (if contents-end
+//			      (count-lines contents-end end)
+//			    (1- (count-lines begin end)))
+//			  :footnote-section-p footnote-section-p
+//			  :archivedp archivedp
+//			  :commentedp commentedp
+//			  :post-affiliated begin)
+//		    time-props
+//		    standard-props))))
+//	(org-element-put-property
+//	 headline :title
+//	 (if raw-secondary-p raw-value
+//	   (org-element--parse-objects
+//	    (progn (goto-char title-start)
+//		   (skip-chars-forward " \t")
+//		   (point))
+//	    (progn (goto-char title-end)
+//		   (skip-chars-backward " \t")
+//		   (point))
+//	    nil
+//	    (org-element-restriction 'headline)
+//	    headline)))))))
 
         cursor.set(begin);
         unimplemented!()
-
-        //       (let ((headline
-        // 	     (list 'headline
-        // 		   (nconc
-        // 		    (list :raw-value raw-value
-        // 			  :begin begin
-        // 			  :end end
-        // 			  :pre-blank
-        // 			  (if (not contents-begin) 0
-        // 			    (1- (count-lines begin contents-begin)))
-        // 			  :contents-begin contents-begin
-        // 			  :contents-end contents-end
-        // 			  :level level
-        // 			  :priority priority
-        // 			  :tags tags
-        // 			  :todo-keyword todo
-        // 			  :todo-type todo-type
-        // 			  :post-blank
-        // 			  (if contents-end
-        // 			      (count-lines contents-end end)
-        // 			    (1- (count-lines begin end)))
-        // 			  :footnote-section-p footnote-section-p
-        // 			  :archivedp archivedp
-        // 			  :commentedp commentedp
-        // 			  :post-affiliated begin)
-        // 		    time-props
-        // 		    standard-props))))
-        // 	(org-element-put-property
-        // 	 headline :title
-        // 	 (if raw-secondary-p raw-value
-        // 	   (org-element--parse-objects
-        // 	    (progn (goto-char title-start)
-        // 		   (skip-chars-forward " \t")
-        // 		   (point))
-        // 	    (progn (goto-char title-end)
-        // 		   (skip-chars-backward " \t")
-        // 		   (point))
-        // 	    nil
-        // 	    (org-element-restriction 'headline)
-        // 	    headline)))))))
-        //
     }
 
     /// Goto to the end of a subtree.
@@ -587,8 +617,9 @@ impl<'a> Parser<'a> {
 
 mod test {
 
-    use crate::cursor::Cursor;
+    use crate::cursor::{Cursor, LinesMetric};
     use crate::headline::HeadlineLexeme;
+    use crate::data::Interval;
 
     #[test]
     fn headline_boundary() {
@@ -615,12 +646,12 @@ mod test {
         let mut cursor = Cursor::new(&string, 0);
         assert_eq!(
             Some("** headline\n".to_owned()),
-            cursor.lnext::<HeadlineLexeme>()
+            cursor.get_lnext::<HeadlineLexeme>()
         );
         assert_eq!(10, cursor.pos());
         assert_eq!(
             Some("** another headline\n".to_owned()),
-            cursor.lnext::<HeadlineLexeme>()
+            cursor.get_lnext::<HeadlineLexeme>()
         );
         assert_eq!(35, cursor.pos());
         assert_eq!(None, cursor.lnext::<HeadlineLexeme>());
@@ -644,17 +675,18 @@ mod test {
         let string = "Some text\n** headline\nAnother line\n** another headline\n* ";
         let mut cursor = Cursor::new(&string, string.len());
 
-        cursor.lprev::<HeadlineLexeme>();
+        assert!(cursor.is_on::<HeadlineLexeme>());
+        cursor.mprev::<LinesMetric>();
         assert_eq!(55, cursor.pos());
 
         assert_eq!(
             Some("** another headline\n".to_owned()),
-            cursor.lprev::<HeadlineLexeme>()
+            cursor.get_lprev::<HeadlineLexeme>()
         );
         assert_eq!(35, cursor.pos());
         assert_eq!(
             Some("** headline\n".to_owned()),
-            cursor.lprev::<HeadlineLexeme>()
+            cursor.get_lprev::<HeadlineLexeme>()
         );
         assert_eq!(10, cursor.pos());
         assert_eq!(None, cursor.lprev::<HeadlineLexeme>());

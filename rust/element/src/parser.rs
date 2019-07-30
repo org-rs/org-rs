@@ -312,6 +312,7 @@ impl<'a> Parser<'a> {
                     .cursor
                     .borrow_mut()
                     .lnext::<HeadlineLexeme>()
+                    .map(|i| i.start)
                     .unwrap_or(limit);
                 self.cursor.borrow_mut().set(pos);
                 return self.section_parser(lim);
