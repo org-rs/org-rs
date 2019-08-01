@@ -152,3 +152,74 @@ impl<'a> SearchCursor for Cursor<'a> {
         }
     }
 }
+
+
+#[cfg(test)]
+mod test {
+    use crate::{Cursor, Char};
+    use crate::search::SearchCursor;
+    use crate::cursor::LexemeCursor;
+    use regex::Regex;
+
+    #[test]
+    fn search_forward() {
+        let str = "onetwothreefouronetwothreeonetwothreeonetwothreefouroneabababa";
+        let mut cursor = Cursor::new(&str, 0);
+        assert_eq!(cursor.search_forward("one", None, Some(2)), Some(18));
+        assert_eq!(cursor.search_forward("one", None, None), Some(29));
+        cursor.set(0);
+        assert_eq!(cursor.search_forward("threeone", Some(10), None), None); // there is no match before 10th pos
+        assert_eq!(cursor.search_forward("threeone", Some(100), Some(10)), None); // there is not a 10th match so return None
+        assert_eq!(cursor.search_forward("two", None, Some(4)), Some(43));
+        assert_eq!(cursor.pos(), 43);
+        assert_eq!(cursor.search_forward("aba", Some(10), None), None); // bound is before current pos
+        assert_eq!(cursor.pos(), 43);
+        assert_eq!(cursor.search_forward("aba", Some(10000), Some(2)), Some(62));
+        cursor.set(0);
+        assert_eq!(cursor.search_forward("aba", Some(10000), Some(6)), None);
+    }
+
+    #[test]
+    fn skip_chars_forward() {
+        let str = "  k\t **hello";
+        let mut cursor = Cursor::new(&str, 0);
+        assert_eq!(cursor.skip_chars_forward(" ", None), 2);
+        assert_eq!(cursor.pos(), 2);
+        assert_eq!(cursor.skip_chars_forward(" k\t", None), 3);
+        cursor.set(0);
+        assert_eq!(cursor.skip_chars_forward("* k\t", Some(2)), 3);
+    }
+
+    #[test]
+    fn skip_chars_backward() {
+        let text = "This is some text 123 \t\n\r";
+        let mut cursor = Cursor::new(&text, text.len());
+        assert_eq!(8, cursor.skip_chars_backward(" \t\n\r123", None));
+        assert_eq!(17, cursor.pos());
+        assert_eq!(' ', cursor.get_lnext::<Char>().unwrap());
+
+        cursor.set(text.len());
+        assert_eq!(1, cursor.skip_chars_backward(" \t\n\r", Some(24)));
+        assert_eq!('\r', cursor.get_lnext::<Char>().unwrap());
+
+        let txt2 = "Text";
+        cursor = Cursor::new(&txt2, txt2.len());
+        assert_eq!(0, cursor.skip_chars_backward("", None));
+    }
+
+    #[test]
+    fn re_search_forward() {
+        let text = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
+        let mut cursor = Cursor::new(&text, 0);
+
+        let re = Regex::new(r"\d").unwrap();
+        assert_eq!(14, cursor.re_search_forward(&re, None).unwrap().start);
+        assert_eq!(15, cursor.pos());
+        assert_eq!(None, cursor.re_search_forward(&re, Some(10)));
+        assert_eq!(15, cursor.pos());
+        assert_eq!(24, cursor.re_search_forward(&re, Some(25)).unwrap().start);
+        assert_eq!(25, cursor.pos());
+        assert_eq!(None, cursor.re_search_forward(&re, Some(24)));
+        assert_eq!(25, cursor.pos());
+    }
+}
