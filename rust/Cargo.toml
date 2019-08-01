@@ -1,2 +1,2 @@
 [workspace]
-members = [ "element" ]
+members = [ "element", "cursor" ]

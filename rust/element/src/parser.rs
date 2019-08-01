@@ -19,7 +19,7 @@ use std::rc::Rc;
 use regex::Regex;
 
 use crate::babel::REGEX_BABEL_CALL;
-use crate::cursor::Cursor;
+use cursor::Cursor;
 use crate::data::{Handle, Syntax, SyntaxNode, SyntaxT};
 use std::cmp::PartialEq;
 
@@ -40,6 +40,8 @@ use crate::markup::REGEX_FOOTNOTE_DEFINITION;
 use crate::markup::REGEX_HORIZONTAL_RULE;
 use crate::planning::REGEX_DIARY_SEXP;
 use crate::table::{REGEX_TABLE_BORDER, REGEX_TABLE_PRE_BORDER, REGEX_TABLE_RULE};
+use cursor::cursor::LexemeCursor;
+use cursor::emacs::EmacsCursor;
 
 /// determines the depth of the recursion.
 #[derive(PartialEq)]

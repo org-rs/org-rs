@@ -45,6 +45,7 @@ use std::rc::Rc;
 use std::rc::Weak;
 
 use regex::Regex;
+use cursor::Interval;
 
 /// Reference to a DOM node.
 pub type Handle<'a> = Rc<SyntaxNode<'a>>;
@@ -52,17 +53,6 @@ pub type Handle<'a> = Rc<SyntaxNode<'a>>;
 /// Weak reference to a DOM node, used for parent pointers.
 pub type WeakHandle<'a> = Weak<SyntaxNode<'a>>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Interval {
-    pub start: usize,
-    pub end: usize,
-}
-
-impl Interval {
-    pub fn new(start: usize, end: usize) -> Interval {
-        Interval { start, end }
-    }
-}
 
 /// ParseTree node.
 /// https://orgmode.org/worg/dev/org-element-api.html#attributes
@@ -857,9 +847,11 @@ pub struct VerbatimData<'a> {
     value: &'a str,
 }
 
+
+#[cfg(test)]
 mod test {
 
-    use crate::data::Interval;
+    use cursor::Interval;
     use crate::data::SyntaxT;
 
     #[test]

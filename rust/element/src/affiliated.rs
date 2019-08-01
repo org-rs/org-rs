@@ -44,8 +44,8 @@
 //!
 //! “CAPTION” keyword can contain objects in both VALUE and OPTIONAL fileds.
 
-use crate::cursor::LinesMetric;
-use crate::cursor::REGEX_EMPTY_LINE;
+use cursor::Line;
+use cursor::REGEX_EMPTY_LINE;
 use crate::data::StringOrObject;
 use crate::data::SyntaxT;
 use crate::parser::Parser;
@@ -53,6 +53,8 @@ use regex::{Match, Regex};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::str::FromStr;
+use cursor::emacs::EmacsCursor;
+use cursor::cursor::MetricCursor;
 
 lazy_static! {
 
@@ -252,7 +254,7 @@ impl<'a> Parser<'a> {
             if self
                 .cursor
                 .borrow_mut()
-                .mnext::<LinesMetric>()
+                .mnext::<Line>()
                 .is_none()
             {
                 break;
@@ -270,17 +272,20 @@ impl<'a> Parser<'a> {
     }
 }
 
+#[cfg(test)]
 mod test {
     use super::REGEX_AFFILIATED;
     use crate::affiliated::DualVal;
-    use crate::cursor::{is_multiline_regex, Cursor, LinesMetric};
-    use crate::data::RepeaterType::CatchUp;
+    use cursor::{is_multiline_regex, Cursor};
+    use cursor::{Line, Interval};
     use crate::data::StringOrObject;
     use crate::parser::ParseGranularity;
     use crate::parser::Parser;
     use regex::Match;
     use std::borrow::Cow;
     use std::collections::HashMap;
+    use cursor::emacs::EmacsCursor;
+    use cursor::cursor::MetricCursor;
 
     #[test]
     fn test_re() {
@@ -332,7 +337,7 @@ mod test {
         let mut cursor = Cursor::new(caption_txt, 0);
 
         assert!(cursor.looking_at(&*REGEX_AFFILIATED).is_none());
-        cursor.mnext::<LinesMetric>();
+        cursor.mnext::<Line>();
         assert_eq!(2, cursor.pos());
         assert!(cursor.looking_at(&*REGEX_AFFILIATED).is_some());
     }

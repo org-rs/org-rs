@@ -25,13 +25,13 @@ extern crate strum_macros;
 extern crate memchr;
 extern crate regex;
 extern crate strum;
+extern crate cursor;
 
 #[macro_use]
 mod parser;
 mod affiliated;
 mod babel;
 mod blocks;
-mod cursor;
 mod data;
 mod drawer;
 mod fixed_width;

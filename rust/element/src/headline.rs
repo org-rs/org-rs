@@ -87,15 +87,19 @@
 //!    (headline))))
 //!
 
-use crate::cursor::Addressable;
-use crate::cursor::Cursor;
-use crate::cursor::Lexeme;
-use crate::cursor::LinesMetric;
-use crate::cursor::Metric;
-use crate::data::{Interval, SyntaxNode, TimestampData};
+use cursor::Addressable;
+use cursor::Cursor;
+use cursor::lexeme::Lexeme;
+use cursor::Line;
+use cursor::Interval;
+use cursor::metrics::Metric;
+use crate::data::{SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use regex::Regex;
 use std::borrow::Cow;
+use cursor::emacs::EmacsCursor;
+use cursor::search::SearchCursor;
+use cursor::cursor::MetricCursor;
 
 const ORG_CLOSED_STRING: &str = "CLOSED";
 const ORG_DEADLINE_STRING: &str = "DEADLINE";
@@ -104,7 +108,6 @@ const ORG_SCHEDULED_STRING: &str = "SCHEDULED";
 const ORG_FOOTNOTE_SECTION: &str = "Footnotes";
 
 lazy_static! {
-
 
     /// Matches any of the 3 keywords, together with the time stamp.
     pub static ref REGEX_TIME_NOT_CLOCK : Regex = Regex::new(r"((?:CLOSED|DEADLINE|SCHEDULED):) *[[<]([^]>]+)[]>]").unwrap();
@@ -150,6 +153,7 @@ lazy_static! {
 
 }
 
+// TODO rename into something shorter
 pub struct HeadlineLexeme;
 
 impl Lexeme for HeadlineLexeme {
@@ -157,16 +161,16 @@ impl Lexeme for HeadlineLexeme {
     /// Return true if offset is on a headline.
     /// Any position on headline is considered to be a boundary
     fn is_on(s: &str, offset: usize) -> bool {
-        let beg = if offset == 0 || LinesMetric::is_boundary(s, offset) {
+        let beg = if offset == 0 || Line::is_boundary(s, offset) {
             offset
         } else {
-            match LinesMetric::prev(s, offset) {
+            match Line::prev(s, offset) {
                 Some(p) => p,
                 None => 0,
             }
         };
 
-        let end = match LinesMetric::next(s, offset) {
+        let end = match Line::next(s, offset) {
             Some(p) => p,
             None => s.len(),
         };
@@ -175,7 +179,7 @@ impl Lexeme for HeadlineLexeme {
     }
 
     fn get_prev(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
-        if let Some(i) = Self::goto_prev(s, offset) {
+        if let Some(i) = Self::find_prev(s, offset) {
             return Some(Addressable {
                 address: i,
                 value: String::from(&s[i.start..i.end]),
@@ -189,8 +193,7 @@ impl Lexeme for HeadlineLexeme {
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
     fn get_next(s: &str, offset: usize) -> Option<Addressable<Self::Item>> {
-
-        if let Some(i) = Self::goto_next(s, offset) {
+        if let Some(i) = Self::find_next(s, offset) {
             return Some(Addressable {
                 address: i,
                 value: String::from(&s[i.start..i.end]),
@@ -198,12 +201,11 @@ impl Lexeme for HeadlineLexeme {
         } else {
             None
         }
-
     }
 
-    fn goto_next(s: &str, offset: usize) -> Option<Interval> {
+    fn find_next(s: &str, offset: usize) -> Option<Interval> {
         let beg = if HeadlineLexeme::is_on(s, offset) {
-            match LinesMetric::next(s, offset) {
+            match Line::next(s, offset) {
                 Some(p) => p,
                 None => return None,
             }
@@ -213,18 +215,17 @@ impl Lexeme for HeadlineLexeme {
 
         match REGEX_HEADLINE_MULTILINE.find(&s[beg..]) {
             Some(p) => {
-                let end = LinesMetric::at_or_next(s, beg + p.end()).unwrap_or(s.len());
+                let end = Line::at_or_next(s, beg + p.end()).unwrap_or(s.len());
                 Some(Interval {
-                        start: beg + p.start(),
-                        end,
-                    })
-            },
+                    start: beg + p.start(),
+                    end,
+                })
+            }
             None => None,
         }
     }
 
-    fn goto_prev(s: &str, offset: usize) -> Option<Interval> {
-
+    fn find_prev(s: &str, offset: usize) -> Option<Interval> {
         let mut pos = offset;
 
         loop {
@@ -232,23 +233,23 @@ impl Lexeme for HeadlineLexeme {
                 return None;
             }
 
-            let end = if LinesMetric::is_boundary(s, pos) {
+            let end = if Line::is_boundary(s, pos) {
                 pos
             } else {
-                match LinesMetric::prev(s, pos) {
+                match Line::prev(s, pos) {
                     Some(p) => p,
                     // No previos line - no previous headline
                     None => return None,
                 }
             };
 
-            let beg = match LinesMetric::prev(s, end) {
+            let beg = match Line::prev(s, end) {
                 Some(p) => p,
                 None => 0,
             };
 
             if REGEX_HEADLINE_SHORT.is_match(&s[beg..end]) {
-                return Some(Interval { start: beg, end })
+                return Some(Interval { start: beg, end });
             } else {
                 pos = beg;
             }
@@ -464,8 +465,8 @@ impl<'a> Parser<'a> {
         cursor.set(saved_excursion);
 
         let contents_begin = {
-            if cursor.mnext::<LinesMetric>().is_none() {
-                cursor.end()
+            if cursor.mnext::<Line>().is_none() {
+                cursor.eof()
             }
 
             cursor.skip_chars_forward("\r\t\n", Some(end));
@@ -485,46 +486,45 @@ impl<'a> Parser<'a> {
             None
         };
 
-
-//      (let ((headline
-//	     (list 'headline
-//		   (nconc
-//		    (list :raw-value raw-value
-//			  :begin begin
-//			  :end end
-//			  :pre-blank
-//			  (if (not contents-begin) 0
-//			    (1- (count-lines begin contents-begin)))
-//			  :contents-begin contents-begin
-//			  :contents-end contents-end
-//			  :level level
-//			  :priority priority
-//			  :tags tags
-//			  :todo-keyword todo
-//			  :todo-type todo-type
-//			  :post-blank
-//			  (if contents-end
-//			      (count-lines contents-end end)
-//			    (1- (count-lines begin end)))
-//			  :footnote-section-p footnote-section-p
-//			  :archivedp archivedp
-//			  :commentedp commentedp
-//			  :post-affiliated begin)
-//		    time-props
-//		    standard-props))))
-//	(org-element-put-property
-//	 headline :title
-//	 (if raw-secondary-p raw-value
-//	   (org-element--parse-objects
-//	    (progn (goto-char title-start)
-//		   (skip-chars-forward " \t")
-//		   (point))
-//	    (progn (goto-char title-end)
-//		   (skip-chars-backward " \t")
-//		   (point))
-//	    nil
-//	    (org-element-restriction 'headline)
-//	    headline)))))))
+        //      (let ((headline
+        //	     (list 'headline
+        //		   (nconc
+        //		    (list :raw-value raw-value
+        //			  :begin begin
+        //			  :end end
+        //			  :pre-blank
+        //			  (if (not contents-begin) 0
+        //			    (1- (count-lines begin contents-begin)))
+        //			  :contents-begin contents-begin
+        //			  :contents-end contents-end
+        //			  :level level
+        //			  :priority priority
+        //			  :tags tags
+        //			  :todo-keyword todo
+        //			  :todo-type todo-type
+        //			  :post-blank
+        //			  (if contents-end
+        //			      (count-lines contents-end end)
+        //			    (1- (count-lines begin end)))
+        //			  :footnote-section-p footnote-section-p
+        //			  :archivedp archivedp
+        //			  :commentedp commentedp
+        //			  :post-affiliated begin)
+        //		    time-props
+        //		    standard-props))))
+        //	(org-element-put-property
+        //	 headline :title
+        //	 (if raw-secondary-p raw-value
+        //	   (org-element--parse-objects
+        //	    (progn (goto-char title-start)
+        //		   (skip-chars-forward " \t")
+        //		   (point))
+        //	    (progn (goto-char title-end)
+        //		   (skip-chars-backward " \t")
+        //		   (point))
+        //	    nil
+        //	    (org-element-restriction 'headline)
+        //	    headline)))))))
 
         cursor.set(begin);
         unimplemented!()
@@ -566,6 +566,9 @@ impl<'a> Parser<'a> {
     /// parser (e.g. `:end' and :END:).  Return value is a plist."
     /// (defun org-element--get-node-properties ()
     fn get_node_properties(&self) -> Vec<NodePropertyData> {
+        let mut cursor = self.cursor.borrow_mut();
+        let pos = cursor.pos();
+        cursor.mnext::<Line>();
         //   (save-excursion
         //     (forward-line)
         //     (when (looking-at-p org-planning-line-re) (forward-line))
@@ -579,6 +582,7 @@ impl<'a> Parser<'a> {
         // 	  (forward-line))
         // 	properties))))
 
+        self.cursor.borrow_mut().set(pos);
         unimplemented!()
     }
 
@@ -615,11 +619,15 @@ impl<'a> Parser<'a> {
     }
 }
 
+#[cfg(test)]
 mod test {
 
-    use crate::cursor::{Cursor, LinesMetric};
+    use cursor::{Cursor, Line};
+    use cursor::Interval;
     use crate::headline::HeadlineLexeme;
-    use crate::data::Interval;
+    use cursor::cursor::{LexemeCursor, MetricCursor};
+    use cursor::emacs::EmacsCursor;
+    use super::REGEX_HEADLINE_SHORT;
 
     #[test]
     fn headline_boundary() {
@@ -676,7 +684,7 @@ mod test {
         let mut cursor = Cursor::new(&string, string.len());
 
         assert!(cursor.is_on::<HeadlineLexeme>());
-        cursor.mprev::<LinesMetric>();
+        cursor.mprev::<Line>();
         assert_eq!(55, cursor.pos());
 
         assert_eq!(
@@ -706,6 +714,29 @@ mod test {
         assert_eq!(0, cursor.pos());
         cursor.lprev::<HeadlineLexeme>();
         assert_eq!(None, cursor.lprev::<HeadlineLexeme>());
+    }
+
+
+    #[test]
+    fn looking_at_headline() {
+        let rope = "Some text\n**** headline\n";
+        let mut cursor = Cursor::new(&rope, 0);
+        assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT).is_none());
+
+        cursor.set(4);
+        assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT).is_none());
+        assert_eq!(4, cursor.pos());
+
+        cursor.set(15);
+        assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT).is_none());
+
+        cursor.set(10);
+
+        let m = cursor.looking_at(&*REGEX_HEADLINE_SHORT).unwrap();
+        assert_eq!(0, m.start());
+        assert_eq!(5, m.end());
+        assert_eq!("**** ", m.as_str());
+        assert_eq!(10, cursor.pos());
     }
 
 }
