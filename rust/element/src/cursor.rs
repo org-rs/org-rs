@@ -158,6 +158,17 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn count_boundries<M: Metric>(&mut self, begin: usize, end: usize) -> usize {
+        let pos = self.pos();
+        self.set(begin);
+        let mut count = 0;
+        while self.pos() <= end {
+            self.next::<M>();
+        }
+        self.set(pos);
+        count
+    }
+
     /// Skip over space, tabs and newline characters
     /// Cursor position is set before next non-whitespace char
     pub fn skip_whitespace(&mut self) -> usize {
@@ -460,6 +471,33 @@ impl<'a> Cursor<'a> {
             }
             if count + pos > limit {
                 self.get_prev_char();
+                return count;
+            }
+            count += 1;
+        }
+        count
+    }
+
+    /// Moves point backward, stopping at a char not in str, or at position limit.
+    pub fn skip_chars_backward(&mut self, str: &str, limit: Option<usize>) -> usize {
+        let pos = self.pos();
+        let limit = match limit {
+            Some(lim) => lim,
+            _ => 0,
+        };
+
+        if pos <= limit {
+            return 0;
+        }
+
+        let mut count = 0;
+        while let Some(c) = self.get_prev_char() {
+            if !str.contains(c) {
+                self.get_next_char();
+                return count;
+            }
+            if count + pos > limit {
+                self.get_next_char();
                 return count;
             }
             count += 1;
