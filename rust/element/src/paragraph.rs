@@ -282,3 +282,82 @@ impl<'a> Parser<'a> {
         unimplemented!()
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    //! Tests for paragraph parser.
+    //! Translated from https://code.orgmode.org/bzg/org-mode/src/master/testing/lisp/test-org-element.el#L1954
+// (ert-deftest test-org-element/paragraph-parser ()
+//   "Test `paragraph' parser."
+//   ;; Standard test.
+//   (should
+//    (org-test-with-temp-text "Paragraph"
+//      (org-element-map (org-element-parse-buffer) 'paragraph 'identity nil t)))
+//   ;; Property find end of a paragraph stuck to another element.
+//   (should
+//    (eq ?#
+//        (org-test-with-temp-text "Paragraph\n# Comment"
+// 	 (org-element-map (org-element-parse-buffer) 'paragraph
+// 	   (lambda (p) (char-after (org-element-property :end p)))
+// 	   nil t))))
+//   ;; Include ill-formed Keywords.
+//   (should
+//    (org-test-with-temp-text "#+wrong_keyword something"
+//      (org-element-map (org-element-parse-buffer) 'paragraph 'identity)))
+//   ;; Include incomplete-drawers.
+//   (should
+//    (org-test-with-temp-text ":TEST:\nParagraph"
+//      (let ((elem (org-element-at-point)))
+//        (and (eq (org-element-type elem) 'paragraph)
+// 	    (= (point-max) (org-element-property :end elem))))))
+//   ;; Include incomplete blocks.
+//   (should
+//    (org-test-with-temp-text "#+BEGIN_CENTER\nParagraph"
+//      (let ((elem (org-element-at-point)))
+//        (and (eq (org-element-type elem) 'paragraph)
+// 	    (= (point-max) (org-element-property :end elem))))))
+//   ;; Include incomplete dynamic blocks.
+//   (should
+//    (org-test-with-temp-text "#+BEGIN: \nParagraph"
+//      (let ((elem (org-element-at-point)))
+//        (and (eq (org-element-type elem) 'paragraph)
+// 	    (= (point-max) (org-element-property :end elem))))))
+//   ;; Include incomplete latex environments.
+//   (should
+//    (org-test-with-temp-text "\begin{equation}\nParagraph"
+//      (let ((elem (org-element-at-point)))
+//        (and (eq (org-element-type elem) 'paragraph)
+// 	    (= (point-max) (org-element-property :end elem))))))
+//   (should
+//    (org-test-with-temp-text "Paragraph\n\begin{equation}"
+//      (let ((elem (org-element-at-point)))
+//        (and (eq (org-element-type elem) 'paragraph)
+// 	    (= (point-max) (org-element-property :end elem))))))
+//   ;; Stop at affiliated keywords.
+//   (should
+//    (org-test-with-temp-text "Paragraph\n#+NAME: test\n| table |"
+//      (let ((elem (org-element-at-point)))
+//        (and (eq (org-element-type elem) 'paragraph)
+// 	    (not (org-element-property :name elem))
+// 	    (= (org-element-property :end elem) (line-beginning-position 2))))))
+//   (should
+//    (org-test-with-temp-text
+//        "Paragraph\n#+CAPTION[with short caption]: test\n| table |"
+//      (let ((elem (org-element-at-point)))
+//        (and (eq (org-element-type elem) 'paragraph)
+// 	    (not (org-element-property :name elem))
+// 	    (= (org-element-property :end elem) (line-beginning-position 2))))))
+//   ;; Do not steal affiliated keywords from container.
+//   (should
+//    (org-test-with-temp-text "#+ATTR_LATEX: test\n- item<point> 1"
+//      (let ((elem (org-element-at-point)))
+//        (and (eq (org-element-type elem) 'paragraph)
+// 	    (not (org-element-property :attr_latex elem))
+// 	    (/= (org-element-property :begin elem) 1)))))
+//   ;; Handle non-empty blank line at the end of buffer.
+//   (should
+//    (org-test-with-temp-text "#+BEGIN_CENTER\nC\n#+END_CENTER\n  "
+//      (= (org-element-property :end (org-element-at-point)) (point-max)))))
+//
+}
