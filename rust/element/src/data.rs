@@ -98,6 +98,13 @@ impl<'a> SyntaxNode<'a> {
             affiliated: None,
         }
     }
+
+    /// Appends a child to the node, setting the child's parent correctly.
+    pub fn append_child(self: Handle<'a>, child: Handle<'a>) {
+        *child.parent.borrow_mut() = Some(Rc::downgrade(&self));
+        self.children.borrow_mut().push(child);
+    }
+    
 }
 
 /// Complete list of syntax entities
@@ -112,6 +119,13 @@ pub enum Syntax<'a> {
 
     /// Greater element
     CenterBlock,
+
+
+
+
+
+
+
 
     /// Element
     Clock(Box<ClockData<'a>>),
