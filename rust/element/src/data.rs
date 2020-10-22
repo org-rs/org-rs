@@ -105,7 +105,12 @@ impl<'a> SyntaxNode<'a> {
         *child.parent.borrow_mut() = Some(Rc::downgrade(&self));
         self.children.borrow_mut().push(child);
     }
-    
+
+    /// Creates an iterator over the node and its direct and indirect
+    /// children, in pre-order.
+    pub fn nodes(self: &Handle<'a>) -> Nodes<'a> {
+        Nodes::new(self.clone())
+    }
 }
 
 /// Complete list of syntax entities
@@ -120,13 +125,6 @@ pub enum Syntax<'a> {
 
     /// Greater element
     CenterBlock,
-
-
-
-
-
-
-
 
     /// Element
     Clock(Box<ClockData<'a>>),
@@ -899,8 +897,67 @@ pub struct VerbatimData<'a> {
     value: &'a str,
 }
 
-mod test {
+/// A pre-order traversal of a [`SyntaxNode`].
+pub struct Nodes<'a> {
+    index_stack: Vec<usize>,
+    current_node: Handle<'a>,
+}
 
+impl<'a> Nodes<'a> {
+    fn new(handle: Handle<'a>) -> Nodes<'a> {
+        Nodes {
+            index_stack: vec![0],
+            current_node: handle,
+        }
+    }
+}
+
+impl<'a> Iterator for Nodes<'a> {
+    type Item = Handle<'a>;
+
+    fn next(&mut self) -> Option<Handle<'a>> {
+        dbg!(&self.index_stack);
+        let node = self.current_node.clone();
+
+        if self.index_stack.is_empty() {
+            return None;
+        }
+
+        while self.current_node.children.borrow().len() <= *self.index_stack.last().unwrap() {
+            self.index_stack.pop();
+            if self.index_stack.is_empty() {
+                return Some(node);
+            }
+            let next = self
+                .current_node
+                .parent
+                .borrow()
+                .as_ref()
+                .expect("An iterated parse tree was mutated while an iterator was alive.")
+                .upgrade()
+                .expect(
+                    "An iterated parse tree had its parents deallocated while an iterator is alive",
+                )
+                .clone();
+            self.current_node = next;
+        }
+
+        let top_idx_idx = self.index_stack.len() - 1;
+        let next = self.current_node.children.borrow()[self.index_stack[top_idx_idx]].clone();
+        self.index_stack[top_idx_idx] += 1;
+        self.index_stack.push(0);
+        self.current_node = next;
+
+        dbg!(&self.index_stack);
+        dbg!(&node);
+        Some(node)
+    }
+}
+
+mod test {
+    use std::rc::Rc;
+
+    use crate::data::SyntaxNode;
     use crate::data::SyntaxT;
 
     #[test]
@@ -919,5 +976,61 @@ mod test {
         assert!(bold.can_contain(SyntaxT::LineBreak));
         assert!(closure_test(br, |that| bold.can_contain(that)));
         assert!(!closure_test(verse, |that| bold.can_contain(that)));
+    }
+
+    #[test]
+    fn nodes_iter_with_a_single_element_returns_that_element() {
+        let node = Rc::new(SyntaxNode::create_root());
+        let out_nodes = node.clone().nodes().collect::<Vec<_>>();
+        assert_eq!(out_nodes.len(), 1);
+        assert!(Rc::ptr_eq(&out_nodes[0], &node));
+    }
+
+    #[test]
+    fn nodes_iter_with_several_children_return_all() {
+        let parent = Rc::new(SyntaxNode::create_root());
+        const NUM_CHILDREN: usize = 4;
+        let children = std::iter::repeat(())
+            .take(NUM_CHILDREN)
+            .map(|_| Rc::new(SyntaxNode::create_root()))
+            .collect::<Vec<_>>();
+        for child in &children {
+            parent.append_child(child.clone());
+        }
+
+        let results = parent.nodes().collect::<Vec<_>>();
+        dbg!(&results);
+
+        assert_eq!(results.len(), NUM_CHILDREN + 1);
+        assert!(Rc::ptr_eq(&parent, &results[0]));
+
+        for (idx, child) in children.iter().enumerate() {
+            assert!(
+                Rc::ptr_eq(&child, &results[idx + 1]),
+                "Pointer did not match (idx = {})",
+                idx + 1
+            );
+        }
+    }
+
+    #[test]
+    fn nodes_iter_with_several_layers_return_all() {
+        const LEVELS: usize = 4;
+        let nodes = std::iter::repeat(())
+            .take(LEVELS)
+            .map(|_| Rc::new(SyntaxNode::create_root()))
+            .collect::<Vec<_>>();
+        for (idx, node) in nodes.iter().enumerate() {
+            if idx == 0 { continue }
+            nodes[idx-1].append_child(node.clone());
+        }
+
+        let results = nodes[0].nodes().collect::<Vec<_>>();
+        
+        assert_eq!(results.len(), nodes.len());
+
+        for (result, input) in results.iter().zip(nodes.iter()) {
+            assert!(Rc::ptr_eq(result, input));
+        }
     }
 }
