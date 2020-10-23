@@ -63,7 +63,7 @@ pub struct Interval {
 
 pub struct SyntaxNode<'a> {
     /// Parent node.
-    pub parent: Cell<Option<WeakHandle<'a>>>,
+    pub parent: RefCell<Option<WeakHandle<'a>>>,
     /// Child nodes of this node.
     pub children: RefCell<Vec<Handle<'a>>>,
 
@@ -89,7 +89,7 @@ pub struct SyntaxNode<'a> {
 impl<'a> SyntaxNode<'a> {
     pub fn create_root() -> SyntaxNode<'a> {
         SyntaxNode {
-            parent: Cell::new(None),
+            parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::OrgData,
             location: Interval { start: 0, end: 0 },
