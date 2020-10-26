@@ -1,10 +1,12 @@
 language: rust
 rust:
   - stable
-
+before_install:
+  - rustup component add rustfmt
 script:
   - cd rust
   - export CARGO_TARGET_DIR=/tmp/target
   - export RUST_BACKTRACE=1
   - cargo test --all || exit
+  - cargo fmt -- --check || exit
   
