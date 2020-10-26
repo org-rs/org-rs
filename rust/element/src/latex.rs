@@ -43,6 +43,7 @@ lazy_static! {
 /// In ideal world this should be replaced by a proper parser
 pub static FMTSTR_LATEX_END_ENVIRONMENT: &str = r"\\end{%s}[ \t]*$";
 
+#[derive(Debug)]
 pub struct LatexEnvironmentData<'a> {
     /// Buffer position at first affiliated keyword or
     /// at the beginning of the first line of environment (integer).
@@ -60,6 +61,7 @@ pub struct LatexEnvironmentData<'a> {
     value: &'a str,
 }
 
+#[derive(Debug)]
 pub struct LatexFragmentData<'a> {
     ///LaTeX code (string).
     value: &'a str,

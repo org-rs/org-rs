@@ -27,6 +27,7 @@ lazy_static! {
 
 }
 
+#[derive(Debug)]
 pub struct DrawerData<'a> {
     /// Drawer's name (string).
     pub drawer_name: &'a str,
