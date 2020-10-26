@@ -905,5 +905,4 @@ mod test {
         assert!(closure_test(br, |that| bold.can_contain(that)));
         assert!(!closure_test(verse, |that| bold.can_contain(that)));
     }
-
 }
