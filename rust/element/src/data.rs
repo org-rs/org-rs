@@ -52,6 +52,7 @@ pub type Handle<'a> = Rc<SyntaxNode<'a>>;
 pub type WeakHandle<'a> = Weak<SyntaxNode<'a>>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+>>>>>>> `#[derive(Debug)]` on `SyntaxNode`
 pub struct Interval {
     pub start: usize,
     pub end: usize,
@@ -630,7 +631,6 @@ pub struct EntityData<'a> {
     /// Entity's UTF-8 encoding representation (string).
     utf_8: &'a str,
 }
-
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExportSnippetData<'a> {

@@ -110,9 +110,11 @@ lazy_static! {
 /// This looks like an intermediate list representation, required both by
 /// plain list itself and items in the list.
 #[derive(Clone, Debug, PartialEq)]
+#[derive(Debug)]
 pub struct ListStruct {
     // stub
 }
+
 
 #[derive(Debug, PartialEq)]
 pub struct ItemData<'rope> {
@@ -134,8 +136,8 @@ pub struct ItemData<'rope> {
     structure: ListStruct,
 }
 
-
 #[derive(Debug, PartialEq, Clone)]
+>>>>>>> `#[derive(Debug)]` on `SyntaxNode`
 pub struct PlainListData {
     /// Full list's structure, as returned by org_list_struct (alist).
     pub structure: Rc<ListStruct>,

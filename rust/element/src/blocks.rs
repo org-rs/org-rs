@@ -47,6 +47,7 @@ pub struct DynamicBlockData<'a> {
     drawer_name: &'a str,
 }
 
+
 #[derive(Debug, PartialEq)]
 pub struct CommentBlockData<'a> {
     /// Comments, without block's boundaries (string).
