@@ -109,10 +109,12 @@ lazy_static! {
 /// List structure
 /// This looks like an intermediate list representation, required both by
 /// plain list itself and items in the list.
+#[derive(Debug)]
 pub struct ListStruct {
     // stub
 }
 
+#[derive(Debug)]
 pub struct ItemData<'rope> {
     /// Item's bullet (string).
     bullet: Cow<'rope, str>,
@@ -132,6 +134,7 @@ pub struct ItemData<'rope> {
     structure: ListStruct,
 }
 
+#[derive(Debug)]
 pub struct PlainListData {
     /// Full list's structure, as returned by org_list_struct (alist).
     pub structure: Rc<ListStruct>,
@@ -140,12 +143,14 @@ pub struct PlainListData {
     pub type_s: ListKind,
 }
 
+#[derive(Debug)]
 pub enum ListKind {
     Descriptive,
     Ordered,
     Unordered,
 }
 
+#[derive(Debug)]
 pub enum CheckBox {
     On,
     Off,
