@@ -378,5 +378,4 @@ mod test {
 
         assert_eq!(test_caption, collected.caption);
     }
-
 }
