@@ -22,6 +22,7 @@ lazy_static! {
     pub static ref REGEX_BABEL_CALL: Regex = Regex::new(r"\+CALL:").unwrap();
 }
 
+#[derive(Debug)]
 pub struct BabelCallData<'a> {
     /// Name of code block being called (string).
     pub call: &'a str,

@@ -25,6 +25,7 @@ lazy_static! {
     pub static ref REGEX_KEYWORD: Regex = Regex::new(r"\+\S+:").unwrap();
 }
 
+#[derive(Debug)]
 pub struct KeywordData<'a> {
     /// Keyword's name (string).
     key: &'a str,
