@@ -128,7 +128,7 @@ impl<'a> Parser<'a> {
 
     /// org-element-parse-buffer
     /// Parses input from beginning to the end
-    fn parse_buffer(&'a self) -> SyntaxNode {
+    pub fn parse_buffer(&'a self) -> SyntaxNode {
         self.cursor.borrow_mut().set(0);
         self.cursor.borrow_mut().skip_whitespace();
 
