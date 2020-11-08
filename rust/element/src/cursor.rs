@@ -187,6 +187,20 @@ impl<'a> Cursor<'a> {
         self.pos()
     }
 
+    /// Skip over space, tabs and newline characters, going backwards
+    /// Cursor position is set before the previous non-whitespace char
+    pub fn skip_whitespace_backwards(&mut self) -> usize {
+        while let Some(c) = self.get_prev_char() {
+            if !(c.is_whitespace()) {
+                self.get_next_char();
+                break;
+            } else {
+                self.get_prev_char();
+            }
+        }
+        self.pos()
+    }
+
     /// Moves cursor to the beginning of the current line.
     /// Acts like "Home" button
     /// If cursor is already at the beginning of the line - nothing happens
@@ -628,6 +642,25 @@ mod test {
         cursor = Cursor::new(&rope3, 0);
         cursor.skip_whitespace();
         assert_eq!(None, cursor.get_next_char());
+    }
+
+    #[test]
+    fn skip_whitespaces_backwards() {
+        let rope = " org-mode \n\t\r";
+        let mut cursor = Cursor::new(&rope, rope.len() - 1);
+        cursor.skip_whitespace_backwards();
+        assert_eq!(cursor.get_next_char().unwrap(), 'e');
+
+        let rope2 = "no_whitespace_for_you!";
+        cursor = Cursor::new(&rope2, rope2.len() - 1);
+        cursor.skip_whitespace_backwards();
+        assert_eq!(cursor.get_next_char().unwrap(), '!');
+
+        // Skipping all the remaining whitespace results in invalid cursor at the beginning of the rope
+        let rope3 = " ";
+        cursor = Cursor::new(&rope3, 1);
+        cursor.skip_whitespace_backwards();
+        assert_eq!(None, cursor.get_prev_char());
     }
 
     #[test]
