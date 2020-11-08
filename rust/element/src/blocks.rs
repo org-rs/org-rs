@@ -35,6 +35,7 @@ lazy_static! {
 }
 
 /// Greater element
+#[derive(Clone, Debug, PartialEq)]
 pub struct DynamicBlockData<'a> {
     /// Block's parameters (string).
     arguments: &'a str,
@@ -46,11 +47,14 @@ pub struct DynamicBlockData<'a> {
     drawer_name: &'a str,
 }
 
+
+#[derive(Debug, PartialEq)]
 pub struct CommentBlockData<'a> {
     /// Comments, without block's boundaries (string).
     value: &'a str,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct ExampleBlockData<'a> {
     /// Format string used to write labels in current block,
     /// if different from org_coderef_label_format (string or nil).
@@ -89,6 +93,7 @@ pub struct ExampleBlockData<'a> {
     value: &'a str,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct ExportBlockData<'a> {
     ///Related back_end's name (string).
     type_s: &'a str,
@@ -97,6 +102,7 @@ pub struct ExportBlockData<'a> {
     value: &'a str,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct SpecialBlockData<'a> {
     /// Block's name (string).
     type_s: &'a str,
@@ -104,6 +110,7 @@ pub struct SpecialBlockData<'a> {
     raw_value: &'a str,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct SrcBlockData<'a> {
     /// Format string used to write labels in current block,
     /// if different from org_coderef_label_format (string or nil).

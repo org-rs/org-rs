@@ -40,7 +40,7 @@ use crate::planning::REGEX_DIARY_SEXP;
 use crate::table::{REGEX_TABLE_BORDER, REGEX_TABLE_PRE_BORDER, REGEX_TABLE_RULE};
 
 /// determines the depth of the recursion.
-#[derive(PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ParseGranularity {
     /// Only parse headlines.
     Headline,
@@ -56,7 +56,7 @@ pub enum ParseGranularity {
 
 /// MODE prioritizes some elements over the others
 /// @ngortheone - it looks like these are states of parser's finite automata
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ParserMode {
     FirstSection,
     Section,
@@ -67,6 +67,7 @@ pub enum ParserMode {
     PropertyDrawer,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Parser<'a> {
     pub cursor: RefCell<Cursor<'a>>,
     pub input: &'a str,
@@ -128,7 +129,7 @@ impl<'a> Parser<'a> {
 
     /// org-element-parse-buffer
     /// Parses input from beginning to the end
-    fn parse_buffer(&'a self) -> SyntaxNode {
+    pub fn parse_buffer(&'a self) -> SyntaxNode {
         self.cursor.borrow_mut().set(0);
         self.cursor.borrow_mut().skip_whitespace();
 
