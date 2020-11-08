@@ -157,6 +157,22 @@ impl<'a> Cursor<'a> {
         }
     }
 
+
+    /// Count the number of boundaries between two points.
+    pub fn count_between<M: Metric>(&self, begin: usize, end: usize) -> usize{
+        let mut cur = Cursor{..*self};
+        cur.set(begin);
+        let mut cnt = 0;
+        if cur.is_boundary::<M>() {
+            cnt += 1;
+        }
+        while cur.pos() < end {
+            cur.next::<M>();
+            cnt += 1;
+        }
+        cnt
+    }
+
     /// Skip over space, tabs and newline characters
     /// Cursor position is set before next non-whitespace char
     pub fn skip_whitespace(&mut self) -> usize {
@@ -517,6 +533,13 @@ mod test {
         assert_eq!(13, cursor.pos());
         cursor.set(12);
         assert!(!cursor.is_boundary::<BaseMetric>());
+    }
+
+    #[test]
+    fn count_between() {
+        let input = "\n \n \n";
+        let cursor = Cursor::new(&input, 0);
+        assert_eq!(3,cursor.count_between::<LinesMetric>(0, 5));
     }
 
     #[test]
