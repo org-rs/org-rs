@@ -26,7 +26,7 @@ lazy_static! {
     pub static ref REGEX_TABLE_PRE_BORDER: Regex = Regex::new(r"^[ \t]*($|[^|])").unwrap();
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TableData<'a> {
     /// Formulas associated to the table, if any (string or nil).
     tblfm: Option<&'a str>,
@@ -37,13 +37,13 @@ pub struct TableData<'a> {
     // value
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TableRowData {
     table_row_type: TableRowType,
 }
 
 /// Row's type (symbol standard, rule).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TableRowType {
     Standard,
     Rule,

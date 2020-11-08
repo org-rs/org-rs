@@ -114,7 +114,7 @@ pub struct ListStruct {
     // stub
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ItemData<'rope> {
     /// Item's bullet (string).
     bullet: Cow<'rope, str>,

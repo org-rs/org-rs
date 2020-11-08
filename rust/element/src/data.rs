@@ -101,7 +101,7 @@ impl<'a> SyntaxNode<'a> {
 }
 
 /// Complete list of syntax entities
-#[derive(EnumDiscriminants, Debug, PartialEq)]
+#[derive(EnumDiscriminants, Debug, PartialEq, Clone)]
 #[strum_discriminants(name(SyntaxT))]
 pub enum Syntax<'a> {
     /// Root of the parse tree
