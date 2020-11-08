@@ -80,6 +80,7 @@ impl Metric for LinesMetric {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Cursor<'a> {
     data: &'a str,
     pos: usize,

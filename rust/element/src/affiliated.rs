@@ -100,7 +100,7 @@ lazy_static! {
 }
 
 /// Since CAPTION is both DUAL and PARSED DualVal has to be able to store Strings or StringOrObject
-#[derive(Default, Debug, PartialEq)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct DualVal<T> {
     pub value: T,
     pub secondary: Option<T>,

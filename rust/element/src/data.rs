@@ -51,7 +51,7 @@ pub type Handle<'a> = Rc<SyntaxNode<'a>>;
 /// Weak reference to a DOM node, used for parent pointers.
 pub type WeakHandle<'a> = Weak<SyntaxNode<'a>>;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Interval {
     pub start: usize,
     pub end: usize,
@@ -60,7 +60,7 @@ pub struct Interval {
 /// ParseTree node.
 /// https://orgmode.org/worg/dev/org-element-api.html#attributes
 /// Should be bound to the underlying rope's lifetime
-
+#[derive(Debug)]
 pub struct SyntaxNode<'a> {
     /// Parent node.
     pub parent: RefCell<Option<WeakHandle<'a>>>,
@@ -101,7 +101,7 @@ impl<'a> SyntaxNode<'a> {
 }
 
 /// Complete list of syntax entities
-#[derive(EnumDiscriminants)]
+#[derive(EnumDiscriminants, Debug, PartialEq)]
 #[strum_discriminants(name(SyntaxT))]
 pub enum Syntax<'a> {
     /// Root of the parse tree
@@ -549,6 +549,7 @@ impl<'a> PartialEq for StringOrObject<'a> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct ClockData<'a> {
     /// Clock duration for a closed clock, or nil (string or nil).
     duration: &'a str,
@@ -560,21 +561,25 @@ pub struct ClockData<'a> {
     value: TimestampData<'a>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum ClockStatus {
     Running,
     Closed,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct DiarySexpData<'a> {
     /// Full Sexp (string).
     value: &'a str,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum LineNumberingMode {
     New,
     Continued,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct PlanningData<'a> {
     /// Timestamp associated to closed keyword, if any
     /// (timestamp object or nil).
@@ -591,11 +596,13 @@ pub struct PlanningData<'a> {
 
 // ===== Objects Data ======
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct CodeData<'a> {
     /// Contents (string).
     value: &'a str,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct EntityData<'a> {
     /// Entity's ASCII representation (string).
     ascii: &'a str,
@@ -624,6 +631,8 @@ pub struct EntityData<'a> {
     utf_8: &'a str,
 }
 
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct ExportSnippetData<'a> {
     /// Relative back_end's name (string).
     back_end: &'a str,
@@ -633,6 +642,7 @@ pub struct ExportSnippetData<'a> {
 }
 
 /// Recursive object.
+#[derive(Clone, Debug, PartialEq)]
 pub struct FootnoteReferenceData<'a> {
     /// Footnote's label, if any (string or nil).
     label: Option<&'a str>,
@@ -642,6 +652,7 @@ pub struct FootnoteReferenceData<'a> {
     type_s: &'a str,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct InlineBabelCallData<'a> {
     ///Name of code block being called (string).
     call: &'a str,
@@ -659,6 +670,7 @@ pub struct InlineBabelCallData<'a> {
     value: &'a str,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct InlineSrcBlockData<'a> {
     ///Language of the code in the block (string).
     language: &'a str,
@@ -670,12 +682,14 @@ pub struct InlineSrcBlockData<'a> {
     value: &'a str,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LinkFormat {
     Plain,
     Angle,
     Bracket,
 }
 
+#[derive(Clone,Debug, PartialEq)]
 pub struct LinkData<'a> {
     /// Name of application requested to open the link
     /// in Emacs (string or nil).
@@ -701,6 +715,7 @@ pub struct LinkData<'a> {
     link_type: LinkType,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LinkType {
     /// Line in some source code,
     Coderef,
@@ -721,6 +736,7 @@ pub enum LinkType {
     Radio,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct MacroData<'a> {
     /// Arguments passed to the macro (list of strings).
     args: Vec<&'a str>,
@@ -732,32 +748,38 @@ pub struct MacroData<'a> {
     value: &'a str,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct RadioTargetData<'a> {
     /// Uninterpreted contents (string).
     raw_value: &'a str,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct StatisticsCookieData<'a> {
     /// Full cookie (string).
     value: &'a str,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct SubscriptData {
     /// Non_nil if contents are enclosed in curly brackets (t, nil).
     use_brackets_p: bool,
 }
 
 /// Recursive object.
+#[derive(Clone, Debug, PartialEq)]
 pub struct SuperscriptData {
     /// Non_nil if contents are enclosed in curly brackets (t, nil).
     use_brackets_p: bool,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct TargetData<'a> {
     ///Target's ID (string).
     value: &'a str,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct TimestampData<'a> {
     /// Day part from timestamp end.
     /// If no ending date is defined, it defaults to start day part (integer).
@@ -826,11 +848,13 @@ pub struct TimestampData<'a> {
     year_start: usize,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum WarningType {
     All,
     First,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum TimestampType {
     Active,
     ActiveRange,
@@ -839,12 +863,14 @@ pub enum TimestampType {
     InactiveRange,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum RepeaterType {
     CatchUp,
     Restart,
     Cumulate,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum TimeUnit {
     Year,
     Month,
@@ -853,6 +879,7 @@ pub enum TimeUnit {
     Hour,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct VerbatimData<'a> {
     ///Contents (string).
     value: &'a str,
