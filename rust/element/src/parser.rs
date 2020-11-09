@@ -21,6 +21,7 @@ use regex::Regex;
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
 use crate::data::{Handle, Syntax, SyntaxNode, SyntaxT};
+use crate::environment::Environment;
 
 use crate::blocks::{
     REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL, REGEX_DYNAMIC_BLOCK, REGEX_STARTS_WITH_HASHTAG,
@@ -67,10 +68,11 @@ pub enum ParserMode {
     PropertyDrawer,
 }
 
-pub struct Parser<'a> {
+pub struct Parser<'a, Environment: crate::environment::Environment> {
     pub cursor: RefCell<Cursor<'a>>,
     pub input: &'a str,
     pub granularity: ParseGranularity,
+    pub environment: Environment,
 }
 
 macro_rules! looking_at {
@@ -85,12 +87,17 @@ macro_rules! capturing_at {
     };
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(input: &'a str, granularity: ParseGranularity) -> Parser {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+    pub fn new(
+        input: &'a str,
+        granularity: ParseGranularity,
+        environment: Environment,
+    ) -> Parser<Environment> {
         Parser {
             cursor: RefCell::new(Cursor::new(input, 0)),
             input,
             granularity,
+            environment,
         }
     }
 
@@ -214,7 +221,8 @@ impl<'a> Parser<'a> {
                         //  Possibly switch to a special mode.
                         // (org-element--next-mode type t)
                         let new_mode =
-                            Parser::next_mode(SyntaxT::from(&element.data), true).unwrap_or(mode);
+                            Parser::<Environment>::next_mode(SyntaxT::from(&element.data), true)
+                                .unwrap_or(mode);
 
                         element.children.replace(self.parse_elements(
                             content_location.start,
@@ -238,7 +246,7 @@ impl<'a> Parser<'a> {
                     }
                 }
             }
-            if let Some(m) = Parser::next_mode(SyntaxT::from(&element.data), false) {
+            if let Some(m) = Parser::<Environment>::next_mode(SyntaxT::from(&element.data), false) {
                 mode = m
             }
             elements.push(Rc::new(element));

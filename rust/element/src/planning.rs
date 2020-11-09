@@ -22,7 +22,7 @@ lazy_static! {
     pub static ref REGEX_DIARY_SEXP: Regex = Regex::new(r"%%\(").unwrap();
 }
 
-impl<'a> Parser<'a> {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     // TODO implement planning_parser
     pub fn planning_parser(&self, limit: usize) -> SyntaxNode<'a> {
         unimplemented!()

@@ -157,7 +157,7 @@ pub enum CheckBox {
     Trans,
 }
 
-impl<'a> Parser<'a> {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     // TODO implement item_parser
     //https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L1253
     pub fn item_parser(

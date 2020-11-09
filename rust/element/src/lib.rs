@@ -34,6 +34,7 @@ mod blocks;
 mod cursor;
 mod data;
 mod drawer;
+mod environment;
 mod fixed_width;
 mod headline;
 mod keyword;

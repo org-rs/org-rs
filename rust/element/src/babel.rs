@@ -40,7 +40,7 @@ pub struct BabelCallData<'a> {
     pub value: &'a str,
 }
 
-impl<'a> Parser<'a> {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     // TODO implement babel_call_parser
     pub fn babel_call_parser(
         &self,

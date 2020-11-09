@@ -228,7 +228,7 @@ pub enum TodoKeyword {
     DONE,
 }
 
-impl<'a> Parser<'a> {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     // TODO implement headline_parser
     pub fn headline_parser(&self) -> SyntaxNode<'a> {
         unimplemented!()

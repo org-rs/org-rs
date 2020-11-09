@@ -30,7 +30,7 @@ use crate::parser::Parser;
 ///
 /// Assume point is at the beginning of the paragraph."
 /// (defun org-element-paragraph-parser (limit affiliated)
-impl<'a> Parser<'a> {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     // TODO implement paragraph_parser
     pub fn paragraph_parser(
         &self,

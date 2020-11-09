@@ -58,7 +58,7 @@ pub struct FootnoteDefinitionData<'a> {
     pre_blank: u8,
 }
 
-impl<'a> Parser<'a> {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     // TODO implement comment_parser
     pub fn comment_parser(
         &self,

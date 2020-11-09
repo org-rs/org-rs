@@ -146,7 +146,7 @@ impl<'a> Default for AffiliatedData<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Collect affiliated keywords from point down to LIMIT.
     ///
     /// Most elements can have affiliated keywords.  When looking for an
@@ -268,6 +268,7 @@ mod test {
     use crate::cursor::{is_multiline_regex, Cursor};
     use crate::data::RepeaterType::CatchUp;
     use crate::data::StringOrObject;
+    use crate::environment::DefaultEnvironment;
     use crate::parser::ParseGranularity;
     use crate::parser::Parser;
     use regex::Match;
@@ -350,7 +351,7 @@ mod test {
         text.push_str(r"#+attr_html: :file filename.ext");
         text.push_str("\n\n");
         {
-            let p = Parser::new(text.as_str(), ParseGranularity::Object);
+            let p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
             let maybe_collected = p.collect_affiliated_keywords(text.len());
             assert_eq!(0, maybe_collected.0);
             assert!(maybe_collected.1.is_none());
@@ -358,7 +359,7 @@ mod test {
         text.pop();
         text.push_str("#+BEGIN_SRC");
 
-        let p = Parser::new(text.as_str(), ParseGranularity::Object);
+        let p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
         let maybe_collected = p.collect_affiliated_keywords(text.len());
         assert_eq!(0, maybe_collected.0);
         assert!(maybe_collected.1.is_some());
