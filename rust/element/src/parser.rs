@@ -469,6 +469,28 @@ impl<'a> Parser<'a> {
     /// Parse objects between `beg` and `end` and return recursive structure.
     /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4515
     ///
+    /// RESTRICTION is a list of object successors which are allowed in the
+    /// current object.
+    ///
+    /// If optional argument PARENT is non-nil, use it as the parent for all
+    /// objects. If PARENT is nil, the common parent is the list of objects
+    /// itself.
+    /// (defun org-element--parse-objects (beg end acc restriction &optional parent)
+    pub fn parse_objects(
+        &self,
+        beg: usize,
+        end: usize,
+        restriction: impl Fn(SyntaxT) -> bool,
+        parent: Option<Handle>,
+    ) -> Vec<Handle> {
+        let mut objects = Vec::new();
+        self.parse_objects_acc(beg, end, objects, false, restriction, parent);
+        objects
+    }
+
+    /// Parse objects between `beg` and `end` and return recursive structure.
+    /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4515
+    ///
     /// Objects are accumulated in ACC.  RESTRICTION is a list of object
     /// successors which are allowed in the current object.
     ///
@@ -477,17 +499,110 @@ impl<'a> Parser<'a> {
     /// argument PARENT is non-nil, use it as the parent for all objects.
     /// Eventually, if both ACC and PARENT are nil, the common parent is
     /// the list of objects itself."
+    ///
+    /// acc_parent indicates whether acc was nil in the origional call.
     /// (defun org-element--parse-objects (beg end acc restriction &optional parent)
-    pub fn parse_objects(
+    pub fn parse_objects_acc(
         &self,
         beg: usize,
         end: usize,
+        acc: Handle,
+        acc_parent: bool,
         restriction: impl Fn(SyntaxT) -> bool,
-    ) -> Vec<Handle> //acc
-    {
+        parent: Option<Handle>,
+    ) {
         let pos = self.cursor.borrow().pos();
-        // TODO write parse_objects function #8
+        let old_vis = Interval {
+            start: self.cursor.borrow().visible_start(),
+            end: self.cursor.borrow().visible_end(),
+        };
+        self.cursor.borrow_mut().narrow(Interval {
+            start: beg,
+            end: end,
+        });
+        self.cursor.borrow_mut().set(beg);
+        let mut next_object = None;
+        let mut contents = Vec::new();
+        while if !self.cursor.borrow().eobp() {
+            next_object = self.object_lex(restriction);
+            next_object.is_some()
+        } else {
+            false
+        } {
+            let next_object = next_object.unwrap();
+
+            // Text before any object.
+            {
+                let obj_beg = next_object.begin;
+                if !(self.cursor.borrow().pos() == obj_beg) {
+                    let mut text = SyntaxNode::create_raw_at(
+                        self.data[self.cursor.borrow().pos()..obj_beg],
+                        Interval {
+                            begin: self.cursor.borrow().pos(),
+                            end: obj_beg,
+                        },
+                    );
+                    contents.push(if acc_parent {
+                        text.parent = Some(acc);
+                        text
+                    } else {
+                        text
+                    });
+                }
+            }
+
+            // Object...
+            {
+                let obj_end = next_object.end;
+                let cont_beg = next_object.contents_begin;
+                if acc_parent {
+                    next_object.parent = acc;
+                }
+                contents.push(if cont_beg {
+                    // Fill contents of NEXT-OBJECT if possible.
+                    self.parse_objects(cont_beg, next_object.contents_end, next_object, |el| {
+                        next_object.can_contain(el)
+                    })
+                } else {
+                    next_object
+                });
+                self.cursor.borrow_mut().set(obj_end);
+            }
+
+            // Text after last object.
+            if !self.cursor.borrow().eobp() {
+                let text = SyntaxNode::create_raw_at(
+                    self.data[self.cursor.borrow().pos()..end],
+                    Interval {
+                        begin: self.cursor.borrow().pos(),
+                        end: end,
+                    },
+                );
+                if acc_parent {
+                    text.parent = Some(acc);
+                }
+                contents.push(text);
+            }
+
+            // Result. Set appropriate parent.
+            if acc_parent {
+                contents.reverse();
+                acc.children = contents;
+            } else {
+                contents.reverse();
+                if parent.is_none() {
+                    parent = contents;
+                }
+                for datum in contents {
+                    datum.parent = parent;
+                }
+            }
+        }
         self.cursor.borrow_mut().set(pos);
-        unimplemented!();
+        self.cursor.borrow_mut().narrow(old_vis);
+    }
+
+    fn object_lex(restrionion: ()) {
+        unimplemented!()
     }
 }

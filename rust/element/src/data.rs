@@ -133,13 +133,6 @@ pub enum Syntax<'a> {
     /// Greater element
     CenterBlock,
 
-
-
-
-
-
-
-
     /// Element
     Clock(Box<ClockData<'a>>),
 
