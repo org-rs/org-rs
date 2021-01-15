@@ -77,7 +77,7 @@ a lot of possibilities, here are just a few of my ideas:
 # Contribution
 
 Any contributions are welcome. If you want to help check out
-[contribution guide](CONTRIBUTING.org).
+[contribution guide](doc/CONTRIBUTING.org).
 
 Got a question? Stop by for a chat at [gitter](https://gitter.im/org-rs/community)
 
@@ -102,5 +102,5 @@ Got a question? Stop by for a chat at [gitter](https://gitter.im/org-rs/communit
 ## Footnote
 
 1. Some attempts were made to formalize the syntax. This project uses them as supplementary materials.
-See [contribution guide](CONTRIBUTING.org) for details.
+See [contribution guide](doc/CONTRIBUTING.org) for details.
 
