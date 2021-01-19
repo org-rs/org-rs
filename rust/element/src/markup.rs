@@ -34,17 +34,20 @@ lazy_static! {
 
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct CommentData<'a> {
     /// Comments, with pound signs (string).
     value: &'a str,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct FixedWidthData<'a> {
     ///Contents, without colons prefix (string).
     value: &'a str,
 }
 
 /// Greater element
+#[derive(Debug, PartialEq, Clone)]
 pub struct FootnoteDefinitionData<'a> {
     /// Label used for references (string).
     label: &'a str,

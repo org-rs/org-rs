@@ -119,6 +119,7 @@ lazy_static! {
 
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct HeadlineData<'a> {
     /// Non_nil if the headline has an archive tag (boolean).
     archivedp: bool,
@@ -168,6 +169,7 @@ pub struct HeadlineData<'a> {
     todo_keyword: TodoKeyword,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct InlineTaskData<'a> {
     /// Inlinetask's CLOSED reference, if any (timestamp object or nil)
     closed: Option<TimestampData<'a>>,
@@ -211,13 +213,16 @@ pub struct InlineTaskData<'a> {
 //
 // In particular, no blank line is allowed between PLANNING and HEADLINE.
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct NodePropertyData<'a> {
     key: &'a str,
     value: &'a str,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct Tag<'a>(&'a str);
 
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum TodoKeyword {
     TODO,
     DONE,
