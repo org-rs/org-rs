@@ -33,7 +33,7 @@ pub struct DrawerData<'a> {
     pub drawer_name: &'a str,
 }
 
-impl<'a> Parser<'a> {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     // TODO implement drawer_parser
     pub fn drawer_parser(
         &self,

@@ -49,7 +49,7 @@ pub enum TableRowType {
     Rule,
 }
 
-impl<'a> Parser<'a> {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     // TODO implement table_row_parser
     // https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L2637
     pub fn table_row_parser(&self) -> SyntaxNode<'a> {

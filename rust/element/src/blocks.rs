@@ -144,7 +144,7 @@ pub struct SrcBlockData<'a> {
     value: &'a str,
 }
 
-impl<'a> Parser<'a> {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     // TODO implement center_block_parser
     pub fn center_block_parser(
         &self,

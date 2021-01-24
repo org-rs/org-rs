@@ -33,7 +33,7 @@ pub struct KeywordData<'a> {
     value: &'a str,
 }
 
-impl<'a> Parser<'a> {
+impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     // TODO implement keyword_parser
     /// Parse a keyword at point.
     ///
