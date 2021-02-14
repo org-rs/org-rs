@@ -19,6 +19,8 @@
 use memchr::{memchr, memrchr};
 use regex::{Captures, Match, Regex};
 
+use crate::data::Interval;
+
 use crate::headline::{REGEX_HEADLINE_MULTILINE, REGEX_HEADLINE_SHORT};
 
 lazy_static! {
@@ -83,19 +85,57 @@ impl Metric for LinesMetric {
 pub struct Cursor<'a> {
     data: &'a str,
     pos: usize,
+    visible: Option<Interval>,
 }
 
 impl<'a> Cursor<'a> {
     pub fn new(data: &'a str, pos: usize) -> Cursor<'a> {
-        Cursor { data, pos }
+        Cursor {
+            data,
+            pos,
+            visible: None,
+        }
     }
 
     pub fn set(&mut self, pos: usize) {
+        debug_assert!(
+            pos >= self.visible_begin(),
+            "Tried to set pos below visible region"
+        );
+        debug_assert!(
+            pos <= self.visible_end(),
+            "Tried to set pos above visible region"
+        );
+
         self.pos = pos;
     }
 
     pub fn pos(&self) -> usize {
         self.pos
+    }
+
+    pub fn visible_begin(&self) -> usize {
+        if let Some(Interval { start, .. }) = self.visible {
+            start
+        } else {
+            0
+        }
+    }
+
+    pub fn visible_end(&self) -> usize {
+        if let Some(Interval { end, .. }) = self.visible {
+            end
+        } else {
+            self.data.len()
+        }
+    }
+
+    pub fn narrow(&mut self, interval: Interval) {
+        self.visible = Some(interval);
+    }
+
+    pub fn widen(&mut self) {
+        self.visible = None;
     }
 
     /// Get next codepoint after cursor position, and advance cursor.
@@ -121,8 +161,14 @@ impl<'a> Cursor<'a> {
 
     pub fn next<M: Metric>(&mut self) -> Option<usize> {
         if let Some(offset) = M::next(self.data, self.pos) {
-            self.pos = offset;
-            Some(offset)
+            if offset >= self.visible_end() {
+                None
+            } else if offset < self.visible_begin() {
+                unreachable!()
+            } else {
+                self.pos = offset;
+                Some(offset)
+            }
         } else {
             None
         }
@@ -134,8 +180,14 @@ impl<'a> Cursor<'a> {
 
     pub fn prev<M: Metric>(&mut self) -> Option<usize> {
         if let Some(offset) = M::prev(self.data, self.pos) {
-            self.pos = offset;
-            Some(offset)
+            if offset >= self.visible_end() {
+                unreachable!()
+            } else if offset < self.visible_begin() {
+                None
+            } else {
+                self.pos = offset;
+                Some(offset)
+            }
         } else {
             None
         }
@@ -176,8 +228,8 @@ impl<'a> Cursor<'a> {
     /// If cursor is already at the beginning of the line - nothing happens
     /// Returns the position of the cursor
     pub fn goto_line_begin(&mut self) -> usize {
-        if self.pos() != 0 && self.at_or_prev::<LinesMetric>().is_none() {
-            self.set(0);
+        if self.pos() != self.visible_begin() && self.at_or_prev::<LinesMetric>().is_none() {
+            self.set(self.visible_begin());
         }
         self.pos()
     }
@@ -188,8 +240,8 @@ impl<'a> Cursor<'a> {
         let res = self.next::<LinesMetric>();
         match res {
             None => {
-                self.set(self.data.len());
-                self.data.len()
+                self.set(self.visible_end());
+                self.visible_end()
             }
             Some(x) => x,
         }
@@ -201,15 +253,15 @@ impl<'a> Cursor<'a> {
     pub fn goto_prev_line(&mut self) -> usize {
         // move to the beginning of the current line
         self.goto_line_begin();
-        if self.pos() == 0 {
-            return 0;
+        if self.pos() == self.visible_begin() {
+            return self.visible_begin();
         }
         let res = self.prev::<LinesMetric>();
 
         match res {
             None => {
-                self.set(0);
-                0
+                self.set(self.visible_begin());
+                self.visible_begin()
             }
             Some(x) => x,
         }
@@ -239,7 +291,7 @@ impl<'a> Cursor<'a> {
                     if self.pos() != 0 {
                         for p in 0..(x - 1).abs() {
                             if self.prev::<LinesMetric>().is_none() {
-                                self.set(0);
+                                self.set(self.visible_begin());
                                 break;
                             }
                         }
@@ -281,7 +333,7 @@ impl<'a> Cursor<'a> {
             }
         }
 
-        let result = self.prev::<BaseMetric>().unwrap_or(0);
+        let result = self.prev::<BaseMetric>().unwrap_or(self.visible_begin());
         self.set(pos);
         return result;
     }
@@ -308,9 +360,9 @@ impl<'a> Cursor<'a> {
         let end = if !is_multiline_regex(re.as_str()) {
             LinesMetric::next(self.data, self.pos)
                 .map(|p| p - 1) // exclude '\n' from the string'
-                .unwrap_or_else(|| self.data.len())
+                .unwrap_or_else(|| self.visible_end())
         } else {
-            self.data.len()
+            self.visible_end()
         };
         re.find(&self.data[self.pos..end])
     }
@@ -322,9 +374,9 @@ impl<'a> Cursor<'a> {
         let end = if !is_multiline_regex(re.as_str()) {
             LinesMetric::next(self.data, self.pos)
                 .map(|p| p - 1) // exclude '\n' from the string'
-                .unwrap_or_else(|| self.data.len())
+                .unwrap_or_else(|| self.visible_end())
         } else {
-            self.data.len()
+            self.visible_end()
         };
 
         re.captures(&self.data[self.pos..end])
@@ -337,7 +389,7 @@ impl<'a> Cursor<'a> {
         // make sure we don't match current headline
         self.next::<LinesMetric>();
         let beg = self.pos();
-        match REGEX_HEADLINE_MULTILINE.find(&self.data[beg..]) {
+        match REGEX_HEADLINE_MULTILINE.find(&self.data[beg..self.visible_end()]) {
             Some(p) => {
                 self.pos = beg + p.start();
                 Some(beg + p.start())
@@ -385,7 +437,7 @@ impl<'a> Cursor<'a> {
 
         let bound = match bound {
             Some(bound) => bound,
-            _ => self.data.len(),
+            _ => self.visible_end(),
         };
 
         let pos = self.pos();
@@ -393,7 +445,7 @@ impl<'a> Cursor<'a> {
             return None;
         }
 
-        let mut iter = self.data[pos..].match_indices(str);
+        let mut iter = self.data[pos..self.visible_end()].match_indices(str);
         let mut i = 1;
         loop {
             match iter.next() {
@@ -423,7 +475,7 @@ impl<'a> Cursor<'a> {
     ///   value of nil means search to the end of the accessible portion of
     ///   the buffer.
     pub fn re_search_forward(&mut self, re: &Regex, bound: Option<usize>) -> Option<usize> {
-        let end = bound.unwrap_or(self.data.len());
+        let end = bound.unwrap_or(self.visible_end());
 
         if end <= self.pos {
             return None;
@@ -444,7 +496,7 @@ impl<'a> Cursor<'a> {
         let pos = self.pos();
         let limit = match limit {
             Some(lim) => lim,
-            _ => self.data.len(),
+            _ => self.visible_end(),
         };
 
         if pos >= limit {
@@ -737,5 +789,30 @@ mod test {
         assert_eq!(Some(25), cursor.re_search_forward(&re, Some(25)));
         assert_eq!(None, cursor.re_search_forward(&re, Some(24)));
         assert_eq!(25, cursor.pos());
+    }
+
+    #[test]
+    fn narrow() {
+        let text = "Some text that looks like this";
+        let mut cursor = Cursor::new(&text, 0);
+        cursor.narrow(crate::data::Interval { start: 5, end: 21 });
+
+        cursor.set(19);
+        assert_eq!(Some('s'), cursor.get_next_char());
+        assert_eq!(None, cursor.get_next_char());
+        assert_eq!(20, cursor.pos());
+
+        cursor.goto_line_begin();
+        assert_eq!(5, cursor.pos());
+        assert_eq!(None, cursor.search_forward("this", None, None));
+        assert_eq!(
+            None,
+            cursor.re_search_forward(&Regex::new("this").unwrap(), None)
+        );
+        assert_eq!(None, cursor.search_forward("looks like", None, None));
+        assert_eq!(
+            None,
+            cursor.re_search_forward(&Regex::new("looks like").unwrap(), None)
+        );
     }
 }

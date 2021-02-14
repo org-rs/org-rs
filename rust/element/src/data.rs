@@ -98,6 +98,26 @@ impl<'a> SyntaxNode<'a> {
             affiliated: None,
         }
     }
+
+    /// Creates a `SyntaxNode` corosponding to a raw string used as an element
+    /// in elisp.
+    pub fn create_raw_at(content: &'a str, interval: Interval) -> SyntaxNode<'a> {
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::PlainText(string),
+            location: interval,
+            content_location: None,
+            post_blank: 0,
+            afiliated: None,
+        }
+    }
+
+    /// Appends a child to the node, setting the child's parent correctly.
+    pub fn append_child(self: &Handle<'a>, child: Handle<'a>) {
+        *child.parent.borrow_mut() = Some(Rc::downgrade(&self));
+        self.children.borrow_mut().push(child);
+    }
 }
 
 /// Complete list of syntax entities
