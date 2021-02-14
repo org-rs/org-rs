@@ -98,6 +98,20 @@ impl<'a> SyntaxNode<'a> {
             affiliated: None,
         }
     }
+
+    /// Creates a `SyntaxNode` corosponding to a raw string used as an element
+    /// in elisp.
+    pub fn create_raw_at(content: &'a str, interval: Interval) -> SyntaxNode<'a> {
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::PlainText(string),
+            location: interval,
+            content_location: None,
+            post_blank: 0,
+            afiliated: None,
+        }
+    }
 }
 
 /// Complete list of syntax entities
