@@ -157,10 +157,9 @@ impl<'a> Cursor<'a> {
         }
     }
 
-
     /// Count the number of boundaries between two points.
-    pub fn count_between<M: Metric>(&self, begin: usize, end: usize) -> usize{
-        let mut cur = Cursor{..*self};
+    pub fn count_between<M: Metric>(&self, begin: usize, end: usize) -> usize {
+        let mut cur = Cursor { ..*self };
         cur.set(begin);
         let mut cnt = 0;
         if cur.is_boundary::<M>() {
@@ -553,7 +552,7 @@ mod test {
     fn count_between() {
         let input = "\n \n \n";
         let cursor = Cursor::new(&input, 0);
-        assert_eq!(3,cursor.count_between::<LinesMetric>(0, 5));
+        assert_eq!(3, cursor.count_between::<LinesMetric>(0, 5));
     }
 
     #[test]

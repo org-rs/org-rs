@@ -99,7 +99,6 @@ impl<'a> SyntaxNode<'a> {
         }
     }
 
-
     /// Creates a `SyntaxNode` corosponding to a raw string used as an
     /// element in elisp.
     pub fn create_raw_at(content: &'a str, interval: Interval) -> SyntaxNode<'a> {
