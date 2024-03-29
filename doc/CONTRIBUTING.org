@@ -1,5 +1,5 @@
 * Contributing
-  
+
   The project is currently in early development stage. All the effort is focused on
   the core functionality which is the parser - element crate.
 
@@ -9,91 +9,120 @@
   - [[https://orgmode.org/worg/dev/org-syntax.html][Org Syntax]]
 
 
-** Coding guide
+* Coding guide
 
-   Since a decision was made to closely follow original algorithm the code may not
-   look very idiomatic. That is fine for now. 
-
-   We are focused on the `Make it work. Make it right` part. Everything else will
-   come later. Nevertheless some code hygiene must be enforced to ensure that this
-   "later" will happen:
-    - Keep the same code structure as original implementation. To make validation
-      process easier try not to create functions and variables that original
-      implementation does not have. Though reasonable exceptions are allowed.
-    - Try to keep original function names, `org-{component}` prefix can be dropped as
-      rust does not suffer from lack of lexical scoping.
-    - Document all the things!
-    - To make comparison between original and zorg-mode easier add links to file
-      and line position from https://code.orgmode.org/bzg/org-mode/src/master/lisp
-      in function's docs where possible.
-    - Try to leverage Rust powers where possible without deviating from original
- 
-
-** Tips, advice, gotchas
-
-   This is a collection of useful tips for writing zorg-mode, reading elisp code
-   etc.
-   
-   Using Emacs is handy to get elisp code navigation and quick documentation
-   access. I usually have it open next to my main editor.
-   
-   Matching original behavior is primary goal.
-   
-   You can use Emacs' [[https://www.gnu.org/software/emacs/manual/html_node/emacs/Lisp-Eval.html][eval]]
-   functionality to manually invoke `(org-element-parse-buffer)` to get the
-   original Parse Tree so it can be compared with zorg-mode
+   The code is allowed to look different from idiomatic Rust.  Though
+   at a later date, we shall make it conform to Rust's standards and
+   coding guidelines, the project contributors are focused on the
+   reproducing the behaviour and correctness aspects.  Nevertheless
+   some code hygiene must be enforced to ensure that this "later" will
+   happen:
+	- Keep the same code structure as the original implementation.  To
+	  make the validation process easier, try not to create functions
+	  and variables that the original implementation does not have.
+	  There may be exceptions to this rule, if the code is simple.
+	- Keep original names if possible.  However, the `org-{component}`
+	  prefix can be dropped.
+	- Document functions, structures and modules.
+	- If a function is unlikely to migrate, consider adding the file
+	  and line positions from the original implementations /in
+	  addition to/ the function names.
+	- Feel free to use all of Rust's features.
 
 
-   *save-excursion* - remembers current cursor position, executes body and 
-   restores cursor to original position.
+* Tips, advice, gotchas
 
-   In the code represented by:
+   This is a collection of useful tips for writing =org-rs=, reading
+   elisp code etc.
+
+   Emacs is the most efficient way of interacting with Emacs lisp.
+   Consider installing it.
+
+   The main goal is to reliably reproduce the original behaviour of
+   the parser, as well as to provide some of the functionality that is
+   for interactive use.
+
+   It is useful to obtain the parse tree using Emacs' [[https://www.gnu.org/software/emacs/manual/html_node/emacs/Lisp-Eval.html][eval]] to invoke
+   =(org-element-parse-buffer)= to get the original Parse Tree so it
+   can be compared with =org-rs=.  The goal of this project is to
+   produce identical results.
+
+   *save-excursion* - remembers current point position, executes body
+   and restores point to its original position.  This pattern is
+   mirrored in Rust by
 
    #+BEGIN_SRC rust
-   fn some_fn() {
-   let pos = self.cursor.pos();
-   // ... body of the function
-   self.cursor.set(pos);
-   // possibly return
-   }
-   #+END_SRC 
+	 fn some_fn(&mut self) {
+		 let pos = self.cursor.pos();
+		 // ... body of the function
+		 self.cursor.set(pos);
+		 // possibly return
+	 }
+   #+END_SRC
 
-**** Vocabulary
-
-     *structure* - in org codebase depending on context means one of two things:
-     - [[rust/element/src/lis][ListStruct]] - sort of an AST, and intermediate list
-       structure representation that is shared by PlainList element itself and all of
-       its items - [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4348][example]]
-     - Parse Tree. Whole, or part of it - [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4072][example]]
-
-     *CAR/CDR* - head and tail of the list
-
-     *plist/alist* - [[https://www.emacswiki.org/emacs/AlistVsPlist][AlistVsPlist]]. In Org-rs these are mostly represented as structs or 
-     as maps(rarely)
+* Glossary
 
 
-** Things Out of Scope
+** structure
 
-- *Incremental parsing* For the time being complete buffer re-parsing is the only
-   way to update the parse tree. Incremental parsing is planned and will be added
-   once core of the parsing algorithm is finished
+in org,  means one of two things depending on the context:
 
-- *Visibility* is not supported. Thinking whether current char/line is visible 
-   or not is a problem of a front-end. 
+- [[rust/element/src/lis][ListStruct]] - sort of an AST, and intermediate list structure
+  representation that is shared by =PlainList= element itself and all of
+  its items - [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4348][example]].
 
-- *Affiliated keywords can't have objects*. This one might go away if the 
-  underlying problem is resolved. See ~collect_affiliated_keywords~ docstring 
-  for details. As of now I decided to focus on more important things.
+- =ParseTree=. Either as a whole, or part thereof - [[https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4072][example]].
 
-- *table.el style tables are not supported*. Original parser implementation
-  supports tables from a third-party module. Those tables have more complicated
-  encoding, which makes parsing them slow and prone to false-positives. Org-native tables
-  are much simpler to parse and supporting an out-of-scope table implementation seems
-  like a not reasonable time investment for now.
+** CAR
+The value of the first element of the list.
+Also referred to as a =head= of the list.
+Historically named after the contents of the A-register on Lisp machines.
 
-- *Inlinetasks* are not supported. Inlinetasks exist in emacs purely for reason of 
-  evading folding/cycling mechanisms. A user has to define a minimum level of headline that will
-  be treated as inlinetask. Org-rs is a parser and it is not concerned with representation
-  of the elements. So the reason is basically the same as for visibility. Frontends are
-  free to treat some headlines as inlinetasks if they want to.
+** CDR
+The "pointer" to the linked list element following the first (current) element.
+Also referred to as the =tail= of the list.
+Historically named after the contents of the D-(data)-register on Lisp machines.
+
+
+** plist
+Property list.  A list of pair-wise associated lists, that otherwise have no structure.  See [[https://www.gnu.org/software/emacs/manual/html_node/elisp/Property-Lists.html][PList]].
+
+** alist
+Association list.  An explicit list of mappings from a key to a value.  See [[https://www.gnu.org/software/emacs/manual/html_node/elisp/Association-Lists.html][AList]].
+
+
+For a comparison, please refer to [[https://www.emacswiki.org/emacs/AlistVsPlist][AlistVsPlist]].
+
+In =org-rs= these are usually represented as structures or maps (such as =std::collections::HashMap=).
+
+
+* Scope
+
+** Incremental parsing
+
+For the time being complete buffer re-parsing is the only way to
+update the parse tree.  Incremental parsing is planned and will be
+added once core of the parsing algorithm is finished.  
+
+** Visibility is not supported.
+Thinking whether current char/line is visible or not is a problem of a
+front-end.
+
+** Affiliated keywords can't have objects.
+This one might go away if the underlying problem is resolved.  See
+=collect_affiliated_keywords= docstring for details.  As of now I
+decided to focus on more important things.
+
+** table.el style tables are not supported
+
+The original parser implementation supports tables from a third-party
+module.  Those tables have more complicated encoding, which makes
+parsing them slow and prone to false-positives.  Org-native tables are
+much simpler to parse and supporting an out-of-scope table
+implementation seems like a not reasonable time investment for now.
+
+** Inlinetasks
+Will not be supported.  =Inlinetasks= exist in emacs purely to evade
+folding/cycling mechanisms.  It is thus up to front-ends to render the
+folding/cycling, not up to the parser.
 
