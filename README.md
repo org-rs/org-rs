@@ -4,56 +4,80 @@
 # Motivation
 
 [Org](https://orgmode.org/) is probably the best and most complete plain text
-organizational system known to mankind. It has countless applications like
-authoring, publishing, task and time tracking, journal, blog, agenda, wiki
-etc...
+organizational system known to mankind.  It has countless applications:
+- authoring,
+- publishing,
+- technical documentation,
+- literate programming,
+- task and time tracking,
+- journalling,
+- blogging,
+- agendas,
+- wikis,
+and many more.
 
-Unfortunately Org was originally developed for Emacs and therefore
-available only inside Emacs. It is a huge limiting factor for Org's development
-and popularization. Because of that it is not as popular outside of Emacs
-community as it should be.
+Org has a limited presence outside of GNU Emacs, and the standard
+implementation is that of GNU Emacs written in Emacs lisp.  Despite
+the fact that GNU Emacs is widely available and widely used as a lisp
+interpreter, there are applications wherein using Emacs to properly
+handle and parse an Org file would be problematic.  This package is
+intended to replicate the exact behaviour of Org as implemented in
+Emacs lisp, while decoupling the use of Org from Emacs, such that it
+can be used in a content management system, as a blogging backend, _etc._
 
-Many attempts were made to fix this. It all starts with a parser.
-But because Org's syntax is not trivial and in fact most of it is
+## Prior art
+
+Many attempts have been made.  The most faithful not written in a lisp is the implementaiton in [`pandoc`](https://github.com/jgm/pandoc).
+
+The reason why there have been relatively few attemps is that Org's
+syntax is not trivial.  Most of Org's syntax is
 [context-sensitive](https://en.wikipedia.org/wiki/Chomsky_hierarchy#Type-1_grammars)
-with only a few context-free elements, it is quite easy to get it wrong. 
-Some Org parsers have chosen to focus on a restricted subset of Org's syntax like
-[org-ruby](https://github.com/wallyqs/org-ruby) or [pandoc](https://pandoc.org/).
-More ambitious projects try to cover all features but since Org does not have a
-formal specification<sup>1</sup> they rely on observed Org's behavior in Emacs
-or author's intuition.  As a result they rarely get finished.
+with only a few context-free elements.  This results in a higher
+complexity and problematic testing of implementations, as unit testing
+of small chunks of Org code does not guarantee correct parsing of the
+Org file as a whole.
 
-But the absence of a good a spec and the complexity of the grammar are not show
-stoppers. Why reinventing the wheel when we can just copy it!  This project
-takes the only surefire way to get it right - use the original elisp parser
-implementation as a blueprint!
+To this end, Org parsers
+[org-ruby](https://github.com/wallyqs/org-ruby) and
+[pandoc](https://pandoc.org/), have chosen to focus on a restricted
+subset of Org's syntax.  More ambitious projects try to cover all
+features but since Org does not have a formal
+specification[^1] they rely on observed Org's behavior in
+Emacs or author's intuition.  As a result they rarely get finished.
 
+This project aims to be a faithful one-to-one recreation of the Emacs
+lisp code translated into Rust.  As such it eschews many of the
+problems with writing an ad-hoc parser, and allows for easy adaptation
+in case the official Org specification (that of the reference parser),
+changes.
 
-Check out [FAQ](https://github.com/org-rs/org-rs/wiki/FAQ) for more information 
-and feel free to open an issue if you have more questions!
+Check out our [FAQ](https://github.com/org-rs/org-rs/wiki/FAQ) for
+more information.  Also feel free to open an issue and/or discussion.
 
 # Goals
 
-- Be fast. Speed matters. Period.
-- Be feature-complete, compliant with original implementation. Nobody wants Nth competing standard.
-- Be standalone, embeddable and reusable. User must not be locked into 
-one particular editor or ecosystem. Integrations with language servers,
- editors and plugins should be encouraged.
+`org-rs` is guided by the following principles:
+- Be a faithful recreation of the original implementation, not a
+  competing standard or implementation.
+- Be standalone, embeddable and reusable.
+- Adapt to the users' needs, rather than impose adherence to specific ecosystems.
+- Be fast.
 
 
 # Design decisions
 
 These are the choices that were made to achieve the goals:
 
-- Rust. Because it is fast, memory safe and provides C FFI. And most importantly it is cool.
+- Use Rust.  It's fast, memory safe, and has a healthy package
+  ecosystem.  It also can be linked both statically and dynamically
+  against C code.
+- Adhere to the original emacs lisp implementation in terms of
+  structure and organisation.
+- Adhere to idiomatic Rust wherever else possible.
 
-- Original elisp algorithm. While using the original elisp source as a guideline
-  might result in less idiomatic Rust code it has its advantages:
-
-  - Scope of work is well-defined and finish line is visible. This should encourage
-    contributions even from people who want to get started with Rust.
-
-  - Getting "feature-complete" is just a matter of getting to the finish line.
+These decisions result in a clear scope, and completion criteria, as
+well as easily verifiable replication of the behaviour of the original
+lisp implementation.
 
 
 # Roadmap
@@ -62,7 +86,7 @@ These are the choices that were made to achieve the goals:
 It should perform just 2 tasks. Generate concrete syntax tree and serialize it
 back to canonical Org representation.
 
-The rest of the roadmap is not fully flashed out. Feature-complete parser opens 
+The rest of the roadmap is not fully flashed out. Feature-complete parser opens
 a lot of possibilities, here are just a few of my ideas:
 
 - Parse tree manipulation tools (like exporting to other formats).
@@ -76,10 +100,17 @@ a lot of possibilities, here are just a few of my ideas:
 
 # Contribution
 
-Any contributions are welcome. If you want to help check out
-[contribution guide](doc/CONTRIBUTING.org).
+Any contributions are welcome:
+- Code
+- Documentation
+- Verification
+- Spreading the word
+- Using in your project in a cool way
 
-Got a question? Stop by for a chat at [gitter](https://gitter.im/org-rs/community)
+If you want to contribute code, please check out the [contribution
+guide](doc/CONTRIBUTING.org).
+
+Got a question?  Open a discussion.
 
 # Similar projects
 
@@ -98,9 +129,5 @@ Got a question? Stop by for a chat at [gitter](https://gitter.im/org-rs/communit
 - [teaser](https://github.com/novoid/org-mode-workshop/blob/master/featureshow/org-mode-teaser.org)
 
 
-
-## Footnote
-
-1. Some attempts were made to formalize the syntax. This project uses them as supplementary materials.
+[^1]: Some attempts were made to formalize the syntax. This project uses them as supplementary materials.
 See [contribution guide](doc/CONTRIBUTING.org) for details.
-
