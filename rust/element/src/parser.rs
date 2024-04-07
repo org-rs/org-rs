@@ -27,10 +27,9 @@ use crate::blocks::{
     REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL, REGEX_DYNAMIC_BLOCK, REGEX_STARTS_WITH_HASHTAG,
 };
 use crate::drawer::REGEX_DRAWER;
-use crate::headline::REGEX_CLOCK_LINE;
-use crate::headline::REGEX_HEADLINE_SHORT;
-use crate::headline::REGEX_PLANNING_LINE;
-use crate::headline::REGEX_PROPERTY_DRAWER;
+use crate::headline::{
+    REGEX_CLOCK_LINE, REGEX_HEADLINE_SHORT, REGEX_PLANNING_LINE, REGEX_PROPERTY_DRAWER,
+};
 use crate::keyword::*;
 use crate::latex::REGEX_LATEX_BEGIN_ENVIRIONMENT;
 use crate::list::*;
