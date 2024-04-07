@@ -40,17 +40,17 @@ use crate::planning::REGEX_DIARY_SEXP;
 use crate::table::{REGEX_TABLE_BORDER, REGEX_TABLE_PRE_BORDER, REGEX_TABLE_RULE};
 
 /// determines the depth of the recursion.
-#[derive(PartialEq)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub enum ParseGranularity {
     /// Only parse headlines.
     Headline,
-    /// Don't recurse into greater elements except
-    /// headlines and sections.  Thus, elements
-    /// parsed are the top-level ones.
+    /// Don't recurse into greater elements except headlines and
+    /// sections.  Thus, elements parsed are the top-level ones.
     GreaterElement,
     /// Parse everything but objects and plain text.
     Element,
-    /// Parse the complete buffer (default).
+    /// Parse the complete buffer.
+    #[default]
     Object,
 }
 
