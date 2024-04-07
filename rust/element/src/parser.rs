@@ -20,7 +20,7 @@ use regex::Regex;
 
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
-use crate::data::{Handle, Syntax, SyntaxNode, SyntaxT};
+use crate::data::{Syntax, SyntaxNode, SyntaxT};
 use crate::environment::Environment;
 
 use crate::blocks::{
@@ -55,6 +55,7 @@ pub enum ParseGranularity {
 }
 
 /// MODE prioritizes some elements over the others
+///
 /// @ngortheone - it looks like these are states of parser's finite automata
 #[derive(Copy, Clone, PartialEq)]
 pub enum ParserMode {
@@ -107,27 +108,26 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// <br>
     /// Original function name: org-element--next-mode
     /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4273
-    #[rustfmt::skip]
     fn next_mode(syntax: SyntaxT, is_parent: bool) -> Option<ParserMode> {
         use SyntaxT::*;
 
         if is_parent {
             match syntax {
-                Headline      => Some(ParserMode::Section),
-                InlineTask    => Some(ParserMode::Planning),
-                PlainList     => Some(ParserMode::Item),
-                PropertyDrawer=> Some(ParserMode::NodeProperty),
-                Section       => Some(ParserMode::Planning),
-                Table         => Some(ParserMode::TableRow),
-                _             => None,
+                Headline => Some(ParserMode::Section),
+                InlineTask => Some(ParserMode::Planning),
+                PlainList => Some(ParserMode::Item),
+                PropertyDrawer => Some(ParserMode::NodeProperty),
+                Section => Some(ParserMode::Planning),
+                Table => Some(ParserMode::TableRow),
+                _ => None,
             }
         } else {
             match syntax {
-                Item         => Some(ParserMode::Item),
+                Item => Some(ParserMode::Item),
                 NodeProperty => Some(ParserMode::NodeProperty),
-                Planning     => Some(ParserMode::PropertyDrawer),
-                TableRow     => Some(ParserMode::TableRow),
-                _            => None,
+                Planning => Some(ParserMode::PropertyDrawer),
+                TableRow => Some(ParserMode::TableRow),
+                _ => None,
             }
         }
     }
@@ -164,7 +164,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         end: usize,
         mut mode: ParserMode,
         structure: Option<Rc<ListStruct>>,
-    ) -> Vec<Handle> {
+    ) -> Vec<Rc<SyntaxNode>> {
         let pos = self.cursor.borrow_mut().pos();
         self.cursor.borrow_mut().set(beg);
 
@@ -174,7 +174,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             self.cursor.borrow_mut().next_headline();
         }
 
-        let mut elements: Vec<Handle> = vec![];
+        let mut elements: Vec<Rc<SyntaxNode>> = vec![];
         loop {
             let current_pos = self.cursor.borrow().pos();
             if current_pos >= end {
@@ -365,11 +365,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             }
 
             // From there, elements can have affiliated keywords.
-            let (aff_start, maybe_aff) = self.collect_affiliated_keywords(limit);
+            let (aff_start, affiliated) = self.collect_affiliated_keywords(limit);
 
             // If parsing affiliated keywords left cursor off-limits
             // then parse them as regular keywords.
-            if (maybe_aff.is_some() && self.cursor.borrow().pos() >= limit) {
+            if (affiliated.is_some() && self.cursor.borrow().pos() >= limit) {
                 self.cursor.borrow_mut().set(aff_start);
                 return self.keyword_parser(limit, aff_start, None);
             }
@@ -377,17 +377,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             // LaTeX Environment
             //org-element--latex-begin-environment
             if looking_at!(REGEX_LATEX_BEGIN_ENVIRIONMENT, self).is_some() {
-                return self.latex_environment_parser(limit, aff_start, maybe_aff);
+                return self.latex_environment_parser(limit, aff_start, affiliated);
             }
 
             // Drawer and Property Drawer.
             if looking_at!(REGEX_DRAWER, self).is_some() {
-                return self.drawer_parser(limit, aff_start, maybe_aff);
+                return self.drawer_parser(limit, aff_start, affiliated);
             }
 
             //  Fixed Width
             if looking_at!(REGEX_FIXED_WIDTH, self).is_some() {
-                return self.fixed_width_parser(limit, aff_start, maybe_aff);
+                return self.fixed_width_parser(limit, aff_start, affiliated);
             }
 
             // Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
@@ -395,63 +395,67 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 self.cursor.borrow_mut().set(m.end());
                 if looking_at!(REGEX_COLON_OR_EOL, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
-                    return self.comment_parser(limit, aff_start, maybe_aff);
+                    return self.comment_parser(limit, aff_start, affiliated);
                 }
 
                 if let Some(cap) = capturing_at!(REGEX_BLOCK_BEGIN, self) {
                     self.cursor.borrow_mut().goto_line_begin();
                     let name = cap.get(1).unwrap().as_str().to_owned().to_ascii_uppercase();
                     match name.as_ref() {
-                        "CENTER" => return self.center_block_parser(limit, aff_start, maybe_aff),
-                        "COMMENT" => return self.comment_block_parser(limit, aff_start, maybe_aff),
-                        "EXAMPLE" => return self.example_block_parser(limit, aff_start, maybe_aff),
-                        "EXPORT" => return self.export_block_parser(limit, aff_start, maybe_aff),
-                        "QUOTE" => return self.quote_block_parser(limit, aff_start, maybe_aff),
-                        "SRC" => return self.src_block_parser(limit, aff_start, maybe_aff),
-                        "VERSE" => return self.verse_block_parser(limit, aff_start, maybe_aff),
-                        _ => return self.special_block_parser(limit, aff_start, maybe_aff),
+                        "CENTER" => return self.center_block_parser(limit, aff_start, affiliated),
+                        "COMMENT" => {
+                            return self.comment_block_parser(limit, aff_start, affiliated)
+                        }
+                        "EXAMPLE" => {
+                            return self.example_block_parser(limit, aff_start, affiliated)
+                        }
+                        "EXPORT" => return self.export_block_parser(limit, aff_start, affiliated),
+                        "QUOTE" => return self.quote_block_parser(limit, aff_start, affiliated),
+                        "SRC" => return self.src_block_parser(limit, aff_start, affiliated),
+                        "VERSE" => return self.verse_block_parser(limit, aff_start, affiliated),
+                        _ => return self.special_block_parser(limit, aff_start, affiliated),
                     }
                 }
 
                 if looking_at!(REGEX_BABEL_CALL, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
-                    return self.babel_call_parser(limit, aff_start, maybe_aff);
+                    return self.babel_call_parser(limit, aff_start, affiliated);
                 }
 
                 if looking_at!(REGEX_DYNAMIC_BLOCK, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
-                    return self.dynamic_block_parser(limit, aff_start, maybe_aff);
+                    return self.dynamic_block_parser(limit, aff_start, affiliated);
                 }
 
                 if looking_at!(REGEX_KEYWORD, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
-                    return self.keyword_parser(limit, aff_start, maybe_aff);
+                    return self.keyword_parser(limit, aff_start, affiliated);
                 }
 
                 // If none of the above fits then this is just a paragraph
                 self.cursor.borrow_mut().goto_line_begin();
-                return self.paragraph_parser(limit, aff_start, maybe_aff);
+                return self.paragraph_parser(limit, aff_start, affiliated);
             }
 
             // Footnote Definition
             if looking_at!(REGEX_FOOTNOTE_DEFINITION, self).is_some() {
-                return self.footnote_definition_parser(limit, aff_start, maybe_aff);
+                return self.footnote_definition_parser(limit, aff_start, affiliated);
             }
 
             //  Horizontal Rule.
             if looking_at!(REGEX_HORIZONTAL_RULE, self).is_some() {
-                return self.horizontal_rule_parser(limit, aff_start, maybe_aff);
+                return self.horizontal_rule_parser(limit, aff_start, affiliated);
             }
 
             // Diary Sexp.
             if looking_at!(REGEX_DIARY_SEXP, self).is_some() {
-                return self.diary_sexp_parser(limit, aff_start, maybe_aff);
+                return self.diary_sexp_parser(limit, aff_start, affiliated);
             }
 
             // Table
             // NB: table.el style tables are not supported
             if looking_at!(REGEX_TABLE_BORDER, self).is_some() {
-                return self.table_parser(limit, aff_start, maybe_aff);
+                return self.table_parser(limit, aff_start, affiliated);
             }
 
             // List.
@@ -461,11 +465,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             //    (or structure (org-element--list-struct limit))))
             if looking_at!(REGEX_ITEM, self).is_some() {
                 let s = structure.unwrap_or(self.list_struct(limit));
-                return self.plain_list_parser(limit, aff_start, maybe_aff, s.clone());
+                return self.plain_list_parser(limit, aff_start, affiliated, s.clone());
             }
 
             // Default element: Paragraph.
-            return self.paragraph_parser(limit, aff_start, maybe_aff);
+            return self.paragraph_parser(limit, aff_start, affiliated);
         };
 
         let current_element = get_current_element();
@@ -490,11 +494,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         beg: usize,
         end: usize,
         restriction: impl Fn(SyntaxT) -> bool,
-    ) -> Vec<Handle> //acc
+    ) -> Vec<Rc<SyntaxNode>> //acc
     {
-        let pos = self.cursor.borrow().pos();
-        // TODO write parse_objects function #8
-        self.cursor.borrow_mut().set(pos);
-        unimplemented!();
+        todo!("#8")
     }
 }
