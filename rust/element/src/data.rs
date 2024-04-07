@@ -16,32 +16,27 @@
 // https://orgmode.org/worg/dev/org-element-api.html
 // API page lists LineBreak as element, when both org-syntax page and source code list is as object
 
-use crate::affiliated::AffiliatedData;
-use crate::babel::BabelCallData;
-use crate::blocks::CommentBlockData;
-use crate::blocks::DynamicBlockData;
-use crate::blocks::ExampleBlockData;
-use crate::blocks::ExportBlockData;
-use crate::blocks::SpecialBlockData;
-use crate::blocks::SrcBlockData;
-use crate::data::Syntax::BabelCall;
-use crate::drawer::DrawerData;
-use crate::headline::{HeadlineData, InlineTaskData, NodePropertyData};
-use crate::keyword::KeywordData;
-use crate::latex::LatexEnvironmentData;
-use crate::latex::LatexFragmentData;
-use crate::list::*;
-use crate::markup::CommentData;
-use crate::markup::FixedWidthData;
-use crate::markup::FootnoteDefinitionData;
-use crate::table::{TableData, TableRowData};
-use std::borrow::Cow;
-use std::cell::Cell;
-use std::cell::RefCell;
-use std::fmt;
-use std::fmt::{Debug, Formatter};
-use std::rc::Rc;
-use std::rc::Weak;
+use crate::{
+    babel::BabelCallData,
+    blocks::{
+        CommentBlockData, DynamicBlockData, ExampleBlockData, ExportBlockData, SpecialBlockData,
+        SrcBlockData,
+    },
+    data::Syntax::BabelCall,
+    drawer::DrawerData,
+    headline::{HeadlineData, InlineTaskData, NodePropertyData},
+    keyword::KeywordData,
+    latex::{LatexEnvironmentData, LatexFragmentData},
+    list::{ItemData, PlainListData},
+    markup::{CommentData, FixedWidthData, FootnoteDefinitionData},
+    table::{TableData, TableRowData},
+};
+
+use std::{
+    borrow::Cow,
+    cell::{Cell, RefCell},
+    rc::{Rc, Weak},
+};
 
 use regex::Regex;
 
@@ -460,7 +455,7 @@ impl SyntaxT {
     /// `headline' type element doesn't directly contain objects, but
     /// still has an entry since one of its properties (`:title') does.")
     pub fn can_contain(self, that: SyntaxT) -> bool {
-        // (standard-set (remq 'table-cell org-element-all-objects))
+        /// (standard-set (remq 'table-cell org-element-all-objects))
         fn is_from_standard_set(that: SyntaxT) -> bool {
             match that {
                 SyntaxT::TableCell => false,
@@ -557,8 +552,8 @@ pub enum StringOrObject<'a> {
     Parsed(SyntaxNode<'a>),
 }
 
-impl<'a> Debug for StringOrObject<'a> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+impl<'a> core::fmt::Debug for StringOrObject<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             StringOrObject::Raw(raw) => write!(f, "Raw: {:?}", raw),
             StringOrObject::Parsed(p) => unimplemented!(),
@@ -602,7 +597,7 @@ pub struct DiarySexpData<'a> {
     value: &'a str,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum LineNumberingMode {
     New,
     Continued,
