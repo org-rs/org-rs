@@ -40,12 +40,6 @@ use std::{
 
 use regex::Regex;
 
-/// Reference to a DOM node.
-pub type Handle<'a> = Rc<SyntaxNode<'a>>;
-
-/// Weak reference to a DOM node, used for parent pointers.
-pub type WeakHandle<'a> = Weak<SyntaxNode<'a>>;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Interval {
     pub start: usize,
@@ -61,9 +55,9 @@ pub struct AffiliatedKeywords;
 #[derive(Debug)]
 pub struct SyntaxNode<'a> {
     /// Parent node.
-    pub parent: RefCell<Option<WeakHandle<'a>>>,
+    pub parent: RefCell<Option<Weak<SyntaxNode<'a>>>>,
     /// Child nodes of this node.
-    pub children: RefCell<Vec<Handle<'a>>>,
+    pub children: RefCell<Vec<Rc<SyntaxNode<'a>>>>,
 
     pub data: Syntax<'a>,
 
@@ -99,7 +93,7 @@ impl<'a> SyntaxNode<'a> {
 
     /// Creates an iterator over the node and its direct and indirect
     /// children, in pre-order.
-    pub fn nodes(self: &Handle<'a>) -> Nodes<'a> {
+    pub fn nodes(self: &Rc<SyntaxNode<'a>>) -> Nodes<'a> {
         Nodes::new(self.clone())
     }
 
@@ -118,17 +112,18 @@ impl<'a> SyntaxNode<'a> {
     }
 
     /// Appends a child to the node, setting the child's parent correctly.
-    pub fn append_child(self: &Handle<'a>, child: Handle<'a>) {
+    pub fn append_child(self: &Rc<SyntaxNode<'a>>, child: Rc<SyntaxNode<'a>>) {
         *child.parent.borrow_mut() = Some(Rc::downgrade(&self));
         self.children.borrow_mut().push(child);
     }
 }
 
-/// Complete list of syntax entities
+/// An enumerated list of all Org syntactic units.
+/// This structure is not meant to be extended.
 #[derive(Debug, EnumDiscriminants)]
 #[strum_discriminants(name(SyntaxT))]
 pub enum Syntax<'a> {
-    /// Root of the parse tree
+    /// The root of the parse tree
     OrgData,
 
     /// Element
@@ -187,7 +182,6 @@ pub enum Syntax<'a> {
     Item(Box<ItemData<'a>>),
 
     /// Element
-    /// <br>
     /// Keywords follow the syntax:
     /// ```org
     ///   #+KEY: VALUE
@@ -197,7 +191,8 @@ pub enum Syntax<'a> {
     /// If KEY belongs to org-element-document-properties, VALUE can contain objects.
     Keyword(Box<KeywordData<'a>>),
 
-    ///Element
+    /// Element
+    /// An inline Latex environment element
     LatexEnvironment(Box<LatexEnvironmentData<'a>>),
 
     /// Element
@@ -307,134 +302,55 @@ pub enum Syntax<'a> {
 }
 
 impl SyntaxT {
-    #[rustfmt::skip]
     pub fn is_greater_element(self) -> bool {
         use SyntaxT::*;
         match self {
-            CenterBlock        => true,   // Greater element
-            Drawer             => true,   // Greater element
-            DynamicBlock       => true,   // Greater element
-            FootnoteDefinition => true,   // Greater element
-            Headline           => true,   // Greater element
-            InlineTask         => true,   // Greater element
-            Item               => true,   // Greater element
-            PlainList          => true,   // Greater element
-            PropertyDrawer     => true,   // Greater element
-            QuoteBlock         => true,   // Greater element
-            Section            => true,   // Greater element
-            SpecialBlock       => true,   // Greater element
-            Table              => true,   // Greater element
-            _                  => false
-
+            CenterBlock | Drawer | DynamicBlock | FootnoteDefinition | Headline | InlineTask
+            | Item | PlainList | PropertyDrawer | QuoteBlock | Section | SpecialBlock | Table => {
+                true
+            }
+            _ => false,
         }
     }
 
-    #[rustfmt::skip]
     fn is_element(self) -> bool {
         use SyntaxT::*;
         match self {
-            BabelCall          => true,   // Element
-            CenterBlock        => true,   // Greater element
-            Clock              => true,   // Element
-            Comment            => true,   // Element
-            CommentBlock       => true,   // Element
-            DiarySexp          => true,   // Element
-            Drawer             => true,   // Greater element
-            DynamicBlock       => true,   // Greater element
-            ExampleBlock       => true,   // Element
-            ExportBlock        => true,   // Element
-            FixedWidth         => true,   // Element
-            FootnoteDefinition => true,   // Greater element
-            Headline           => true,   // Greater element
-            HorizontalRule     => true,   // Element
-            InlineTask         => true,   // Greater element
-            Item               => true,   // Greater element
-            Keyword            => true,   // Element
-            LatexEnvironment   => true,   // Element
-            NodeProperty       => true,   // Element
-            Paragraph          => true,   // Element containing objects.
-            PlainList          => true,   // Greater element
-            Planning           => true,   // Element
-            PropertyDrawer     => true,   // Greater element
-            QuoteBlock         => true,   // Greater element
-            Section            => true,   // Greater element
-            SpecialBlock       => true,   // Greater element
-            SrcBlock           => true,   // Element
-            Table              => true,   // Greater element
-            TableRow           => true,   // Element containing objects.
-            VerseBlock         => true,   // Element containing objects.
-            _                  => false
-
+            BabelCall | CenterBlock | Clock | Comment | CommentBlock | DiarySexp | Drawer
+            | DynamicBlock | ExampleBlock | ExportBlock | FixedWidth | FootnoteDefinition
+            | Headline | HorizontalRule | InlineTask | Item | Keyword | LatexEnvironment
+            | NodeProperty | Paragraph | PlainList | Planning | PropertyDrawer | QuoteBlock
+            | Section | SpecialBlock | SrcBlock | Table | TableRow | VerseBlock => true,
+            _ => false,
         }
     }
 
-    #[rustfmt::skip]
     fn is_object(self) -> bool {
         use SyntaxT::*;
         match self {
-            Bold              => true,  // Recursive object
-            Code              => true,  // Object.
-            Entity            => true,  // Object
-            ExportSnippet     => true,  // Object
-            FootnoteReference => true,  // Recursive object.
-            InlineBabelCall   => true,  // Object
-            InlineSrcBlock    => true,  // Object
-            Italic            => true,  // Recursive object.
-            LineBreak         => true,  // Object
-            LatexFragment     => true,  // Object
-            Link              => true,  // Recursive object.
-            Macro             => true,  // Object
-            RadioTarget       => true,  // Recursive object.
-            StatisticsCookie  => true,  // Object
-            StrikeThrough     => true,  // Recursive object.
-            Subscript         => true,  // Recursive object.
-            Superscript       => true,  // Recursive object.
-            TableCell         => true,  // Recursive object
-            Target            => true,  // Object
-            Timestamp         => true,  // Object
-            Underline         => true,  // Recursive object.
-            Verbatim          => true,  // Object
-            PlainText         => true,  // Special object
-            _                 => false
+            Bold | Code | Entity | ExportSnippet | FootnoteReference | InlineBabelCall
+            | InlineSrcBlock | Italic | LineBreak | LatexFragment | Link | Macro | RadioTarget
+            | StatisticsCookie | StrikeThrough | Subscript | Superscript | TableCell | Target
+            | Timestamp | Underline | Verbatim | PlainText => true,
+            _ => false,
         }
     }
 
-    #[rustfmt::skip]
     fn is_recursive_object(self) -> bool {
         use SyntaxT::*;
         match self {
-            Bold              => true,  // Recursive object
-            FootnoteReference => true,  // Recursive object.
-            Italic            => true,  // Recursive object.
-            Link              => true,  // Recursive object.
-            RadioTarget       => true,  // Recursive object.
-            StrikeThrough     => true,  // Recursive object.
-            Subscript         => true,  // Recursive object.
-            Superscript       => true,  // Recursive object.
-            TableCell         => true,  // Recursive object
-            Underline         => true,  // Recursive object.
-            _                 => false
+            Bold | FootnoteReference | Italic | Link | RadioTarget | StrikeThrough | Subscript
+            | Superscript | TableCell | Underline => true,
+            _ => false,
         }
     }
 
-    #[rustfmt::skip]
     fn is_object_container(self) -> bool {
         use SyntaxT::*;
         match self {
-            Paragraph         => true,  // Element containing objects.
-            TableRow          => true,  // Element containing objects.
-            VerseBlock        => true,  // Element containing objects.
-            Bold              => true,  // Recursive object
-            FootnoteReference => true,  // Recursive object.
-            Italic            => true,  // Recursive object.
-            Link              => true,  // Recursive object.
-            RadioTarget       => true,  // Recursive object.
-            StrikeThrough     => true,  // Recursive object.
-            Subscript         => true,  // Recursive object.
-            Superscript       => true,  // Recursive object.
-            TableCell         => true,  // Recursive object
-            Underline         => true,  // Recursive object.
-            _                 => false
+            Paragraph | TableRow | VerseBlock | Bold | FootnoteReference | Italic | Link
+            | RadioTarget | StrikeThrough | Subscript | Superscript | TableCell | Underline => true,
+            _ => false,
         }
     }
 
@@ -617,8 +533,6 @@ pub struct PlanningData<'a> {
     /// (timestamp object or nil).
     scheduled: Option<TimestampData<'a>>,
 }
-
-// ===== Objects Data ======
 
 #[derive(Debug)]
 pub struct CodeData<'a> {
@@ -911,11 +825,11 @@ pub struct VerbatimData<'a> {
 /// A pre-order traversal of a [`SyntaxNode`].
 pub struct Nodes<'a> {
     index_stack: Vec<usize>,
-    current_node: Handle<'a>,
+    current_node: Rc<SyntaxNode<'a>>,
 }
 
 impl<'a> Nodes<'a> {
-    fn new(handle: Handle<'a>) -> Nodes<'a> {
+    fn new(handle: Rc<SyntaxNode<'a>>) -> Nodes<'a> {
         Nodes {
             index_stack: vec![0],
             current_node: handle,
@@ -924,9 +838,9 @@ impl<'a> Nodes<'a> {
 }
 
 impl<'a> Iterator for Nodes<'a> {
-    type Item = Handle<'a>;
+    type Item = Rc<SyntaxNode<'a>>;
 
-    fn next(&mut self) -> Option<Handle<'a>> {
+    fn next(&mut self) -> Option<Rc<SyntaxNode<'a>>> {
         dbg!(&self.index_stack);
         let node = self.current_node.clone();
 
