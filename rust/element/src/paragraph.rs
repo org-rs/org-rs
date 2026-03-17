@@ -55,8 +55,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             // second line onwards — the first line is always part of
             // this paragraph).
             if end > start {
-                if trimmed.starts_with('*') && trimmed.len() > 1
-                    && trimmed.as_bytes().get(1).map_or(false, |&b| b == b' ' || b == b'*')
+                if trimmed.starts_with('*')
+                    && trimmed.len() > 1
+                    && trimmed
+                        .as_bytes()
+                        .get(1)
+                        .map_or(false, |&b| b == b' ' || b == b'*')
                 {
                     break; // headline
                 }

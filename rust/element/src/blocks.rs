@@ -158,12 +158,14 @@ fn find_block_end(input: &str, start: usize, limit: usize) -> usize {
 
     let mut pos = after_first;
     while pos < limit {
-        let line_end = input[pos..limit]
-            .find('\n')
-            .map_or(limit, |i| pos + i + 1);
+        let line_end = input[pos..limit].find('\n').map_or(limit, |i| pos + i + 1);
         let trimmed = input[pos..line_end].trim();
         if trimmed.len() >= 6 {
-            let upper: String = trimmed.chars().take(6).collect::<String>().to_ascii_uppercase();
+            let upper: String = trimmed
+                .chars()
+                .take(6)
+                .collect::<String>()
+                .to_ascii_uppercase();
             if upper == "#+END_" {
                 return line_end;
             }
