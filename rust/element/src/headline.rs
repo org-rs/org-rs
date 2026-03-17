@@ -255,10 +255,7 @@ fn find_headline_end(input: &str, from: usize, level: usize) -> usize {
                 stars += 1;
             }
             // A headline at same or higher level ends this subtree.
-            if stars <= level
-                && pos + stars < input.len()
-                && bytes[pos + stars] == b' '
-            {
+            if stars <= level && pos + stars < input.len() && bytes[pos + stars] == b' ' {
                 return pos;
             }
         }
@@ -304,12 +301,7 @@ fn parse_headline_tags<'a>(line: &'a str) -> (&'a str, Vec<Tag<'a>>) {
                 }
                 return (line, vec![]);
             }
-        } else if !c.is_ascii_alphanumeric()
-            && c != b'_'
-            && c != b'@'
-            && c != b'#'
-            && c != b'%'
-        {
+        } else if !c.is_ascii_alphanumeric() && c != b'_' && c != b'@' && c != b'#' && c != b'%' {
             return (line, vec![]);
         }
     }
