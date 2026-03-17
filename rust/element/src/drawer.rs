@@ -34,13 +34,13 @@ pub struct DrawerData<'a> {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    // TODO implement drawer_parser
+    /// Fallback: drawer parser (not yet fully implemented).
     pub fn drawer_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        SyntaxNode::fallback(self.input, start, limit)
     }
 }

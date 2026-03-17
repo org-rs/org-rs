@@ -14,7 +14,7 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #![warn(clippy::all)]
-// This should be eventually turned off, but for now this helps reduce the noice
+// This should be eventually turned off, but for now this helps reduce the noise
 #![allow(dead_code)]
 #![allow(warnings)]
 #[macro_use]
@@ -27,20 +27,20 @@ extern crate regex;
 extern crate strum;
 
 #[macro_use]
-mod parser;
+pub mod parser;
 mod affiliated;
 mod babel;
-mod blocks;
-mod cursor;
-mod data;
+pub mod blocks;
+pub mod cursor;
+pub mod data;
 mod drawer;
-mod environment;
+pub mod environment;
 mod fixed_width;
-mod headline;
-mod keyword;
+pub mod headline;
+pub mod keyword;
 mod latex;
 mod list;
-mod markup;
+pub mod markup;
 mod paragraph;
 mod planning;
 mod table;

@@ -158,50 +158,29 @@ pub enum CheckBox {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    // TODO implement item_parser
-    //https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L1253
+    /// Fallback: item parser (not yet fully implemented).
     pub fn item_parser(
         &self,
-        structure: Option<Rc<ListStruct>>,
-        raw_secondary_p: bool,
+        _structure: Option<Rc<ListStruct>>,
+        _raw_secondary_p: bool,
     ) -> SyntaxNode<'a> {
-        //   let mut item_data = ItemData {
-        //       bullet: (),
-        //       checkbox: None,
-        //       counter: 0,
-        //       pre_blank: 0,
-        //       raw_tag: None,
-        //       tag: None,
-        //       structure: ListStruct {}
-        //   }
-
-        //    let mut node = SyntaxNode {
-        //        parent: Cell::new(None),
-        //        children: (),
-        //        data: item_data
-        //        location: Interval {},
-        //        content_location: None,
-        //        post_blank: 0,
-        //        affiliated: None
-        //    }
-        unimplemented!()
+        let start = self.cursor.borrow().pos();
+        SyntaxNode::fallback(self.input, start, self.input.len())
     }
 
-    // TODO implement plain_list_parser
+    /// Fallback: plain list parser (not yet fully implemented).
     pub fn plain_list_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
-        structure: Rc<ListStruct>,
+        _affiliated: Option<AffiliatedData>,
+        _structure: Rc<ListStruct>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        SyntaxNode::fallback(self.input, start, limit)
     }
 
-    //(defun org-element--list-struct (limit)
-    ///  ;; Return structure of list at point.  Internal function.  See
-    ///  ;; `org-list-struct' for details.
-    pub fn list_struct(&self, limit: usize) -> Rc<ListStruct> {
-        unimplemented!()
+    /// Fallback: returns an empty list structure.
+    pub fn list_struct(&self, _limit: usize) -> Rc<ListStruct> {
+        Rc::new(ListStruct {})
     }
 }

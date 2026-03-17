@@ -50,19 +50,19 @@ pub enum TableRowType {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    // TODO implement table_row_parser
-    // https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L2637
+    /// Fallback: table row parser (not yet fully implemented).
     pub fn table_row_parser(&self) -> SyntaxNode<'a> {
-        unimplemented!()
+        let start = self.cursor.borrow().pos();
+        SyntaxNode::fallback(self.input, start, self.input.len())
     }
 
-    // TODO implement table_parser
+    /// Fallback: table parser (not yet fully implemented).
     pub fn table_parser(
         &self,
         limit: usize,
         start: usize,
-        maybe_aff: Option<AffiliatedData>,
+        _maybe_aff: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        SyntaxNode::fallback(self.input, start, limit)
     }
 }
