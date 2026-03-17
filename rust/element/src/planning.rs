@@ -23,22 +23,25 @@ lazy_static! {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    // TODO implement planning_parser
+    /// Fallback: planning parser (not yet fully implemented).
     pub fn planning_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        unimplemented!()
-    }
-    // TODO implement clock_line_parser
-    pub fn clock_line_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        unimplemented!()
+        let start = self.cursor.borrow().pos();
+        SyntaxNode::fallback(self.input, start, limit)
     }
 
-    // TODO implement diary_sexp_parser
+    /// Fallback: clock line parser (not yet fully implemented).
+    pub fn clock_line_parser(&self, limit: usize) -> SyntaxNode<'a> {
+        let start = self.cursor.borrow().pos();
+        SyntaxNode::fallback(self.input, start, limit)
+    }
+
+    /// Fallback: diary sexp parser (not yet fully implemented).
     pub fn diary_sexp_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        SyntaxNode::fallback(self.input, start, limit)
     }
 }
