@@ -19,12 +19,8 @@
 #![allow(warnings)]
 #[macro_use]
 extern crate lazy_static;
-#[macro_use]
-extern crate strum_macros;
-
 extern crate memchr;
 extern crate regex;
-extern crate strum;
 
 #[macro_use]
 pub mod parser;

@@ -410,10 +410,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     match name.as_ref() {
                         "CENTER" => return self.center_block_parser(limit, aff_start, affiliated),
                         "COMMENT" => {
-                            return self.comment_block_parser(limit, aff_start, affiliated)
+                            return self.comment_block_parser(limit, aff_start, affiliated);
                         }
                         "EXAMPLE" => {
-                            return self.example_block_parser(limit, aff_start, affiliated)
+                            return self.example_block_parser(limit, aff_start, affiliated);
                         }
                         "EXPORT" => return self.export_block_parser(limit, aff_start, affiliated),
                         "QUOTE" => return self.quote_block_parser(limit, aff_start, affiliated),

@@ -31,8 +31,8 @@ lazy_static! {
     /// and special blocks. Used together with REGEX_STARTS_WITH_HASHTAG
     pub static ref REGEX_BLOCK_BEGIN: Regex = Regex::new(r"\+BEGIN_(\S+)").unwrap();
 
+    /// Used to identify rare, but technically legal dynamic `BEGIN` blocks
     pub static ref REGEX_DYNAMIC_BLOCK: Regex = Regex::new(r"\+BEGIN:? ").unwrap();
-
 }
 
 /// Greater element
