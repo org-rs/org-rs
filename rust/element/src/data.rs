@@ -39,6 +39,7 @@ use std::{
 };
 
 use regex::Regex;
+use strum_macros::EnumDiscriminants;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Interval {
