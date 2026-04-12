@@ -14,8 +14,10 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+use std::cell::RefCell;
+
 use crate::affiliated::AffiliatedData;
-use crate::data::SyntaxNode;
+use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
 
@@ -37,65 +39,114 @@ lazy_static! {
 #[derive(Debug)]
 pub struct CommentData<'a> {
     /// Comments, with pound signs (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug)]
 pub struct FixedWidthData<'a> {
-    ///Contents, without colons prefix (string).
-    value: &'a str,
+    /// Contents, without colons prefix (string).
+    pub value: &'a str,
 }
 
 /// Greater element
 #[derive(Debug)]
 pub struct FootnoteDefinitionData<'a> {
     /// Label used for references (string).
-    label: &'a str,
+    pub label: &'a str,
 
     /// Number of newline characters between the
-    /// beginning of the footnoote and the beginning
+    /// beginning of the footnote and the beginning
     /// of the contents (0, 1 or 2).
-    pre_blank: u8,
+    pub pre_blank: u8,
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    // TODO implement comment_parser
+    /// Parse a comment element starting at `start`.
+    ///
+    /// A comment is one or more consecutive lines starting with `# `
+    /// (hash + space) or just `#` at end of line.
     pub fn comment_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        let mut end = start;
+
+        // Consume consecutive comment lines.
+        while end < limit {
+            let line_end = self.input[end..limit]
+                .find('\n')
+                .map_or(limit, |i| end + i + 1);
+            let line = self.input[end..line_end].trim_start();
+            if line.starts_with("# ") || line == "#" || line == "#\n" {
+                end = line_end;
+            } else {
+                break;
+            }
+        }
+
+        if end == start {
+            end = self.input[start..limit]
+                .find('\n')
+                .map_or(limit, |i| start + i + 1);
+        }
+
+        let value = &self.input[start..end];
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Comment(Box::new(CommentData { value })),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        }
     }
 
-    // TODO implement horizontal_rule_parser
+    /// Parse a horizontal rule at `start`.
+    ///
+    /// A horizontal rule is a line containing at least five consecutive
+    /// dashes and nothing else (ignoring surrounding whitespace).
     pub fn horizontal_rule_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        let end = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::HorizontalRule,
+            location: Interval { start, end },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        }
     }
 
-    // TODO implement footnote_definition_parser
+    /// Fallback: footnote definition parser (not yet fully implemented).
     pub fn footnote_definition_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        SyntaxNode::fallback(self.input, start, limit)
     }
 
-    // TODO implement fixed_width_parser
+    /// Fallback: fixed width parser (not yet fully implemented).
     pub fn fixed_width_parser(
         &self,
         limit: usize,
         start: usize,
-        maybe_aff: Option<AffiliatedData>,
+        _maybe_aff: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        SyntaxNode::fallback(self.input, start, limit)
     }
 }

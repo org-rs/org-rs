@@ -14,12 +14,12 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+use std::cell::RefCell;
+
 use crate::affiliated::AffiliatedData;
-use crate::data::SyntaxNode;
-use crate::data::SyntaxT;
+use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
-use regex::{Match, Regex};
-use std::borrow::Cow;
+use regex::Regex;
 
 lazy_static! {
     pub static ref REGEX_KEYWORD: Regex = Regex::new(r"\+\S+:").unwrap();
@@ -28,34 +28,73 @@ lazy_static! {
 #[derive(Debug)]
 pub struct KeywordData<'a> {
     /// Keyword's name (string).
-    key: &'a str,
+    pub key: &'a str,
     /// Keyword's value (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    // TODO implement keyword_parser
     /// Parse a keyword at point.
     ///
-    /// LIMIT bounds the search.  AFFILIATED is a list of which CAR is
-    /// the buffer position at the beginning of the first affiliated
-    /// keyword and CDR is a plist of affiliated keywords along with
-    /// their value.
-    ///
-    /// Return a list whose CAR is `keyword' and CDR is a plist
-    /// containing `:key', `:value', `:begin', `:end', `:post-blank' and
-    /// `:post-affiliated' keywords."
-
+    /// A keyword follows the pattern `#+KEY: VALUE`.  `start` is the
+    /// buffer position at the beginning of the first affiliated keyword
+    /// (or the keyword itself when there is no affiliation).
     pub fn keyword_parser(
         &self,
         limit: usize,
         start: usize,
-        maybe_aff: Option<AffiliatedData>,
+        _maybe_aff: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        // (save-excursion
-        //   ;; An orphaned affiliated keyword is considered as a regular
-        //   ;; keyword.  In this case AFFILIATED is nil, so we take care of
-        //   ;; this corner case.
-        unimplemented!()
+        let line_end = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+
+        let line = &self.input[start..line_end].trim_end();
+
+        // Strip leading whitespace and the `#+` prefix.
+        let stripped = line.trim_start();
+        let after_hash = if stripped.starts_with("#+") {
+            &stripped[2..]
+        } else {
+            stripped
+        };
+
+        // Split at first `:` to get KEY and VALUE.
+        let (key, value) = match after_hash.find(':') {
+            Some(i) => {
+                let k = &after_hash[..i];
+                let v = after_hash.get(i + 1..).unwrap_or("").trim_start();
+                (k, v)
+            }
+            None => (after_hash, ""),
+        };
+
+        // Find key and value as slices of self.input so lifetimes work.
+        let key_offset = key.as_ptr() as usize - self.input.as_ptr() as usize;
+        let key_ref = &self.input[key_offset..key_offset + key.len()];
+        let (value_ref, value_offset) = if value.is_empty() {
+            // Empty value may be a static "" literal, not a subslice of input.
+            ("", 0)
+        } else {
+            let off = value.as_ptr() as usize - self.input.as_ptr() as usize;
+            (&self.input[off..off + value.len()], off)
+        };
+        let _ = value_offset; // suppress unused warning
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Keyword(Box::new(KeywordData {
+                key: key_ref,
+                value: value_ref,
+            })),
+            location: Interval {
+                start,
+                end: line_end,
+            },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        }
     }
 }

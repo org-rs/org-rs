@@ -33,7 +33,7 @@ lazy_static! {
 
     /// Regexp matching the beginning of a LaTeX environment.
     /// The environment is captured by the first group.
-    pub static ref REGEX_LATEX_BEGIN_ENVIRIONMENT: Regex = Regex::new(r"^[ \t]*\\begin{([A-Za-z0-9*]+)}").unwrap();
+    pub static ref REGEX_LATEX_BEGIN_ENVIRIONMENT: Regex = Regex::new(r"^[ \t]*\\begin\{([A-Za-z0-9*]+)\}").unwrap();
 }
 
 /// Format string matching the ending of a LaTeX environment
@@ -80,12 +80,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// `:post-affiliated' keywords.
     ///
     /// Assume point is at the beginning of the latex environment."
+    /// Fallback: LaTeX environment parser (not yet fully implemented).
     pub fn latex_environment_parser(
         &self,
         limit: usize,
         start: usize,
-        maybe_aff: Option<AffiliatedData>,
+        _maybe_aff: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        SyntaxNode::fallback(self.input, start, limit)
     }
 }

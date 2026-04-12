@@ -341,7 +341,10 @@ impl<'a> Cursor<'a> {
         } else {
             self.data.len()
         };
+        // Emacs `looking-at` is anchored at point: only accept
+        // matches that start at position 0 in the searched substring.
         re.find(&self.data[self.pos..end])
+            .filter(|m| m.start() == 0)
     }
 
     /// Acts exactly as `looking_at` but returns Captures

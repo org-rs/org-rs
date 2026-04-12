@@ -41,13 +41,13 @@ pub struct BabelCallData<'a> {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    // TODO implement babel_call_parser
+    /// Fallback: babel call parser (not yet fully implemented).
     pub fn babel_call_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        SyntaxNode::fallback(self.input, start, limit)
     }
 }

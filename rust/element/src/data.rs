@@ -39,6 +39,7 @@ use std::{
 };
 
 use regex::Regex;
+use strum_macros::EnumDiscriminants;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Interval {
@@ -115,6 +116,25 @@ impl<'a> SyntaxNode<'a> {
     pub fn append_child(self: &Rc<SyntaxNode<'a>>, child: Rc<SyntaxNode<'a>>) {
         *child.parent.borrow_mut() = Some(Rc::downgrade(&self));
         self.children.borrow_mut().push(child);
+    }
+
+    /// Create a fallback paragraph node spanning to the end of the current line.
+    ///
+    /// Used for element parsers that are not yet implemented, so that parsing
+    /// can continue past the unrecognised content without panicking.
+    pub fn fallback(input: &str, start: usize, limit: usize) -> SyntaxNode<'a> {
+        let end = input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| (start + i + 1).min(limit));
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Paragraph,
+            location: Interval { start, end },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        }
     }
 }
 
@@ -841,7 +861,6 @@ impl<'a> Iterator for Nodes<'a> {
     type Item = Rc<SyntaxNode<'a>>;
 
     fn next(&mut self) -> Option<Rc<SyntaxNode<'a>>> {
-        dbg!(&self.index_stack);
         let node = self.current_node.clone();
 
         if self.index_stack.is_empty() {
@@ -873,8 +892,6 @@ impl<'a> Iterator for Nodes<'a> {
         self.index_stack.push(0);
         self.current_node = next;
 
-        dbg!(&self.index_stack);
-        dbg!(&node);
         Some(node)
     }
 }
