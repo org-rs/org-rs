@@ -391,23 +391,29 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             }
 
             // Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
-            if let Some(m) = looking_at!(REGEX_STARTS_WITH_HASHTAG, self) {
-                self.cursor.borrow_mut().set(m.end());
+            //
+            // NOTE: We extract match data into owned values before
+            // re-borrowing the cursor to avoid RefCell double-borrow panics
+            // (the `if let` temporary lifetime extends to the block end).
+            let hashtag_end = looking_at!(REGEX_STARTS_WITH_HASHTAG, self).map(|m| m.end());
+            if let Some(end) = hashtag_end {
+                self.cursor.borrow_mut().set(pos + end);
                 if looking_at!(REGEX_COLON_OR_EOL, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
                     return self.comment_parser(limit, aff_start, affiliated);
                 }
 
-                if let Some(cap) = capturing_at!(REGEX_BLOCK_BEGIN, self) {
+                let block_name = capturing_at!(REGEX_BLOCK_BEGIN, self)
+                    .and_then(|cap| cap.get(1).map(|m| m.as_str().to_ascii_uppercase()));
+                if let Some(name) = block_name {
                     self.cursor.borrow_mut().goto_line_begin();
-                    let name = cap.get(1).unwrap().as_str().to_owned().to_ascii_uppercase();
                     match name.as_ref() {
                         "CENTER" => return self.center_block_parser(limit, aff_start, affiliated),
                         "COMMENT" => {
-                            return self.comment_block_parser(limit, aff_start, affiliated)
+                            return self.comment_block_parser(limit, aff_start, affiliated);
                         }
                         "EXAMPLE" => {
-                            return self.example_block_parser(limit, aff_start, affiliated)
+                            return self.example_block_parser(limit, aff_start, affiliated);
                         }
                         "EXPORT" => return self.export_block_parser(limit, aff_start, affiliated),
                         "QUOTE" => return self.quote_block_parser(limit, aff_start, affiliated),
@@ -496,6 +502,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         restriction: impl Fn(SyntaxT) -> bool,
     ) -> Vec<Rc<SyntaxNode>> //acc
     {
-        todo!("#8")
+        // TODO(#8): implement object parsing (bold, italic, links, etc.)
+        Vec::new()
     }
 }

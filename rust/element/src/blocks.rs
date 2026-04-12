@@ -13,9 +13,10 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
+use std::cell::RefCell;
+
 use crate::affiliated::AffiliatedData;
-use crate::data::LineNumberingMode;
-use crate::data::SyntaxNode;
+use crate::data::{Interval, LineNumberingMode, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
 
@@ -30,8 +31,8 @@ lazy_static! {
     /// and special blocks. Used together with REGEX_STARTS_WITH_HASHTAG
     pub static ref REGEX_BLOCK_BEGIN: Regex = Regex::new(r"\+BEGIN_(\S+)").unwrap();
 
+    /// Used to identify rare, but technically legal dynamic `BEGIN` blocks
     pub static ref REGEX_DYNAMIC_BLOCK: Regex = Regex::new(r"\+BEGIN:? ").unwrap();
-
 }
 
 /// Greater element
@@ -144,94 +145,166 @@ pub struct SrcBlockData<'a> {
     value: &'a str,
 }
 
+/// Find the end of a block that starts at `start` within `input[..limit]`.
+///
+/// Scans forward for a line whose trimmed, uppercased content starts with
+/// `#+END_` and returns the byte position just past that line.  Falls back
+/// to `limit` when no closing line is found.
+fn find_block_end(input: &str, start: usize, limit: usize) -> usize {
+    // Skip the opening #+BEGIN_ line first.
+    let after_first = input[start..limit]
+        .find('\n')
+        .map_or(limit, |i| start + i + 1);
+
+    let mut pos = after_first;
+    while pos < limit {
+        let line_end = input[pos..limit].find('\n').map_or(limit, |i| pos + i + 1);
+        let trimmed = input[pos..line_end].trim();
+        if trimmed.len() >= 6 {
+            let upper: String = trimmed
+                .chars()
+                .take(6)
+                .collect::<String>()
+                .to_ascii_uppercase();
+            if upper == "#+END_" {
+                return line_end;
+            }
+        }
+        pos = line_end;
+    }
+    limit
+}
+
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    // TODO implement center_block_parser
+    /// Fallback block parser: consumes from `start` to the matching
+    /// `#+END_` line (or `limit`) and returns a Paragraph node.
+    fn block_fallback(&self, limit: usize, start: usize) -> SyntaxNode<'a> {
+        let end = find_block_end(self.input, start, limit);
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Paragraph,
+            location: Interval { start, end },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        }
+    }
+
+    /// Fallback: center block parser (not yet fully implemented).
     pub fn center_block_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        self.block_fallback(limit, start)
     }
 
-    // TODO implement comment_block_parser
+    /// Fallback: comment block parser (not yet fully implemented).
     pub fn comment_block_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        self.block_fallback(limit, start)
     }
 
-    // TODO implement comment_block_parser
+    /// Fallback: example block parser (not yet fully implemented).
     pub fn example_block_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        self.block_fallback(limit, start)
     }
 
-    // TODO implement export_block_parser
+    /// Fallback: export block parser (not yet fully implemented).
     pub fn export_block_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        self.block_fallback(limit, start)
     }
 
-    // TODO implement quote_block_parser
+    /// Fallback: quote block parser (not yet fully implemented).
     pub fn quote_block_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        self.block_fallback(limit, start)
     }
 
-    // TODO implement src_block_parser
+    /// Fallback: src block parser (not yet fully implemented).
     pub fn src_block_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        self.block_fallback(limit, start)
     }
 
-    // TODO implement verse_block_parser
+    /// Fallback: verse block parser (not yet fully implemented).
     pub fn verse_block_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        self.block_fallback(limit, start)
     }
 
-    // TODO implement special_block_parser
+    /// Fallback: special block parser (not yet fully implemented).
     pub fn special_block_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        self.block_fallback(limit, start)
     }
 
-    // TODO implement dynamic_block_parser
+    /// Fallback: dynamic block parser (not yet fully implemented).
     pub fn dynamic_block_parser(
         &self,
         limit: usize,
         start: usize,
-        affiliated: Option<AffiliatedData>,
+        _affiliated: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        unimplemented!()
+        // Dynamic blocks use #+BEGIN: / #+END: (no underscore after END).
+        let after_first = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+        let mut pos = after_first;
+        let end = loop {
+            if pos >= limit {
+                break limit;
+            }
+            let line_end = self.input[pos..limit]
+                .find('\n')
+                .map_or(limit, |i| pos + i + 1);
+            let trimmed = self.input[pos..line_end].trim();
+            let upper = trimmed.to_ascii_uppercase();
+            if upper.starts_with("#+END:") || upper.starts_with("#+END ") {
+                break line_end;
+            }
+            pos = line_end;
+        };
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Paragraph,
+            location: Interval { start, end },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        }
     }
 }
