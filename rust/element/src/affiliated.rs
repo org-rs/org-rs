@@ -181,7 +181,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// objects itself." - It is hard to encode this into a type system, since in all other
     /// cases, apart from affiliated keywords, objects parents are nodes of syntax trees
     /// (ACC or PARENT)
-    pub fn collect_affiliated_keywords(&self, limit: usize) -> (usize, Option<AffiliatedData>) {
+    pub fn collect_affiliated_keywords(&self, limit: usize) -> (usize, Option<AffiliatedData<'a>>) {
         if !self.cursor.borrow().is_bol() {
             return (self.cursor.borrow().pos(), None);
         }
@@ -265,7 +265,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 mod test {
     use super::REGEX_AFFILIATED;
     use crate::affiliated::DualVal;
-    use crate::cursor::{Cursor, is_multiline_regex};
+    use crate::cursor::{is_multiline_regex, Cursor};
     use crate::data::RepeaterType::CatchUp;
     use crate::data::StringOrObject;
     use crate::environment::DefaultEnvironment;
