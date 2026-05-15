@@ -15,6 +15,7 @@
 //
 
 use std::cell::RefCell;
+use std::convert::TryInto;
 
 use crate::affiliated::AffiliatedData;
 use crate::data::{Interval, Syntax, SyntaxNode};
@@ -72,6 +73,11 @@ pub struct FootnoteDefinitionData<'a> {
     /// beginning of the footnote and the beginning
     /// of the contents (0, 1 or 2).
     pub pre_blank: u8,
+
+    /// Raw text content (without the footnote marker).
+    /// TODO: Add child element parsing when implementing element-level parsing.
+    /// Currently stores raw text; caller can parse as needed.
+    pub value: &'a str,
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
@@ -144,14 +150,126 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
     }
 
-    /// Fallback: footnote definition parser (not yet fully implemented).
+    /// Parse a footnote definition element.
+    ///
+    /// Footnote definition format: `[fn:LABEL] CONTENTS`
+    /// - LABEL is digits or word characters (hyphens, underscores)
+    /// - CONTENTS ends at: next footnote def, headline, 2 consecutive blanks, or buffer end
+    ///
+    /// Matches Elisp implementation:
+    /// - Uses `limit` to bound search
+    /// - Uses `aff_start` for begin position
+    /// - Stores raw text in value field
+    /// - Sets content_location for contents_begin/contents_end
+    /// - Calculates pre_blank and post_blank
     pub fn footnote_definition_parser(
         &self,
         limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
+        aff_start: usize,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        SyntaxNode::fallback(self.input, start, limit)
+        let begin = aff_start;
+        let input_slice = &self.input[begin..limit];
+
+        let label = match REGEX_FOOTNOTE_DEFINITION.captures(input_slice) {
+            Some(caps) => caps.get(1).map(|m| m.as_str()).unwrap_or(""),
+            None => return SyntaxNode::fallback(self.input, begin, limit),
+        };
+
+        let label_end = match REGEX_FOOTNOTE_DEFINITION.find(input_slice) {
+            Some(m) => m.end(),
+            None => return SyntaxNode::fallback(self.input, begin, limit),
+        };
+
+        let after_label = begin + label_end;
+        let line_end_pos = self.input[after_label..limit]
+            .find('\n')
+            .map_or(limit, |i| after_label + i);
+
+        let mut end = line_end_pos;
+        let mut pre_blank: u8 = 0;
+
+        let mut search_pos = line_end_pos;
+        while search_pos < limit {
+            let remaining = &self.input[search_pos..limit];
+
+            if remaining.starts_with("[fn:") {
+                break;
+            }
+
+            if remaining.starts_with('*') && remaining.chars().nth(1).map_or(false, |c| c == ' ') {
+                break;
+            }
+
+            if remaining.starts_with("\n\n") {
+                end = search_pos;
+                pre_blank = 2;
+                break;
+            }
+
+            if remaining.starts_with('\n') {
+                let next_line = &remaining[1..];
+                if next_line.trim().is_empty() {
+                    end = search_pos;
+                    pre_blank = 1;
+                    break;
+                }
+            }
+
+            if let Some(nl) = remaining.find('\n') {
+                search_pos += nl + 1;
+            } else {
+                end = limit;
+                break;
+            }
+        }
+
+        if end == line_end_pos {
+            end = limit;
+            pre_blank = 0;
+        }
+
+        let contents_start_raw = after_label;
+        let contents_start = self.input[contents_start_raw..]
+            .find(|c: char| !c.is_whitespace())
+            .map_or(contents_start_raw, |i| contents_start_raw + i);
+
+        let contents_end = if pre_blank > 0 {
+            let blank_start = if pre_blank == 2 { end } else { line_end_pos + 1 };
+            self.input[contents_start..blank_start]
+                .trim_end()
+                .len()
+                + contents_start
+        } else {
+            self.input[contents_start..end].trim_end().len() + contents_start
+        };
+
+        let value = &self.input[contents_start..contents_end];
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            ((remaining.len() - trimmed.len()) as u8).min(2) as usize
+        } else {
+            0
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::FootnoteDefinition(Box::new(FootnoteDefinitionData {
+                label,
+                pre_blank,
+                value,
+            })),
+            location: Interval { start: begin, end },
+            content_location: Some(Interval {
+                start: contents_start,
+                end: contents_end,
+            }),
+            post_blank: post_blank as usize,
+            affiliated,
+        }
     }
 
     /// Parse a fixed-width element.

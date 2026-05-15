@@ -426,6 +426,70 @@ mod test_footnote_definition {
         );
         assert_eq!(count, 1, "Expected 1 multiline footnote, found {}", count);
     }
+
+    #[test]
+    fn test_footnote_definition_content_location() {
+        let input = "[fn:1] This is footnote content\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+
+        let count = get_type_count(input, SyntaxT::FootnoteDefinition, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 footnote definition");
+
+        let root_children = tree.children.borrow();
+        let section = root_children
+            .first()
+            .expect("Expected at least one child");
+        let section_children = section.children.borrow();
+        let fn_node = section_children
+            .first()
+            .expect("Expected footnote in section");
+
+        if let Syntax::FootnoteDefinition(_) = &fn_node.data {
+            let content_loc = fn_node
+                .content_location
+                .expect("Footnote definition should have content_location");
+
+            assert_eq!(
+                content_loc.start, 7,
+                "contents-begin should be after [fn:1] and space"
+            );
+
+            let content = &input[content_loc.start..content_loc.end];
+            assert_eq!(
+                content, "This is footnote content",
+                "content should match"
+            );
+        } else {
+            panic!("Expected FootnoteDefinition, got: {:?}", fn_node.data);
+        }
+    }
+
+    #[test]
+    fn test_footnote_definition_with_label() {
+        let input = "[fn:my-label] Some content\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+
+        let count = get_type_count(input, SyntaxT::FootnoteDefinition, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 footnote definition");
+
+        let root_children = tree.children.borrow();
+        let section = root_children
+            .first()
+            .expect("Expected at least one child");
+        let section_children = section.children.borrow();
+        let fn_node = section_children
+            .first()
+            .expect("Expected footnote in section");
+
+        if let Syntax::FootnoteDefinition(data) = &fn_node.data {
+            assert_eq!(data.label, "my-label", "Label should be extracted");
+            assert_eq!(data.value, "Some content", "Value should be raw text");
+        } else {
+            panic!("Expected FootnoteDefinition syntax type");
+        }
+    }
 }
 
 mod test_fixed_width {
