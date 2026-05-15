@@ -17,6 +17,7 @@
 // API page lists LineBreak as element, when both org-syntax page and source code list is as object
 
 use crate::{
+    affiliated::AffiliatedData,
     babel::BabelCallData,
     blocks::{
         CommentBlockData, DynamicBlockData, ExampleBlockData, ExportBlockData, SpecialBlockData,
@@ -47,9 +48,6 @@ pub struct Interval {
     pub end: usize,
 }
 
-#[derive(Debug)]
-pub struct AffiliatedKeywords;
-
 /// ParseTree node.
 /// https://orgmode.org/worg/dev/org-element-api.html#attributes
 /// Should be bound to the underlying rope's lifetime
@@ -75,8 +73,8 @@ pub struct SyntaxNode<'a> {
     /// of the following one at the same level, if any.
     pub post_blank: usize,
 
-    /// Affiliated keywords (incomplete)
-    pub affiliated: Option<AffiliatedKeywords>,
+    /// Affiliated keywords
+    pub affiliated: Option<AffiliatedData<'a>>,
 }
 
 impl<'a> SyntaxNode<'a> {

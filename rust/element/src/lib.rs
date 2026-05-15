@@ -40,3 +40,6 @@ pub mod markup;
 mod paragraph;
 mod planning;
 mod table;
+
+#[cfg(test)]
+mod parser_tests;
