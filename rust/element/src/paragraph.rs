@@ -17,6 +17,7 @@ use std::cell::RefCell;
 
 use crate::affiliated::AffiliatedData;
 use crate::data::{Interval, Syntax, SyntaxNode};
+use crate::markup::REGEX_HORIZONTAL_RULE;
 use crate::parser::Parser;
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
@@ -70,7 +71,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 if trimmed.starts_with("# ") || trimmed == "#" {
                     break; // comment
                 }
-                if trimmed.starts_with("-----") {
+                if REGEX_HORIZONTAL_RULE.is_match(trimmed) {
                     break; // horizontal rule
                 }
             }
