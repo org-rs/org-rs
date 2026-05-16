@@ -745,12 +745,15 @@ pub struct LinkData<'a> {
 
 impl<'a> LinkData<'a> {
     pub fn new(raw: &'a str) -> Self {
-        // Simple link parser - extract type from scheme if present
-        // e.g., "https://example.com" -> link_type = File, path = "https://example.com"
-        let (link_type, path) = if raw.starts_with("http://") || raw.starts_with("https://") {
-            (LinkType::File, raw)
-        } else if raw.starts_with("file:") {
-            (LinkType::File, raw.strip_prefix("file:").unwrap_or(raw))
+        // Strip outer [[brackets]] for protocol detection
+        let inner = raw
+            .strip_prefix("[[")
+            .and_then(|s| s.strip_suffix("]]"))
+            .unwrap_or(raw);
+        let (link_type, path) = if inner.starts_with("http://") || inner.starts_with("https://") {
+            (LinkType::File, inner)
+        } else if inner.starts_with("file:") {
+            (LinkType::File, inner.strip_prefix("file:").unwrap_or(inner))
         } else {
             (LinkType::Fuzzy, raw)
         };
