@@ -101,7 +101,11 @@ mod plain_list {
     fn numbered_list_over_ten() {
         let input = "10. item\n11. another\n12. yet another\n";
         let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 plain list with items >=10, found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 plain list with items >=10, found {}",
+            count
+        );
         let item_count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
         assert!(
             item_count >= 3,
@@ -165,13 +169,9 @@ mod item {
         let root_children = tree.children.borrow();
         let section = root_children.first().expect("Expected section");
         let section_children = section.children.borrow();
-        let list_node = section_children
-            .first()
-            .expect("Expected plain list");
+        let list_node = section_children.first().expect("Expected plain list");
         let list_children = list_node.children.borrow();
-        let first_item = list_children
-            .first()
-            .expect("Expected first item");
+        let first_item = list_children.first().expect("Expected first item");
 
         if let Syntax::Item(data) = &first_item.data {
             assert_eq!(
@@ -374,12 +374,12 @@ mod table {
         let root_children = tree.children.borrow();
         let section = root_children.first().expect("Expected section");
         let section_children = section.children.borrow();
-        let table = section_children
-            .first()
-            .expect("Expected table");
+        let table = section_children.first().expect("Expected table");
         let table_children = table.children.borrow();
 
-        let rule_row = table_children.get(1).expect("Expected second table row (hline)");
+        let rule_row = table_children
+            .get(1)
+            .expect("Expected second table row (hline)");
         if let Syntax::TableRow(data) = &rule_row.data {
             assert!(
                 matches!(data.table_row_type, crate::table::TableRowType::Rule),
@@ -500,9 +500,7 @@ mod blocks {
         let root_children = tree.children.borrow();
         let section = root_children.first().expect("Expected section");
         let section_children = section.children.borrow();
-        let block = section_children
-            .first()
-            .expect("Expected export block");
+        let block = section_children.first().expect("Expected export block");
 
         if let Syntax::ExportBlock(data) = &block.data {
             assert_eq!(
@@ -524,9 +522,7 @@ mod blocks {
         let root_children = tree.children.borrow();
         let section = root_children.first().expect("Expected section");
         let section_children = section.children.borrow();
-        let block = section_children
-            .first()
-            .expect("Expected src block");
+        let block = section_children.first().expect("Expected src block");
 
         if let Syntax::SrcBlock(data) = &block.data {
             assert_eq!(
@@ -553,7 +549,11 @@ mod blocks {
             SyntaxT::CenterBlock,
             ParseGranularity::Element,
         );
-        assert_eq!(count, 1, "Expected 1 center block with trailing space on END, found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 center block with trailing space on END, found {}",
+            count
+        );
     }
 }
 
@@ -601,7 +601,12 @@ mod drawer {
         let input = ":PROPERTIES:\n:ID: test-id\n:CUSTOM_ID: custom-id\n:END:\n";
         let pd_count = get_type_count(input, SyntaxT::PropertyDrawer, ParseGranularity::Element);
         let prop_count = get_type_count(input, SyntaxT::NodeProperty, ParseGranularity::Element);
-        assert!(pd_count >= 1 && prop_count >= 2, "Drawer: {}, Props: {}", pd_count, prop_count);
+        assert!(
+            pd_count >= 1 && prop_count >= 2,
+            "Drawer: {}, Props: {}",
+            pd_count,
+            prop_count
+        );
     }
 }
 
@@ -936,9 +941,7 @@ mod fixed_width {
         let root_children = tree.children.borrow();
         let section = root_children.first().expect("Expected section");
         let section_children = section.children.borrow();
-        let fw_node = section_children
-            .first()
-            .expect("Expected fixed-width node");
+        let fw_node = section_children.first().expect("Expected fixed-width node");
 
         if let Syntax::FixedWidth(data) = &fw_node.data {
             assert!(
@@ -967,7 +970,6 @@ mod fixed_width {
         let count = get_type_count(input, SyntaxT::FixedWidth, ParseGranularity::Element);
         assert_eq!(count, 1, "Expected 1 indented fixed width, found {}", count);
     }
-
 }
 
 mod babel_call {
@@ -1099,7 +1101,11 @@ mod affiliated {
     fn collects_all_affiliated_types() {
         let input = "#+NAME: my-name\n#+CAPTION: my caption\n#+ATTR_HTML: class=foo\n#+HEADER: :var x=1\n: fixed-width\n";
         let count = get_type_count(input, SyntaxT::FixedWidth, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 fixed-width with affiliated keywords, found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 fixed-width with affiliated keywords, found {}",
+            count
+        );
     }
 }
 
@@ -1233,14 +1239,22 @@ mod object_parsing {
     fn single_char_bold() {
         let input = "*a*\n";
         let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
-        assert_eq!(count, 1, "Expected 1 bold from single-char '*a*', found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 bold from single-char '*a*', found {}",
+            count
+        );
     }
 
     #[test]
     fn single_char_italic() {
         let input = "/a/\n";
         let count = get_type_count(input, SyntaxT::Italic, ParseGranularity::Object);
-        assert_eq!(count, 1, "Expected 1 italic from single-char '/a/', found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 italic from single-char '/a/', found {}",
+            count
+        );
     }
 
     #[test]
@@ -1406,26 +1420,34 @@ mod od1_compliance {
     fn two_paragraphs_blank_line() {
         let input = "first paragraph\n\nsecond paragraph\n";
         let count = get_type_count(input, SyntaxT::Paragraph, ParseGranularity::Element);
-        assert_eq!(count, 2, "Expected 2 paragraphs separated by blank line, found {}", count);
+        assert_eq!(
+            count, 2,
+            "Expected 2 paragraphs separated by blank line, found {}",
+            count
+        );
     }
 
     #[test]
     fn nested_markup_bold_contains_italic() {
         let input = "*bold /italic/ text*\n";
         let italic = get_type_count(input, SyntaxT::Italic, ParseGranularity::Object);
-        assert_eq!(italic, 1, "Expected italic nested inside bold, found {}", italic);
+        assert_eq!(
+            italic, 1,
+            "Expected italic nested inside bold, found {}",
+            italic
+        );
     }
 
     #[test]
     fn multiple_markup_on_same_line() {
         let input = "*bold* and /italic/ and =code= and ~verbatim~\n";
-        let bold     = get_type_count(input, SyntaxT::Bold,     ParseGranularity::Object);
-        let italic   = get_type_count(input, SyntaxT::Italic,   ParseGranularity::Object);
-        let code     = get_type_count(input, SyntaxT::Code,     ParseGranularity::Object);
+        let bold = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
+        let italic = get_type_count(input, SyntaxT::Italic, ParseGranularity::Object);
+        let code = get_type_count(input, SyntaxT::Code, ParseGranularity::Object);
         let verbatim = get_type_count(input, SyntaxT::Verbatim, ParseGranularity::Object);
-        assert_eq!(bold,     1, "Expected 1 bold");
-        assert_eq!(italic,   1, "Expected 1 italic");
-        assert_eq!(code,     1, "Expected 1 code");
+        assert_eq!(bold, 1, "Expected 1 bold");
+        assert_eq!(italic, 1, "Expected 1 italic");
+        assert_eq!(code, 1, "Expected 1 code");
         assert_eq!(verbatim, 1, "Expected 1 verbatim");
     }
 
@@ -1433,7 +1455,11 @@ mod od1_compliance {
     fn heading_levels_1_to_3() {
         let input = "* Level 1\n** Level 2\n*** Level 3\n";
         let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
-        assert_eq!(count, 3, "Expected headlines at levels 1, 2 and 3, found {}", count);
+        assert_eq!(
+            count, 3,
+            "Expected headlines at levels 1, 2 and 3, found {}",
+            count
+        );
     }
 
     #[test]
@@ -1461,21 +1487,33 @@ mod od1_compliance {
     fn checkbox_checked() {
         let input = "- [X] done item\n";
         let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 item with [X] checkbox, found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 item with [X] checkbox, found {}",
+            count
+        );
     }
 
     #[test]
     fn checkbox_unchecked() {
         let input = "- [ ] todo item\n";
         let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 item with [ ] checkbox, found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 item with [ ] checkbox, found {}",
+            count
+        );
     }
 
     #[test]
     fn checkbox_in_progress() {
         let input = "- [-] in-progress item\n";
         let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 item with [-] checkbox, found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 item with [-] checkbox, found {}",
+            count
+        );
     }
 
     #[test]
@@ -1488,7 +1526,12 @@ mod od1_compliance {
         let section_ch = section.children.borrow();
         let block = section_ch.first().expect("src block");
         if let Syntax::SrcBlock(data) = &block.data {
-            assert_eq!(data.language, Some("python"), "Expected language 'python', got {:?}", data.language);
+            assert_eq!(
+                data.language,
+                Some("python"),
+                "Expected language 'python', got {:?}",
+                data.language
+            );
         } else {
             panic!("Expected SrcBlock, got {:?}", block.data);
         }
@@ -1498,9 +1541,9 @@ mod od1_compliance {
     fn all_five_block_types() {
         for (keyword, syntax_t) in &[
             ("EXAMPLE", SyntaxT::ExampleBlock),
-            ("QUOTE",   SyntaxT::QuoteBlock),
-            ("VERSE",   SyntaxT::VerseBlock),
-            ("SRC",     SyntaxT::SrcBlock),
+            ("QUOTE", SyntaxT::QuoteBlock),
+            ("VERSE", SyntaxT::VerseBlock),
+            ("SRC", SyntaxT::SrcBlock),
             ("COMMENT", SyntaxT::CommentBlock),
         ] {
             let input = format!("#+BEGIN_{k}\nsome content\n#+END_{k}\n", k = keyword);
@@ -1513,28 +1556,44 @@ mod od1_compliance {
     fn link_bare_https_url() {
         let input = "Visit https://example.com today\n";
         let count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
-        assert!(count >= 1, "Expected bare https URL parsed as link, found {}", count);
+        assert!(
+            count >= 1,
+            "Expected bare https URL parsed as link, found {}",
+            count
+        );
     }
 
     #[test]
     fn link_bracketed_no_description() {
         let input = "[[https://example.com]]\n";
         let count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
-        assert_eq!(count, 1, "Expected 1 bracketed link without description, found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 bracketed link without description, found {}",
+            count
+        );
     }
 
     #[test]
     fn link_bracketed_with_description() {
         let input = "[[https://example.com][visit here]]\n";
         let count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
-        assert_eq!(count, 1, "Expected 1 bracketed link with description, found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 bracketed link with description, found {}",
+            count
+        );
     }
 
     #[test]
     fn table_rows_including_hline() {
         let input = "| Name | Age |\n|------+-----|\n| Alice | 30 |\n";
         let row_count = get_type_count(input, SyntaxT::TableRow, ParseGranularity::Element);
-        assert_eq!(row_count, 3, "Expected 3 rows (header + hline + data), found {}", row_count);
+        assert_eq!(
+            row_count, 3,
+            "Expected 3 rows (header + hline + data), found {}",
+            row_count
+        );
     }
 
     #[test]

@@ -212,7 +212,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     title,
                     todo_keyword,
                 })),
-                location: Interval { start: begin, end: (line_end + 1).min(self.input.len()) },
+                location: Interval {
+                    start: begin,
+                    end: (line_end + 1).min(self.input.len()),
+                },
                 content_location: None,
                 post_blank: 0,
                 affiliated: None,
@@ -288,7 +291,10 @@ fn find_headline_end(input: &str, from: usize, level: usize) -> usize {
                 stars += 1;
             }
             // A headline at same or higher level ends this subtree.
-            if stars <= level && pos + stars < input.len() && (bytes[pos + stars] == b' ' || bytes[pos + stars] == b'\t') {
+            if stars <= level
+                && pos + stars < input.len()
+                && (bytes[pos + stars] == b' ' || bytes[pos + stars] == b'\t')
+            {
                 return pos;
             }
         }

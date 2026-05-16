@@ -541,7 +541,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     children.push(node);
                 }
                 pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_footnote_reference(remaining, pos) {
+            } else if let Some((node, consumed)) = self.try_parse_footnote_reference(remaining, pos)
+            {
                 if restriction(SyntaxT::FootnoteReference) {
                     children.push(node);
                 }
@@ -920,7 +921,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         const PROTOCOLS: &[&[u8]] = &[b"https://", b"http://", b"ftp://", b"mailto:"];
         let bytes = text.as_bytes();
         let proto_len = PROTOCOLS.iter().find_map(|&p| {
-            if bytes.starts_with(p) { Some(p.len()) } else { None }
+            if bytes.starts_with(p) {
+                Some(p.len())
+            } else {
+                None
+            }
         })?;
         let url_end = text[proto_len..]
             .find(|c: char| c.is_whitespace() || matches!(c, '[' | ']' | '<' | '>'))
@@ -933,7 +938,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::Link(Box::new(LinkData::new_plain(raw))),
-            location: Interval { start, end: start + url_end },
+            location: Interval {
+                start,
+                end: start + url_end,
+            },
             content_location: None,
             post_blank: 0,
             affiliated: None,
@@ -953,16 +961,29 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let inner = &text[4..close];
         let (label, type_s): (Option<&'a str>, &'a str) = if let Some(colon_pos) = inner.find(':') {
             let label_part = &inner[..colon_pos];
-            (if label_part.is_empty() { None } else { Some(label_part) }, "inline")
+            (
+                if label_part.is_empty() {
+                    None
+                } else {
+                    Some(label_part)
+                },
+                "inline",
+            )
         } else {
-            (if inner.is_empty() { None } else { Some(inner) }, "standard")
+            (
+                if inner.is_empty() { None } else { Some(inner) },
+                "standard",
+            )
         };
         let consumed = close + 1;
         let node = SyntaxNode {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::FootnoteReference(Box::new(FootnoteReferenceData { label, type_s })),
-            location: Interval { start, end: start + consumed },
+            location: Interval {
+                start,
+                end: start + consumed,
+            },
             content_location: None,
             post_blank: 0,
             affiliated: None,
