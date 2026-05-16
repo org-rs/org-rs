@@ -510,13 +510,13 @@ impl<'a> PartialEq for StringOrObject<'a> {
 #[derive(Debug)]
 pub struct ClockData<'a> {
     /// Clock duration for a closed clock, or nil (string or nil).
-    duration: &'a str,
+    pub duration: &'a str,
 
     /// Status of current clock (symbol closed or running).
-    status: ClockStatus,
+    pub status: ClockStatus,
 
-    /// Timestamp associated to clock keyword (timestamp object).
-    value: TimestampData<'a>,
+    /// Raw clock line value (for simple parsing).
+    pub raw: &'a str,
 }
 
 #[derive(Debug)]
