@@ -14,27 +14,50 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::convert::TryInto;
 
 use crate::affiliated::AffiliatedData;
 use crate::data::{Interval, Syntax, SyntaxNode};
-
-fn strip_fixed_width_colons(input: &str) -> &str {
-    let mut result = input;
-    while let Some(rest) = result.strip_prefix(": ") {
-        result = rest;
-    }
-    while let Some(rest) = result.strip_prefix(":") {
-        if rest.is_empty() || rest.starts_with('\n') {
-            break;
-        }
-        result = rest;
-    }
-    result
-}
 use crate::parser::Parser;
 use regex::Regex;
+
+fn strip_line_prefix(line: &str) -> &str {
+    let t = line.trim_start();
+    if let Some(rest) = t.strip_prefix(": ") {
+        rest
+    } else if t == ":" {
+        ""
+    } else {
+        line
+    }
+}
+
+/// Strip the `: ` prefix from each fixed-width line.
+/// Returns a borrowed slice for single-line input (zero allocation),
+/// or an owned String when multiple lines require reconstruction.
+fn strip_fixed_width_colons(input: &str) -> Cow<'_, str> {
+    let mut lines = input.lines();
+    let first = match lines.next() {
+        None => return Cow::Borrowed(""),
+        Some(l) => l,
+    };
+    let second = lines.next();
+
+    if second.is_none() {
+        return Cow::Borrowed(strip_line_prefix(first));
+    }
+
+    let mut out = String::from(strip_line_prefix(first));
+    out.push('\n');
+    out.push_str(strip_line_prefix(second.unwrap()));
+    for line in lines {
+        out.push('\n');
+        out.push_str(strip_line_prefix(line));
+    }
+    Cow::Owned(out)
+}
 
 lazy_static! {
     pub static ref REGEX_HORIZONTAL_RULE: Regex = Regex::new(r"[ \t]*-{5,}[ \t]*$").unwrap();
@@ -64,7 +87,7 @@ pub struct CommentData<'a> {
 #[derive(Debug)]
 pub struct FixedWidthData<'a> {
     /// Contents, without colons prefix (string).
-    pub value: &'a str,
+    pub value: Cow<'a, str>,
 }
 
 /// Greater element
@@ -295,8 +318,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
         let begin = aff_start;
-        let mut pos_before_blank = self.cursor.borrow().pos();
-        let mut end_area = pos_before_blank;
+        let content_start = self.cursor.borrow().pos();
+        let mut end_area = content_start;
 
         while end_area < limit {
             let line_end = self.input[end_area..limit]
@@ -317,35 +340,26 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             end_area = line_end;
         }
 
-        if end_area == pos_before_blank {
-            end_area = self.input[pos_before_blank..limit]
+        if end_area == content_start {
+            end_area = self.input[content_start..limit]
                 .find('\n')
-                .map_or(limit, |i| pos_before_blank + i + 1);
+                .map_or(limit, |i| content_start + i + 1);
         }
 
-        pos_before_blank = end_area;
-
+        // Trim trailing blank lines from the node extent.
         let mut end = end_area;
-        while end < limit {
-            let c = self.input.as_bytes().get(end).copied();
-            match c {
-                Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r') => end += 1,
+        while end > content_start {
+            match self.input.as_bytes().get(end - 1).copied() {
+                Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r') => end -= 1,
                 _ => break,
             }
         }
-        if end >= self.input.len() {
-            end = self.input.len();
-        } else {
-            while end > 0 {
-                let c = self.input.as_bytes().get(end - 1).copied();
-                match c {
-                    Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r') => end -= 1,
-                    _ => break,
-                }
-            }
+        // Include the final newline in the location span.
+        if end < end_area {
+            end = end_area;
         }
 
-        let raw_value = &self.input[pos_before_blank..end];
+        let raw_value = &self.input[content_start..end_area];
         let value = strip_fixed_width_colons(raw_value);
 
         let mut post_blank = 0;
