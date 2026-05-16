@@ -13,18 +13,19 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
+use std::cell::RefCell;
+
 use crate::affiliated::AffiliatedData;
-use crate::data::SyntaxNode;
+use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
+use lazy_static::lazy_static;
 use regex::Regex;
 
 lazy_static! {
-
-
     /// Matches first or last line of a drawer
-    /// Group 1 contains drawer's name or \"END\"
-    pub static ref REGEX_DRAWER: Regex = Regex::new(r"^[ \t]*:((?:\w|[-_])+):[ \t]*$").unwrap();
-
+    /// Group 1 contains drawer's name or "END"
+    /// Note: (?m) enables multiline mode so ^ matches line start
+    pub static ref REGEX_DRAWER: Regex = Regex::new(r"(?im)^[ \t]*:((?:\w|[-_])+):[ \t]*$").unwrap();
 }
 
 #[derive(Debug)]
@@ -34,13 +35,84 @@ pub struct DrawerData<'a> {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    /// Fallback: drawer parser (not yet fully implemented).
-    pub fn drawer_parser(
+    /// Parse a drawer element.
+    ///
+    /// Format: `:NAME:\n...content...\n:END:`
+    /// Case insensitive (matches :NAME: and :END:)
+pub fn drawer_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
+        let input_slice = &self.input[start..limit];
+        
+        // Check if we start with a drawer begin line
+        if let Some(caps) = REGEX_DRAWER.captures(input_slice) {
+            let name = caps.get(1).map_or("", |m| m.as_str());
+
+            // If it's "END", not a start
+            if name.eq_ignore_ascii_case("END") {
+                return SyntaxNode::fallback(self.input, start, limit);
+            }
+
+            // Find the :END: line
+            let mut search_pos = start;
+            let mut end = limit;
+            let mut found_end = false;
+
+            while search_pos < limit {
+                if let Some(cap) = REGEX_DRAWER.captures(&self.input[search_pos..limit]) {
+                    if let Some(m) = cap.get(1) {
+                        if m.as_str().eq_ignore_ascii_case("END") {
+                            // Found :END:, calculate end position
+                            let match_start = search_pos + cap.get(0).map_or(0, |x| x.start());
+                            let match_end = search_pos + cap.get(0).map_or(0, |x| x.end());
+                            end = if match_end < limit && self.input.as_bytes().get(match_end) == Some(&b'\n') {
+                                match_end + 1
+                            } else {
+                                match_end
+                            };
+                            found_end = true;
+                            break;
+                        }
+                    }
+                }
+                // Move to next line
+                if let Some(nl) = self.input[search_pos..limit].find('\n') {
+                    search_pos += nl + 1;
+                } else {
+                    break;
+                }
+            }
+
+            if !found_end {
+                return SyntaxNode::fallback(self.input, start, limit);
+            }
+
+            let post_blank = if end < limit {
+                let remaining = &self.input[end..limit];
+                let trimmed = remaining.trim_start();
+                (remaining.len() - trimmed.len()).min(2)
+            } else {
+                0
+            };
+
+            return SyntaxNode {
+                parent: RefCell::new(None),
+                children: RefCell::new(vec![]),
+                data: if name.eq_ignore_ascii_case("PROPERTIES") {
+                    Syntax::PropertyDrawer
+                } else {
+                    Syntax::Drawer(Box::new(DrawerData { drawer_name: name }))
+                },
+                location: Interval { start, end },
+                content_location: None,
+                post_blank,
+                affiliated,
+            };
+        }
+
         SyntaxNode::fallback(self.input, start, limit)
     }
 }

@@ -59,7 +59,7 @@ lazy_static! {
         r"^[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?: .*)?[ \t]*\n)*?[ \t]*:END:[ \t]*")
             .unwrap();
 
-    pub static ref REGEX_CLOCK_LINE: Regex = Regex::new(r"^[ \t]*CLOCK:").unwrap();
+    pub static ref REGEX_CLOCK_LINE: Regex = Regex::new(r"(?i)^[ \t]*clock:").unwrap();
 }
 
 #[derive(Debug)]

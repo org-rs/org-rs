@@ -19,7 +19,7 @@ use crate::parser::Parser;
 use regex::Regex;
 
 lazy_static! {
-    pub static ref REGEX_BABEL_CALL: Regex = Regex::new(r"\+CALL:").unwrap();
+    pub static ref REGEX_BABEL_CALL: Regex = Regex::new(r"(?i)\+CALL:").unwrap();
 }
 
 #[derive(Debug)]
@@ -41,13 +41,63 @@ pub struct BabelCallData<'a> {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    /// Fallback: babel call parser (not yet fully implemented).
+    /// Parse a babel call element.
+    ///
+    /// Format: `#+CALL: name(args)` or `#+CALL: name[:header] args`
+    /// Case insensitive (matches CALL, call, etc.)
     pub fn babel_call_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        SyntaxNode::fallback(self.input, start, limit)
+        let input_slice = &self.input[start..limit];
+
+        if !REGEX_BABEL_CALL.is_match(input_slice) {
+            return SyntaxNode::fallback(self.input, start, limit);
+        }
+
+        let line_end = input_slice
+            .find('\n')
+            .map_or(limit, |i| start + i);
+
+        let end = line_end;
+        let value = &self.input[start..line_end];
+
+        // Simple parsing - extract call name and arguments
+        let call_match = REGEX_BABEL_CALL.find(input_slice);
+        let call_name = if let Some(m) = call_match {
+            let after = &input_slice[m.end()..];
+            after.split_whitespace().next().unwrap_or("")
+        } else {
+            ""
+        };
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
+        use std::cell::RefCell;
+        use crate::data::{Interval, Syntax};
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::BabelCall(Box::new(BabelCallData {
+                call: call_name,
+                inside_header: None,
+                arguments: None,
+                end_header: None,
+                value,
+            })),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank,
+            affiliated,
+        }
     }
 }
