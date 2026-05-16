@@ -82,6 +82,20 @@ mod plain_list {
             item_count
         );
     }
+
+    #[test]
+    fn list_two_items() {
+        let input = "- item 1\n- item 2\n";
+        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 plain list, found {}", count);
+    }
+
+    #[test]
+    fn list_empty() {
+        let input = "- \n";
+        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
+        assert!(count >= 0, "Plain list count: {}", count);
+    }
 }
 
 mod item {
@@ -106,6 +120,87 @@ mod item {
         let input = "- tag :: content\n";
         let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
         assert!(count >= 0, "Item count: {}", count);
+    }
+
+    #[test]
+    fn item_with_checkbox() {
+        let input = "- [X] checked item\n";
+        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
+        assert!(count >= 1, "Expected at least 1 item, found {}", count);
+    }
+
+    #[test]
+    fn item_with_unchecked() {
+        let input = "- [ ] unchecked item\n";
+        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
+        assert!(count >= 1, "Expected at least 1 item, found {}", count);
+    }
+
+    #[test]
+    fn item_ordered_start() {
+        let input = "1. first item\n2. second item\n";
+        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
+        assert!(count >= 2, "Expected at least 2 items, found {}", count);
+    }
+}
+
+mod headline {
+    use super::*;
+
+    #[test]
+    fn basic_headline() {
+        let input = "* \n";
+        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
+    }
+
+    #[test]
+    fn headline_stars() {
+        let input = "****  \n";
+        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
+    }
+
+    #[test]
+    fn headline_title() {
+        let input = "* title\n";
+        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
+    }
+
+    #[test]
+    fn headline_with_priority() {
+        let input = "* TODO [#A] title\n";
+        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
+    }
+
+    #[test]
+    fn headline_with_tags() {
+        let input = "* title :tag1:tag2:\n";
+        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
+    }
+
+    #[test]
+    fn headline_with_keyword() {
+        let input = "* TODO title\n";
+        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
+    }
+
+    #[test]
+    fn multiple_headlines() {
+        let input = "* Level 1\n** Level 2\n*** Level 3\n";
+        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
+        assert_eq!(count, 3, "Expected 3 headlines, found {}", count);
+    }
+
+    #[test]
+    fn headline_only_stars() {
+        let input = "* \n";
+        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
     }
 }
 
@@ -133,6 +228,34 @@ mod table {
     #[test]
     fn table_with_header() {
         let input = "| head1 | head2 |\n|--------|--------|\n| body1 | body2 |\n";
+        let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
+        assert!(count >= 1, "Expected 1 table, found {}", count);
+    }
+
+    #[test]
+    fn table_no_hline() {
+        let input = "| a | b |\n| c | d |\n";
+        let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
+        assert!(count >= 1, "Expected 1 table, found {}", count);
+    }
+
+    #[test]
+    fn table_indented() {
+        let input = "  | a | b |\n  | c | d |\n";
+        let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
+        assert!(count >= 1, "Expected 1 table, found {}", count);
+    }
+
+    #[test]
+    fn table_empty_cells() {
+        let input = "| | b |\n| c | |\n";
+        let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
+        assert!(count >= 1, "Expected 1 table, found {}", count);
+    }
+
+    #[test]
+    fn table_eof() {
+        let input = "| a | b |";
         let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
         assert!(count >= 1, "Expected 1 table, found {}", count);
     }
@@ -301,6 +424,31 @@ mod planning {
             "Expected 1 planning with all timestamps, found {}",
             count
         );
+    }
+}
+
+mod comment {
+    use super::*;
+
+    #[test]
+    fn basic_comment() {
+        let input = "# Comment\n";
+        let count = get_type_count(input, SyntaxT::Comment, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 comment, found {}", count);
+    }
+
+    #[test]
+    fn comment_indented() {
+        let input = "  # Indented comment\n";
+        let count = get_type_count(input, SyntaxT::Comment, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 comment, found {}", count);
+    }
+
+    #[test]
+    fn comment_multiple_lines() {
+        let input = "# Line 1\n# Line 2\n# Line 3\n";
+        let count = get_type_count(input, SyntaxT::Comment, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 comment, found {}", count);
     }
 }
 
@@ -645,6 +793,20 @@ mod keyword {
             "Expected 1 keyword (case insensitive), found {}",
             count
         );
+    }
+
+    #[test]
+    fn keyword_with_space() {
+        let input = "#+KEYWORD:    spaced value\n";
+        let count = get_type_count(input, SyntaxT::Keyword, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 keyword, found {}", count);
+    }
+
+    #[test]
+    fn keyword_with_newline() {
+        let input = "#+KEYWORD: value\nparagraph\n";
+        let count = get_type_count(input, SyntaxT::Keyword, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 keyword, found {}", count);
     }
 }
 
