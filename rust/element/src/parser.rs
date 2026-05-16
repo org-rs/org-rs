@@ -20,7 +20,10 @@ use regex::Regex;
 
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
-use crate::data::{CodeData, EntityData, Interval, LinkData, Syntax, SyntaxNode, SyntaxT, TargetData, TimestampData, VerbatimData};
+use crate::data::{
+    CodeData, EntityData, Interval, LinkData, Syntax, SyntaxNode, SyntaxT, TargetData,
+    TimestampData, VerbatimData,
+};
 use crate::environment::Environment;
 
 use crate::blocks::{
@@ -577,38 +580,76 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     fn is_post_char(b: u8) -> bool {
         matches!(
             b,
-            b' ' | b'\t' | b'\n'
-                | b'.' | b',' | b'!'
-                | b'?' | b';' | b':' | b'\''
-                | b')' | b'}' | b'\\' | b'[' | b'-'
+            b' ' | b'\t'
+                | b'\n'
+                | b'.'
+                | b','
+                | b'!'
+                | b'?'
+                | b';'
+                | b':'
+                | b'\''
+                | b')'
+                | b'}'
+                | b'\\'
+                | b'['
+                | b'-'
         )
     }
 
-    fn try_parse_bold<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_bold<'b>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'*', SyntaxT::Bold)
     }
 
-    fn try_parse_italic<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_italic<'b>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'/', SyntaxT::Italic)
     }
 
-    fn try_parse_underline<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_underline<'b>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'_', SyntaxT::Underline)
     }
 
-    fn try_parse_strikethrough<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_strikethrough<'b>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'+', SyntaxT::StrikeThrough)
     }
 
-    fn try_parse_code<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_code<'b>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'~', SyntaxT::Code)
     }
 
-    fn try_parse_verbatim<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_verbatim<'b>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'=', SyntaxT::Verbatim)
     }
 
-    fn try_parse_link<'b: 'a>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_link<'b: 'a>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         let bytes = text.as_bytes();
         if bytes.len() < 4 || &bytes[0..2] != b"[[" {
             return None;
@@ -642,8 +683,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::Link(Box::new(link_data)),
-            location: Interval { start, end: start + close },
-            content_location: Some(Interval { start: start + content_start, end: start + content_end }),
+            location: Interval {
+                start,
+                end: start + close,
+            },
+            content_location: Some(Interval {
+                start: start + content_start,
+                end: start + content_end,
+            }),
             post_blank: 0,
             affiliated: None,
         };
@@ -651,7 +698,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         Some((Rc::new(node), close))
     }
 
-    fn try_parse_target<'b: 'a>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_target<'b: 'a>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         let bytes = text.as_bytes();
         if bytes.len() < 4 || &bytes[0..2] != b"<<" {
             return None;
@@ -681,7 +732,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::Target(Box::new(target_data)),
-            location: Interval { start, end: start + close },
+            location: Interval {
+                start,
+                end: start + close,
+            },
             content_location: None,
             post_blank: 0,
             affiliated: None,
@@ -762,8 +816,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 parent: RefCell::new(None),
                 children: RefCell::new(inner_children),
                 data: Syntax::Bold,
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(Interval { start: content_start, end: content_end }),
+                location: Interval {
+                    start,
+                    end: start + close + 1,
+                },
+                content_location: Some(Interval {
+                    start: content_start,
+                    end: content_end,
+                }),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -771,8 +831,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 parent: RefCell::new(None),
                 children: RefCell::new(inner_children),
                 data: Syntax::Italic,
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(Interval { start: content_start, end: content_end }),
+                location: Interval {
+                    start,
+                    end: start + close + 1,
+                },
+                content_location: Some(Interval {
+                    start: content_start,
+                    end: content_end,
+                }),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -780,8 +846,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 parent: RefCell::new(None),
                 children: RefCell::new(inner_children),
                 data: Syntax::Underline,
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(Interval { start: content_start, end: content_end }),
+                location: Interval {
+                    start,
+                    end: start + close + 1,
+                },
+                content_location: Some(Interval {
+                    start: content_start,
+                    end: content_end,
+                }),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -789,8 +861,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 parent: RefCell::new(None),
                 children: RefCell::new(inner_children),
                 data: Syntax::StrikeThrough,
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(Interval { start: content_start, end: content_end }),
+                location: Interval {
+                    start,
+                    end: start + close + 1,
+                },
+                content_location: Some(Interval {
+                    start: content_start,
+                    end: content_end,
+                }),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -798,8 +876,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 parent: RefCell::new(None),
                 children: RefCell::new(vec![]),
                 data: Syntax::Code(Box::new(CodeData { value: content })),
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(Interval { start: content_start, end: content_end }),
+                location: Interval {
+                    start,
+                    end: start + close + 1,
+                },
+                content_location: Some(Interval {
+                    start: content_start,
+                    end: content_end,
+                }),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -807,8 +891,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 parent: RefCell::new(None),
                 children: RefCell::new(vec![]),
                 data: Syntax::Verbatim(Box::new(VerbatimData { value: content })),
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(Interval { start: content_start, end: content_end }),
+                location: Interval {
+                    start,
+                    end: start + close + 1,
+                },
+                content_location: Some(Interval {
+                    start: content_start,
+                    end: content_end,
+                }),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -818,7 +908,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         Some((Rc::new(node), close + 1))
     }
 
-    fn try_parse_plain_text<'b: 'a>(&self, text: &'b str, start: usize, _end: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_plain_text<'b: 'a>(
+        &self,
+        text: &'b str,
+        start: usize,
+        _end: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         if text.is_empty() {
             return None;
         }
@@ -847,7 +942,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::PlainText(content),
-            location: Interval { start, end: start + consume },
+            location: Interval {
+                start,
+                end: start + consume,
+            },
             content_location: None,
             post_blank: 0,
             affiliated: None,
@@ -856,7 +954,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         Some((Rc::new(node), consume))
     }
 
-    fn try_parse_timestamp<'b: 'a>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_timestamp<'b: 'a>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || (bytes[0] != b'<' && bytes[0] != b'[') {
             return None;
@@ -869,7 +971,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         for i in 1..text.len() {
             if bytes[i] == closing {
                 // Check for space or end after closing
-                if i + 1 >= text.len() || bytes[i + 1] == b' ' || bytes[i + 1] == b'\n' || bytes[i + 1] == b'\t' {
+                if i + 1 >= text.len()
+                    || bytes[i + 1] == b' '
+                    || bytes[i + 1] == b'\n'
+                    || bytes[i + 1] == b'\t'
+                {
                     found_close = Some(i);
                     break;
                 }
@@ -889,8 +995,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::Timestamp(Box::new(timestamp_data)),
-            location: Interval { start, end: start + close + 1 },
-            content_location: Some(Interval { start: start + 1, end: start + close }),
+            location: Interval {
+                start,
+                end: start + close + 1,
+            },
+            content_location: Some(Interval {
+                start: start + 1,
+                end: start + close,
+            }),
             post_blank: 0,
             affiliated: None,
         };
@@ -898,7 +1010,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         Some((Rc::new(node), close + 1))
     }
 
-    fn try_parse_entity<'b: 'a>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_entity<'b: 'a>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || bytes[0] != b'\\' {
             return None;
@@ -921,9 +1037,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         // Check post-char: end of text, whitespace, or punctuation
-        let valid_post = end >= bytes.len() 
-            || bytes[end] == b' ' 
-            || bytes[end] == b'\t' 
+        let valid_post = end >= bytes.len()
+            || bytes[end] == b' '
+            || bytes[end] == b'\t'
             || bytes[end] == b'\n'
             || (end < bytes.len() && !bytes[end].is_ascii_alphanumeric());
 
@@ -938,7 +1054,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::Entity(Box::new(entity_data)),
-            location: Interval { start, end: start + end },
+            location: Interval {
+                start,
+                end: start + end,
+            },
             content_location: None,
             post_blank: 0,
             affiliated: None,

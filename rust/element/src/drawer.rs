@@ -40,14 +40,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     ///
     /// Format: `:NAME:\n...content...\n:END:`
     /// Case insensitive (matches :NAME: and :END:)
-pub fn drawer_parser(
+    pub fn drawer_parser(
         &self,
         limit: usize,
         start: usize,
         affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
         let input_slice = &self.input[start..limit];
-        
+
         // Check if we start with a drawer begin line
         if let Some(caps) = REGEX_DRAWER.captures(input_slice) {
             let name = caps.get(1).map_or("", |m| m.as_str());
@@ -69,7 +69,9 @@ pub fn drawer_parser(
                             // Found :END:, calculate end position
                             let match_start = search_pos + cap.get(0).map_or(0, |x| x.start());
                             let match_end = search_pos + cap.get(0).map_or(0, |x| x.end());
-                            end = if match_end < limit && self.input.as_bytes().get(match_end) == Some(&b'\n') {
+                            end = if match_end < limit
+                                && self.input.as_bytes().get(match_end) == Some(&b'\n')
+                            {
                                 match_end + 1
                             } else {
                                 match_end
@@ -160,22 +162,26 @@ pub fn drawer_parser(
                     line_end
                 };
 
-                let node_data = crate::headline::NodePropertyData {
-                    key,
-                    value,
-                };
+                let node_data = crate::headline::NodePropertyData { key, value };
                 children.push(Rc::new(SyntaxNode {
                     parent: RefCell::new(None),
                     children: RefCell::new(vec![]),
                     data: Syntax::NodeProperty(Box::new(node_data)),
-                    location: Interval { start: prop_start, end: prop_end },
+                    location: Interval {
+                        start: prop_start,
+                        end: prop_end,
+                    },
                     content_location: None,
                     post_blank: 0,
                     affiliated: None,
                 }));
             }
 
-            pos = if line_end < content.len() { line_end + 1 } else { content.len() };
+            pos = if line_end < content.len() {
+                line_end + 1
+            } else {
+                content.len()
+            };
         }
 
         children

@@ -495,7 +495,11 @@ mod clock {
     fn must_be_bol() {
         let input = "   CLOCK: [2023-10-13 Fri 14:40]\n";
         let count = get_type_count(input, SyntaxT::Clock, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 clock (whitespace allowed per Elisp), found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 clock (whitespace allowed per Elisp), found {}",
+            count
+        );
     }
 
     #[test]
@@ -509,7 +513,11 @@ mod clock {
     fn invalid_date() {
         let input = "CLOCK: [2023-02-29 Wed 14:40]\n";
         let count = get_type_count(input, SyntaxT::Clock, ParseGranularity::Element);
-        assert_eq!(count, 0, "Expected 0 clock (Feb 29 in non-leap year), found {}", count);
+        assert_eq!(
+            count, 0,
+            "Expected 0 clock (Feb 29 in non-leap year), found {}",
+            count
+        );
     }
 }
 
@@ -609,13 +617,15 @@ mod footnote_definition {
         let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
         let tree = parser.parse_buffer();
 
-        let count = get_type_count(input, SyntaxT::FootnoteDefinition, ParseGranularity::Element);
+        let count = get_type_count(
+            input,
+            SyntaxT::FootnoteDefinition,
+            ParseGranularity::Element,
+        );
         assert_eq!(count, 1, "Expected 1 footnote definition");
 
         let root_children = tree.children.borrow();
-        let section = root_children
-            .first()
-            .expect("Expected at least one child");
+        let section = root_children.first().expect("Expected at least one child");
         let section_children = section.children.borrow();
         let fn_node = section_children
             .first()
@@ -632,10 +642,7 @@ mod footnote_definition {
             );
 
             let content = &input[content_loc.start..content_loc.end];
-            assert_eq!(
-                content, "This is footnote content",
-                "content should match"
-            );
+            assert_eq!(content, "This is footnote content", "content should match");
         } else {
             panic!("Expected FootnoteDefinition, got: {:?}", fn_node.data);
         }
@@ -647,13 +654,15 @@ mod footnote_definition {
         let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
         let tree = parser.parse_buffer();
 
-        let count = get_type_count(input, SyntaxT::FootnoteDefinition, ParseGranularity::Element);
+        let count = get_type_count(
+            input,
+            SyntaxT::FootnoteDefinition,
+            ParseGranularity::Element,
+        );
         assert_eq!(count, 1, "Expected 1 footnote definition");
 
         let root_children = tree.children.borrow();
-        let section = root_children
-            .first()
-            .expect("Expected at least one child");
+        let section = root_children.first().expect("Expected at least one child");
         let section_children = section.children.borrow();
         let fn_node = section_children
             .first()

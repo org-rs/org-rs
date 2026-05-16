@@ -57,9 +57,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return SyntaxNode::fallback(self.input, start, limit);
         }
 
-        let line_end = input_slice
-            .find('\n')
-            .map_or(limit, |i| start + i);
+        let line_end = input_slice.find('\n').map_or(limit, |i| start + i);
 
         let end = line_end;
         let value = &self.input[start..line_end];
@@ -81,8 +79,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             0
         };
 
-        use std::cell::RefCell;
         use crate::data::{Interval, Syntax};
+        use std::cell::RefCell;
 
         SyntaxNode {
             parent: RefCell::new(None),

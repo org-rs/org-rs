@@ -251,7 +251,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return ListKind::Descriptive;
         }
         for item in items {
-            if item.bullet.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            if item
+                .bullet
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false)
+            {
                 return ListKind::Ordered;
             }
         }
@@ -276,7 +282,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::Item(Box::new(item_data)),
-            location: Interval { start: item.position, end },
+            location: Interval {
+                start: item.position,
+                end,
+            },
             content_location: None,
             post_blank: 0,
             affiliated: None,

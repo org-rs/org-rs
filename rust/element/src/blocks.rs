@@ -204,7 +204,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             .find('\n')
             .map_or(limit, |i| start + i + 1);
 
-let after_first = self.input[start..limit]
+        let after_first = self.input[start..limit]
             .find('\n')
             .map_or(limit, |i| start + i + 1);
 
@@ -529,7 +529,10 @@ let after_first = self.input[start..limit]
         SyntaxNode {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
-            data: Syntax::SpecialBlock(Box::new(SpecialBlockData { type_s, raw_value: value })),
+            data: Syntax::SpecialBlock(Box::new(SpecialBlockData {
+                type_s,
+                raw_value: value,
+            })),
             location: Interval { start, end },
             content_location: None,
             post_blank,
@@ -537,7 +540,7 @@ let after_first = self.input[start..limit]
         }
     }
 
-/// Fallback: dynamic block parser (not yet fully implemented).
+    /// Fallback: dynamic block parser (not yet fully implemented).
     pub fn dynamic_block_parser(
         &self,
         limit: usize,
