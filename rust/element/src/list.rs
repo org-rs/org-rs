@@ -63,11 +63,12 @@
 //!
 
 use crate::affiliated::AffiliatedData;
-use crate::data::SyntaxNode;
+use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
 use std::borrow::Cow;
 use std::cell::Cell;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 lazy_static! {
@@ -106,12 +107,28 @@ lazy_static! {
 
 }
 
-/// List structure
-/// This looks like an intermediate list representation, required both by
-/// plain list itself and items in the list.
-#[derive(Debug)]
+/// List structure - tracks items during list parsing
+/// Used to compute list boundaries and parent-child relationships
+#[derive(Debug, Clone)]
 pub struct ListStruct {
-    // stub
+    /// Items found so far: (position, indent, bullet, counter, checkbox, tag)
+    pub items: Vec<ListItem>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ListItem {
+    pub position: usize,
+    pub indent: usize,
+    pub bullet: String,
+    pub counter: Option<usize>,
+    pub checkbox: Option<CheckBox>,
+    pub tag: Option<String>,
+}
+
+impl ListStruct {
+    pub fn new() -> Self {
+        ListStruct { items: Vec::new() }
+    }
 }
 
 #[derive(Debug)]
@@ -150,7 +167,7 @@ pub enum ListKind {
     Unordered,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CheckBox {
     On,
     Off,
@@ -174,13 +191,207 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         limit: usize,
         start: usize,
         _affiliated: Option<AffiliatedData>,
-        _structure: Rc<ListStruct>,
+        structure: Rc<ListStruct>,
     ) -> SyntaxNode<'a> {
-        SyntaxNode::fallback(self.input, start, limit)
+        let items = &structure.items;
+        if items.is_empty() {
+            return SyntaxNode::fallback(self.input, start, limit);
+        }
+
+        let first_indent = items[0].indent;
+        let list_type = Self::get_list_type(items);
+
+        let mut children = Vec::new();
+        let mut i = 0;
+
+        while i < items.len() {
+            let item = &items[i];
+            if item.indent != first_indent {
+                break;
+            }
+
+            let end_pos = if i + 1 < items.len() && items[i + 1].indent == first_indent {
+                items[i + 1].position
+            } else {
+                limit
+            };
+
+            let item_node = self.item_parser_internal(item, end_pos);
+            children.push(Rc::new(item_node));
+            i += 1;
+        }
+
+        let end = if let Some(last) = children.last() {
+            last.location.end
+        } else {
+            limit
+        };
+
+        let list_data = PlainListData {
+            structure: structure.clone(),
+            type_s: list_type,
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(children),
+            data: Syntax::PlainList(Box::new(list_data)),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        }
     }
 
-    /// Fallback: returns an empty list structure.
-    pub fn list_struct(&self, _limit: usize) -> Rc<ListStruct> {
-        Rc::new(ListStruct {})
+    fn get_list_type(items: &[ListItem]) -> ListKind {
+        if items.is_empty() {
+            return ListKind::Unordered;
+        }
+        if items[0].tag.is_some() {
+            return ListKind::Descriptive;
+        }
+        for item in items {
+            if item.bullet.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+                return ListKind::Ordered;
+            }
+        }
+        ListKind::Unordered
+    }
+
+    fn item_parser_internal(&self, item: &ListItem, end: usize) -> SyntaxNode<'a> {
+        let bullet = Cow::Owned(item.bullet.clone());
+        let tag = item.tag.as_ref().map(|t| Cow::Owned(t.clone()));
+
+        let item_data = ItemData {
+            bullet,
+            checkbox: item.checkbox.clone(),
+            counter: item.counter.unwrap_or(0),
+            pre_blank: 0,
+            raw_tag: tag.clone(),
+            tag,
+            structure: ListStruct::new(),
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Item(Box::new(item_data)),
+            location: Interval { start: item.position, end },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        }
+    }
+
+    /// Scan input for list items at current indentation level
+    /// This matches Elisp's org-element--list-struct
+    pub fn list_struct(&self, limit: usize) -> Rc<ListStruct> {
+        let mut items = Vec::new();
+        let mut pos = self.cursor.borrow().pos();
+        let input = self.input;
+
+        while pos < limit {
+            let (line, next_pos) = match input[pos..].find('\n') {
+                Some(nl_pos) => (&input[pos..pos + nl_pos], pos + nl_pos + 1),
+                None => (&input[pos..], limit),
+            };
+
+            let (indent, rest) = Self::get_indent(line);
+            if rest.is_empty() {
+                pos = next_pos;
+                continue;
+            }
+
+            let starts_with_bullet = rest.starts_with('-')
+                || rest.starts_with('+')
+                || rest.starts_with('*')
+                || (rest.len() >= 2 && (rest[..2].ends_with('.') || rest[..2].ends_with(')')));
+
+            if starts_with_bullet {
+                let (bullet, counter, checkbox, tag) = Self::parse_item_bullet(rest);
+                items.push(ListItem {
+                    position: pos,
+                    indent,
+                    bullet,
+                    counter,
+                    checkbox,
+                    tag,
+                });
+            } else {
+                break;
+            }
+
+            pos = next_pos;
+        }
+
+        Rc::new(ListStruct { items })
+    }
+
+    fn get_indent(line: &str) -> (usize, &str) {
+        let mut indent = 0;
+        for (i, c) in line.char_indices() {
+            match c {
+                ' ' => indent += 1,
+                '\t' => indent += 8 - (indent % 8),
+                _ => return (indent, &line[i..]),
+            }
+        }
+        (indent, "")
+    }
+
+    fn parse_item_bullet(rest: &str) -> (String, Option<usize>, Option<CheckBox>, Option<String>) {
+        let mut chars = rest.chars().peekable();
+        let mut bullet = String::new();
+        let mut counter = None;
+        let mut checkbox = None;
+        let mut tag = None;
+
+        if let Some(&c) = chars.peek() {
+            if c == '-' || c == '+' || c == '*' {
+                bullet.push(chars.next().unwrap());
+            } else if c.is_ascii_digit() {
+                let mut num = String::new();
+                while let Some(&d) = chars.peek() {
+                    if d.is_ascii_digit() {
+                        num.push(chars.next().unwrap());
+                    } else {
+                        break;
+                    }
+                }
+                if let Some(&c2) = chars.peek() {
+                    if c2 == '.' || c2 == ')' {
+                        bullet = num.clone();
+                        bullet.push(chars.next().unwrap());
+                    }
+                }
+            }
+        }
+
+        while let Some(c) = chars.next() {
+            if c == ' ' || c == '\t' {
+                break;
+            }
+        }
+
+        let remaining: String = chars.collect();
+        if remaining.starts_with('[') {
+            if let Some(end) = remaining.find(']') {
+                let content = &remaining[1..end];
+                checkbox = match content {
+                    "X" => Some(CheckBox::On),
+                    " " | "" => Some(CheckBox::Off),
+                    "-" => Some(CheckBox::Trans),
+                    _ => None,
+                };
+                let after = remaining[end + 1..].trim_start();
+                if let Some(tag_pos) = after.find("::") {
+                    tag = Some(after[tag_pos + 2..].trim().to_string());
+                }
+            }
+        } else if let Some(tag_pos) = remaining.find("::") {
+            tag = Some(remaining[tag_pos + 2..].trim().to_string());
+        }
+
+        (bullet, counter, checkbox, tag)
     }
 }
