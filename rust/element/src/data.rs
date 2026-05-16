@@ -744,6 +744,22 @@ pub struct LinkData<'a> {
 }
 
 impl<'a> LinkData<'a> {
+    pub fn new_plain(raw: &'a str) -> Self {
+        let link_type = if raw.starts_with("https://") || raw.starts_with("http://") || raw.starts_with("ftp://") {
+            LinkType::File
+        } else {
+            LinkType::Fuzzy
+        };
+        LinkData {
+            application: None,
+            format: LinkFormat::Plain,
+            path: raw,
+            raw_link: raw,
+            search_option: None,
+            link_type,
+        }
+    }
+
     pub fn new(raw: &'a str) -> Self {
         // Strip outer [[brackets]] for protocol detection
         let inner = raw

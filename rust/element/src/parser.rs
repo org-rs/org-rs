@@ -566,6 +566,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     children.push(node);
                 }
                 pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_plain_link(remaining, pos) {
+                if restriction(SyntaxT::Link) {
+                    children.push(node);
+                }
+                pos += consumed;
             } else if let Some((node, consumed)) = self.try_parse_plain_text(remaining, pos, end) {
                 children.push(node);
                 pos += consumed;
@@ -907,6 +912,35 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         Some((Rc::new(node), close + 1))
     }
 
+    fn try_parse_plain_link<'b: 'a>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        const PROTOCOLS: &[&[u8]] = &[b"https://", b"http://", b"ftp://", b"mailto:"];
+        let bytes = text.as_bytes();
+        let proto_len = PROTOCOLS.iter().find_map(|&p| {
+            if bytes.starts_with(p) { Some(p.len()) } else { None }
+        })?;
+        let url_end = text[proto_len..]
+            .find(|c: char| c.is_whitespace() || matches!(c, '[' | ']' | '<' | '>'))
+            .map_or(text.len(), |i| proto_len + i);
+        if url_end <= proto_len {
+            return None;
+        }
+        let raw = &text[..url_end];
+        let node = SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Link(Box::new(LinkData::new_plain(raw))),
+            location: Interval { start, end: start + url_end },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        };
+        Some((Rc::new(node), url_end))
+    }
+
     fn try_parse_footnote_reference<'b: 'a>(
         &self,
         text: &'b str,
@@ -955,6 +989,21 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             if matches!(b, b'*' | b'/' | b'_' | b'+' | b'=' | b'~') && i > 0 {
                 // Check if it's a valid PRE char for markup
                 if Self::is_pre_char(bytes[i - 1]) {
+                    break;
+                }
+            }
+            // Stop before '[' so footnote references, links, and timestamps get a chance
+            if b == b'[' {
+                break;
+            }
+            // Stop before bare URL protocols at word boundaries
+            if i == 0 || Self::is_pre_char(bytes[i - 1]) {
+                let rem = &bytes[i..];
+                if rem.starts_with(b"https://")
+                    || rem.starts_with(b"http://")
+                    || rem.starts_with(b"ftp://")
+                    || rem.starts_with(b"mailto:")
+                {
                     break;
                 }
             }
