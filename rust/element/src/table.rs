@@ -23,7 +23,7 @@ use regex::Regex;
 
 lazy_static! {
     pub static ref REGEX_TABLE_BORDER: Regex = Regex::new(r"[ \t]*\|").unwrap();
-    pub static ref REGEX_TABLE_RULE: Regex = Regex::new(r"[ \t]*\+(-+\+)+[ \t]*$").unwrap();
+    pub static ref REGEX_TABLE_RULE: Regex = Regex::new(r"^[ \t]*\|-+").unwrap();
     pub static ref REGEX_TABLE_PRE_BORDER: Regex = Regex::new(r"^[ \t]*($|[^|])").unwrap();
 }
 
