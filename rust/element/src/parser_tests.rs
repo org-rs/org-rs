@@ -388,6 +388,14 @@ mod drawer {
             count
         );
     }
+
+    #[test]
+    fn drawer_multiple_properties() {
+        let input = ":PROPERTIES:\n:ID: test-id\n:CUSTOM_ID: custom-id\n:END:\n";
+        let count = get_type_count(input, SyntaxT::Drawer, ParseGranularity::Element);
+        let prop_count = get_type_count(input, SyntaxT::NodeProperty, ParseGranularity::Element);
+        assert!(count >= 1 && prop_count >= 2, "Drawer: {}, Props: {}", count, prop_count);
+    }
 }
 
 mod planning {
@@ -674,6 +682,13 @@ mod footnote_definition {
         } else {
             panic!("Expected FootnoteDefinition syntax type");
         }
+    }
+
+    #[test]
+    fn footnote_reference_inline() {
+        let input = "Paragraph with reference[fn:1] and another[fn:inline:inline note]\n";
+        let count = get_type_count(input, SyntaxT::FootnoteReference, ParseGranularity::Object);
+        assert!(count >= 2, "Expected footnotes, found {}", count);
     }
 }
 
