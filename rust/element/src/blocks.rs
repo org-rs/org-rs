@@ -339,12 +339,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let value = &self.input[start..end];
 
-        // Extract export type from #+BEGIN_EXPORT html
-        let type_s = if let Some(caps) = REGEX_BLOCK_BEGIN.captures(value) {
-            caps.get(1).map_or("html", |m| m.as_str())
-        } else {
-            "html"
-        };
+        // Extract export backend from first line: "#+BEGIN_EXPORT html"
+        let first_line_end = self.input[start..limit].find('\n').map_or(limit, |i| start + i);
+        let first_line = &self.input[start..first_line_end];
+        let type_s = first_line.split_whitespace().nth(1).unwrap_or("html");
 
         let post_blank = if end < limit {
             let remaining = &self.input[end..limit];
@@ -420,12 +418,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let value = &self.input[start..end];
 
-        // Extract language from #+BEGIN_SRC python
-        let language = if let Some(caps) = REGEX_BLOCK_BEGIN.captures(value) {
-            caps.get(1).map(|m| m.as_str())
-        } else {
-            None
-        };
+        // Extract language from first line: "#+BEGIN_SRC python"
+        let first_line_end = self.input[start..limit].find('\n').map_or(limit, |i| start + i);
+        let first_line = &self.input[start..first_line_end];
+        let language = first_line.split_whitespace().nth(1);
 
         let post_blank = if end < limit {
             let remaining = &self.input[end..limit];
