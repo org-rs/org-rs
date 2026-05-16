@@ -100,16 +100,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
             let line = &self.input[current..line_end];
 
-            if REGEX_TABLE_BORDER.is_match(line) || line.trim().is_empty() {
-                if current > end {
-                    end = current;
-                }
-
+            if line.trim().is_empty() {
+                break;
+            } else if REGEX_TABLE_BORDER.is_match(line) {
                 let row = self.parse_table_row_at(current, line_end.min(limit));
                 children.push(Rc::new(row));
-
-                current = line_end;
-            } else if line.trim().is_empty() {
                 current = line_end;
             } else {
                 break;
