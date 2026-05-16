@@ -1609,4 +1609,47 @@ mod od1_compliance {
         let count = get_type_count(input, SyntaxT::Comment, ParseGranularity::Element);
         assert_eq!(count, 1, "Expected 1 indented comment, found {}", count);
     }
+
+    #[test]
+    fn description_list_tag_is_term() {
+        let input = "- term :: description text\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root = tree.children.borrow();
+        let section = root.first().expect("section");
+        let section_ch = section.children.borrow();
+        let list = section_ch.first().expect("list");
+        if let Syntax::PlainList(data) = &list.data {
+            let tag = &data.structure.items[0].tag;
+            assert_eq!(
+                tag.as_deref(),
+                Some("term"),
+                "Item tag should be the term before '::' (got {:?})",
+                tag
+            );
+        } else {
+            panic!("Expected PlainList");
+        }
+    }
+
+    #[test]
+    fn nested_list_inner_list_parsed() {
+        let input = "- outer\n  - inner\n";
+        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
+        assert!(count >= 2, "Expected outer and inner PlainList, found {}", count);
+    }
+
+    #[test]
+    fn bold_in_list_item_parsed() {
+        let input = "- *bold* item\n";
+        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
+        assert!(count >= 1, "Expected bold object inside list item, found {}", count);
+    }
+
+    #[test]
+    fn bold_in_table_cell_parsed() {
+        let input = "| *bold* text |\n";
+        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
+        assert!(count >= 1, "Expected bold object inside table cell, found {}", count);
+    }
 }
