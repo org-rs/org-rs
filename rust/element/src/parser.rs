@@ -20,7 +20,7 @@ use regex::Regex;
 
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
-use crate::data::{CodeData, EntityData, Interval, Syntax, SyntaxNode, SyntaxT, TimestampData, VerbatimData};
+use crate::data::{CodeData, EntityData, Interval, LinkData, Syntax, SyntaxNode, SyntaxT, TargetData, TimestampData, VerbatimData};
 use crate::environment::Environment;
 
 use crate::blocks::{
@@ -548,6 +548,16 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     children.push(node);
                 }
                 pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_link(remaining, pos) {
+                if restriction(SyntaxT::Link) {
+                    children.push(node);
+                }
+                pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_target(remaining, pos) {
+                if restriction(SyntaxT::Target) {
+                    children.push(node);
+                }
+                pos += consumed;
             } else if let Some((node, consumed)) = self.try_parse_plain_text(remaining, pos, end) {
                 children.push(node);
                 pos += consumed;
@@ -568,9 +578,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         matches!(
             b,
             b' ' | b'\t' | b'\n'
-                | b'.' | b',' | b'!' | b'?'
-                | b';' | b':' | b'\'' | b')'
-                | b'}' | b'\\' | b'[' | b'-'
+                | b'.' | b',' | b'!'
+                | b'?' | b';' | b':' | b'\''
+                | b')' | b'}' | b'\\' | b'[' | b'-'
         )
     }
 
@@ -596,6 +606,88 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     fn try_parse_verbatim<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'=', SyntaxT::Verbatim)
+    }
+
+    fn try_parse_link<'b: 'a>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        let bytes = text.as_bytes();
+        if bytes.len() < 4 || &bytes[0..2] != b"[[" {
+            return None;
+        }
+
+        // Find closing ]]
+        let mut found_close = None;
+        for i in 2..bytes.len() - 1 {
+            if &bytes[i..i + 2] == b"]]" {
+                let after = i + 2;
+                let valid_post = after >= bytes.len()
+                    || bytes[after] == b' '
+                    || bytes[after] == b'\t'
+                    || bytes[after] == b'\n';
+                if valid_post {
+                    found_close = Some(i + 2);
+                    break;
+                }
+            }
+        }
+
+        let close = found_close?;
+        let content_start = 2;
+        let content_end = close - 2;
+        let raw = &text[..close];
+
+        // Use LinkData constructor - it handles basic link parsing
+        let link_data = LinkData::new(raw);
+
+        let node = SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Link(Box::new(link_data)),
+            location: Interval { start, end: start + close },
+            content_location: Some(Interval { start: start + content_start, end: start + content_end }),
+            post_blank: 0,
+            affiliated: None,
+        };
+
+        Some((Rc::new(node), close))
+    }
+
+    fn try_parse_target<'b: 'a>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        let bytes = text.as_bytes();
+        if bytes.len() < 4 || &bytes[0..2] != b"<<" {
+            return None;
+        }
+
+        // Find closing >>
+        let mut found_close = None;
+        for i in 2..bytes.len() - 1 {
+            if &bytes[i..i + 2] == b">>" {
+                let after = i + 2;
+                let valid_post = after >= bytes.len()
+                    || bytes[after] == b' '
+                    || bytes[after] == b'\t'
+                    || bytes[after] == b'\n';
+                if valid_post {
+                    found_close = Some(i + 2);
+                    break;
+                }
+            }
+        }
+
+        let close = found_close?;
+        let content = &text[2..close - 2];
+
+        let target_data = TargetData::new(content);
+        let node = SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Target(Box::new(target_data)),
+            location: Interval { start, end: start + close },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        };
+
+        Some((Rc::new(node), close))
     }
 
     fn parse_emphasis_marker<'b>(
