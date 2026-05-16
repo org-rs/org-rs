@@ -176,7 +176,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         // Parse tags at end of line: look for `:tag1:tag2:` pattern.
         let rest_trimmed = rest.trim_end();
-        let (title, tags) = parse_headline_tags(rest_trimmed);
+        let (raw_title, tags) = parse_headline_tags(rest_trimmed);
+
+        // Strip COMMENT keyword from title if present.
+        let commentedp = raw_title.starts_with("COMMENT ") || raw_title == "COMMENT";
+        let title = if raw_title.starts_with("COMMENT ") {
+            &raw_title["COMMENT ".len()..]
+        } else if raw_title == "COMMENT" {
+            ""
+        } else {
+            raw_title
+        };
 
         // Compute raw_value: everything between stars+space and line end.
         let raw_value = &self.input[after_stars_start..line_end];
@@ -186,10 +196,33 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let content_start = (line_end + 1).min(self.input.len());
         let end = find_headline_end(self.input, content_start, level);
 
+        // 15+ stars are inline tasks, not headlines.
+        if level >= 15 {
+            return SyntaxNode {
+                parent: RefCell::new(None),
+                children: RefCell::new(vec![]),
+                data: Syntax::InlineTask(Box::new(InlineTaskData {
+                    closed: None,
+                    deadline: None,
+                    level,
+                    priority: 0,
+                    raw_value,
+                    scheduled: None,
+                    tags,
+                    title,
+                    todo_keyword,
+                })),
+                location: Interval { start: begin, end: (line_end + 1).min(self.input.len()) },
+                content_location: None,
+                post_blank: 0,
+                affiliated: None,
+            };
+        }
+
         let data = HeadlineData {
             archivedp: tags.iter().any(|t| t.0 == "ARCHIVE"),
             closed: None,
-            commentedp: title.starts_with("COMMENT ") || title == "COMMENT",
+            commentedp,
             deadline: None,
             footnote_section_p: false,
             level,
@@ -268,41 +301,52 @@ fn find_headline_end(input: &str, from: usize, level: usize) -> usize {
     input.len()
 }
 
+fn is_valid_tag_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_' || c == '@' || c == '#' || c == '%'
+}
+
 /// Parse tags from the end of a headline title string.
 ///
 /// Returns `(title_without_tags, vec_of_tags)`.
 fn parse_headline_tags<'a>(line: &'a str) -> (&'a str, Vec<Tag<'a>>) {
-    // Tags must end with `:` and be preceded by whitespace.
     if !line.ends_with(':') {
         return (line, vec![]);
     }
 
-    let bytes = line.as_bytes();
-    // Walk backwards to find the opening `:` of the tag block.
-    let mut i = bytes.len() - 1;
+    // Walk backwards through chars to find the opening `:` preceded by whitespace.
+    let char_indices: Vec<(usize, char)> = line.char_indices().collect();
+    let len = char_indices.len();
+    if len < 2 {
+        return (line, vec![]);
+    }
+
+    // Start just before the trailing ':'.
+    let mut i = len - 2;
     loop {
-        if i == 0 {
-            return (line, vec![]);
-        }
-        i -= 1;
-        let c = bytes[i];
-        if c == b':' {
-            // Check if preceded by whitespace — that marks tag block start.
-            if i > 0 && (bytes[i - 1] == b' ' || bytes[i - 1] == b'\t') {
-                let tag_str = &line[i + 1..line.len() - 1]; // between outer colons
+        let (byte_pos, c) = char_indices[i];
+        if c == ':' {
+            // Opening ':' must be preceded by whitespace.
+            if i > 0 && char_indices[i - 1].1.is_whitespace() {
+                let tag_start = char_indices[i + 1].0;
+                let tag_str = &line[tag_start..line.len() - 1];
                 let tags: Vec<Tag<'a>> = tag_str
                     .split(':')
                     .filter(|s| !s.is_empty())
                     .map(Tag)
                     .collect();
                 if !tags.is_empty() {
-                    let title = line[..i].trim_end();
+                    let title = line[..byte_pos].trim_end();
                     return (title, tags);
                 }
                 return (line, vec![]);
             }
-        } else if !c.is_ascii_alphanumeric() && c != b'_' && c != b'@' && c != b'#' && c != b'%' {
+            // Inner ':' between tags — keep going.
+        } else if !is_valid_tag_char(c) {
             return (line, vec![]);
         }
+        if i == 0 {
+            return (line, vec![]);
+        }
+        i -= 1;
     }
 }
