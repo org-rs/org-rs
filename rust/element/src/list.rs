@@ -311,10 +311,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 continue;
             }
 
+            let starts_with_ordered = {
+                let bs = rest.as_bytes();
+                let mut j = 0;
+                while j < bs.len() && bs[j].is_ascii_digit() { j += 1; }
+                j > 0 && j < bs.len()
+                    && (bs[j] == b'.' || bs[j] == b')')
+                    && (j + 1 >= bs.len() || bs[j + 1] == b' ' || bs[j + 1] == b'\t')
+            };
             let starts_with_bullet = rest.starts_with('-')
                 || rest.starts_with('+')
-                || rest.starts_with('*')
-                || (rest.len() >= 2 && (rest[..2].ends_with('.') || rest[..2].ends_with(')')));
+                || starts_with_ordered;
 
             if starts_with_bullet {
                 let (bullet, counter, checkbox, tag) = Self::parse_item_bullet(rest);
@@ -383,22 +390,36 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         let remaining: String = chars.collect();
-        if remaining.starts_with('[') {
+        let rest = if remaining.starts_with("[@") {
+            // Counter set: [@N] or [@start:N]
             if let Some(end) = remaining.find(']') {
-                let content = &remaining[1..end];
+                let inner = &remaining[2..end];
+                let num_str = inner.strip_prefix("start:").unwrap_or(inner);
+                counter = num_str.parse().ok();
+                remaining[end + 1..].trim_start().to_string()
+            } else {
+                remaining.clone()
+            }
+        } else {
+            remaining.clone()
+        };
+
+        if rest.starts_with('[') {
+            if let Some(end) = rest.find(']') {
+                let content = &rest[1..end];
                 checkbox = match content {
                     "X" => Some(CheckBox::On),
                     " " | "" => Some(CheckBox::Off),
                     "-" => Some(CheckBox::Trans),
                     _ => None,
                 };
-                let after = remaining[end + 1..].trim_start();
+                let after = rest[end + 1..].trim_start();
                 if let Some(tag_pos) = after.find("::") {
                     tag = Some(after[tag_pos + 2..].trim().to_string());
                 }
             }
-        } else if let Some(tag_pos) = remaining.find("::") {
-            tag = Some(remaining[tag_pos + 2..].trim().to_string());
+        } else if let Some(tag_pos) = rest.find("::") {
+            tag = Some(rest[tag_pos + 2..].trim().to_string());
         }
 
         (bullet, counter, checkbox, tag)
