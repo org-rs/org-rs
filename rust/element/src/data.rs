@@ -803,6 +803,73 @@ pub struct TimestampData<'a> {
     year_start: usize,
 }
 
+impl<'a> TimestampData<'a> {
+    pub fn new(raw: &'a str) -> Option<Self> {
+        let raw = raw.trim();
+        if raw.len() < 9 {
+            return None;
+        }
+
+        // Simple active timestamp: <2023-12-31>
+        // Can be:
+        // - <2023-12-31>
+        // - <2023-12-31 10:30>
+        // - <2023-12-31 10:30-11:30>
+        // - [2023-12-31] (inactive)
+
+        // Find year, month, day
+        let parts: Vec<&str> = raw.split('-').collect();
+        if parts.len() < 3 {
+            return None;
+        }
+
+        let year_str = parts[0].trim_start_matches('<').trim_start_matches('[');
+        let year_start: usize = year_str.parse().ok()?;
+        let month_start: usize = parts[1].parse().ok()?;
+        let day_str = parts[2].split_whitespace().next().unwrap_or("1");
+        let day_start: usize = day_str.trim_end_matches('>').trim_end_matches(']').parse().ok()?;
+
+        // Try to parse time if present
+        let mut hour_start = None;
+        let mut minute_start = None;
+        let rest = parts[2].split_whitespace().collect::<Vec<_>>();
+        if rest.len() > 1 {
+            if let Some(time_part) = rest.get(1) {
+                let time_parts: Vec<&str> = time_part.split(':').collect();
+                if time_parts.len() >= 2 {
+                    hour_start = time_parts[0].parse().ok();
+                    minute_start = time_parts[1].trim_end_matches(|c| c == '>' && c == ']').parse().ok();
+                }
+            }
+        }
+
+        Some(TimestampData {
+            day_end: day_start,
+            day_start,
+            hour_end: hour_start,
+            hour_start,
+            minute_end: minute_start,
+            minute_start,
+            month_end: month_start,
+            month_start,
+            raw_value: raw,
+            repeater_type: None,
+            repeater_unit: None,
+            repeater_value: None,
+            type_s: if raw.starts_with('<') {
+                TimestampType::Active
+            } else {
+                TimestampType::Inactive
+            },
+            warning_type: None,
+            warning_unit: None,
+            warning_value: None,
+            year_end: year_start,
+            year_start,
+        })
+    }
+}
+
 #[derive(Debug)]
 pub enum WarningType {
     All,

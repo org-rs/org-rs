@@ -20,7 +20,7 @@ use regex::Regex;
 
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
-use crate::data::{CodeData, Interval, Syntax, SyntaxNode, SyntaxT, VerbatimData};
+use crate::data::{CodeData, Interval, Syntax, SyntaxNode, SyntaxT, TimestampData, VerbatimData};
 use crate::environment::Environment;
 
 use crate::blocks::{
@@ -538,6 +538,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     children.push(node);
                 }
                 pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_timestamp(remaining, pos) {
+                if restriction(SyntaxT::Timestamp) {
+                    children.push(node);
+                }
+                pos += consumed;
             } else if let Some((node, consumed)) = self.try_parse_plain_text(remaining, pos, end) {
                 children.push(node);
                 pos += consumed;
@@ -752,5 +757,47 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         };
 
         Some((Rc::new(node), consume))
+    }
+
+    fn try_parse_timestamp<'b: 'a>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        let bytes = text.as_bytes();
+        if bytes.is_empty() || (bytes[0] != b'<' && bytes[0] != b'[') {
+            return None;
+        }
+
+        let closing = if bytes[0] == b'<' { b'>' } else { b']' };
+
+        // Find closing bracket
+        let mut found_close = None;
+        for i in 1..text.len() {
+            if bytes[i] == closing {
+                // Check for space or end after closing
+                if i + 1 >= text.len() || bytes[i + 1] == b' ' || bytes[i + 1] == b'\n' || bytes[i + 1] == b'\t' {
+                    found_close = Some(i);
+                    break;
+                }
+            }
+        }
+
+        let close = found_close?;
+
+        // Extract content between brackets
+        let content = &text[1..close];
+        let raw = &text[..close + 1];
+
+        // Try to create a valid TimestampData
+        let timestamp_data = TimestampData::new(raw)?;
+
+        let node = SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Timestamp(Box::new(timestamp_data)),
+            location: Interval { start, end: start + close + 1 },
+            content_location: Some(Interval { start: start + 1, end: start + close }),
+            post_blank: 0,
+            affiliated: None,
+        };
+
+        Some((Rc::new(node), close + 1))
     }
 }
