@@ -51,7 +51,9 @@ impl<'a> TableData<'a> {
 
 impl<'a> TableRowData {
     pub fn new(row_type: TableRowType) -> Self {
-        TableRowData { table_row_type: row_type }
+        TableRowData {
+            table_row_type: row_type,
+        }
     }
 }
 
@@ -59,7 +61,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     pub fn table_row_parser(&self) -> SyntaxNode<'a> {
         let start = self.cursor.borrow().pos();
         let limit = self.input.len();
-        
+
         let end = self.input[start..limit]
             .find('\n')
             .map_or(limit, |i| (start + i + 1).min(limit));
@@ -97,15 +99,15 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 .map_or(limit, |i| current + i + 1);
 
             let line = &self.input[current..line_end];
-            
+
             if REGEX_TABLE_BORDER.is_match(line) || line.trim().is_empty() {
                 if current > end {
                     end = current;
                 }
-                
+
                 let row = self.parse_table_row_at(current, line_end.min(limit));
                 children.push(Rc::new(row));
-                
+
                 current = line_end;
             } else if line.trim().is_empty() {
                 current = line_end;
@@ -142,7 +144,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     fn parse_table_row_at(&self, start: usize, end: usize) -> SyntaxNode<'a> {
         let line = &self.input[start..end];
-        
+
         let row_type = if REGEX_TABLE_RULE.is_match(line) {
             TableRowType::Rule
         } else {

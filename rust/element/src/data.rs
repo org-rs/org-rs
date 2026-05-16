@@ -628,7 +628,14 @@ impl<'a> EntityData<'a> {
             "leftarrow" => ("\\leftarrow", "&larr;", "\\leftarrow", false, "←", "←"),
             "Rightarrow" => ("\\Rightarrow", "&rArr;", "\\Rightarrow", false, "⇒", "⇒"),
             "Leftarrow" => ("\\Leftarrow", "&lArr;", "\\Leftarrow", false, "⇐", "⇐"),
-            "leftrightarrow" => ("\\leftrightarrow", "&harr;", "\\leftrightarrow", false, "↔", "↔"),
+            "leftrightarrow" => (
+                "\\leftrightarrow",
+                "&harr;",
+                "\\leftrightarrow",
+                false,
+                "↔",
+                "↔",
+            ),
             "copyright" => ("\\copyright", "&copy;", "\\copyright", false, "©", "©"),
             "trade" => ("\\trade", "&trade;", "\\texttrademark", false, "™", "™"),
             "registered" => ("\\registered", "&reg;", "\\textregistered", false, "®", "®"),
@@ -922,7 +929,11 @@ impl<'a> TimestampData<'a> {
         let year_start: usize = year_str.parse().ok()?;
         let month_start: usize = parts[1].parse().ok()?;
         let day_str = parts[2].split_whitespace().next().unwrap_or("1");
-        let day_start: usize = day_str.trim_end_matches('>').trim_end_matches(']').parse().ok()?;
+        let day_start: usize = day_str
+            .trim_end_matches('>')
+            .trim_end_matches(']')
+            .parse()
+            .ok()?;
 
         // Try to parse time if present
         let mut hour_start = None;
@@ -933,7 +944,10 @@ impl<'a> TimestampData<'a> {
                 let time_parts: Vec<&str> = time_part.split(':').collect();
                 if time_parts.len() >= 2 {
                     hour_start = time_parts[0].parse().ok();
-                    minute_start = time_parts[1].trim_end_matches(|c| c == '>' && c == ']').parse().ok();
+                    minute_start = time_parts[1]
+                        .trim_end_matches(|c| c == '>' && c == ']')
+                        .parse()
+                        .ok();
                 }
             }
         }

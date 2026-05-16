@@ -72,14 +72,21 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::Planning(Box::new(planning_data)),
-            location: Interval { start, end: line_end },
+            location: Interval {
+                start,
+                end: line_end,
+            },
             content_location: None,
             post_blank,
             affiliated: None,
         }
     }
 
-    fn parse_planning_timestamp(&self, line: &'a str, keyword: &str) -> Option<crate::data::TimestampData<'a>> {
+    fn parse_planning_timestamp(
+        &self,
+        line: &'a str,
+        keyword: &str,
+    ) -> Option<crate::data::TimestampData<'a>> {
         let keyword_pos = line.find(keyword)?;
         let after_keyword = line[keyword_pos + keyword.len()..].trim_start();
 
@@ -117,9 +124,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let start = self.cursor.borrow().pos();
         let input_slice = &self.input[start..limit];
 
-        let line_end = input_slice
-            .find('\n')
-            .map_or(limit, |i| start + i);
+        let line_end = input_slice.find('\n').map_or(limit, |i| start + i);
 
         let value = &self.input[start..line_end];
 

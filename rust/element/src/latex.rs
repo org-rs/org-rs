@@ -99,7 +99,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                         let line = &self.input[line_start..match_start];
 
                         if line.chars().all(|c| c == ' ' || c == '\t' || c == '\n') {
-                            end_pos = if match_end < limit && self.input.as_bytes().get(match_end) == Some(&b'\n') {
+                            end_pos = if match_end < limit
+                                && self.input.as_bytes().get(match_end) == Some(&b'\n')
+                            {
                                 match_end + 1
                             } else {
                                 match_end
@@ -137,7 +139,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     parent: RefCell::new(None),
                     children: RefCell::new(vec![]),
                     data: Syntax::LatexEnvironment(Box::new(env_data)),
-                    location: Interval { start, end: end_pos },
+                    location: Interval {
+                        start,
+                        end: end_pos,
+                    },
                     content_location: None,
                     post_blank,
                     affiliated: None,

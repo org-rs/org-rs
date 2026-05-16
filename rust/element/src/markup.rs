@@ -44,7 +44,7 @@ lazy_static! {
     pub static ref REGEX_FOOTNOTE_DEFINITION: Regex = Regex::new(r"^\[fn:([-_[:word:]]+)\]").unwrap();
 
     /// Diary Sexp elements - must be at beginning of line (unindented)
-    /// Match group 1 contains the content after %%( 
+    /// Match group 1 contains the content after %%(
     /// Note: No ^ anchor needed - parser ensures we're at the right position
     pub static ref REGEX_DIARY_SEXP: Regex = Regex::new(r"%%\((.*)").unwrap();
 
@@ -239,11 +239,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             .map_or(contents_start_raw, |i| contents_start_raw + i);
 
         let contents_end = if pre_blank > 0 {
-            let blank_start = if pre_blank == 2 { end } else { line_end_pos + 1 };
-            self.input[contents_start..blank_start]
-                .trim_end()
-                .len()
-                + contents_start
+            let blank_start = if pre_blank == 2 {
+                end
+            } else {
+                line_end_pos + 1
+            };
+            self.input[contents_start..blank_start].trim_end().len() + contents_start
         } else {
             self.input[contents_start..end].trim_end().len() + contents_start
         };
