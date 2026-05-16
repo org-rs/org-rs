@@ -43,9 +43,13 @@ lazy_static! {
     /// Match group 1 contains definition's label
     pub static ref REGEX_FOOTNOTE_DEFINITION: Regex = Regex::new(r"^\[fn:([-_[:word:]]+)\]").unwrap();
 
+    /// Diary Sexp elements - must be at beginning of line (unindented)
+    /// Match group 1 contains the content after %%( 
+    /// Note: No ^ anchor needed - parser ensures we're at the right position
+    pub static ref REGEX_DIARY_SEXP: Regex = Regex::new(r"%%\((.*)").unwrap();
 
     /// Fixed Width Areas
-    /// A “fixed-width line” start with a colon character and a whitespace or an end of line.
+    /// A "fixed-width line" start with a colon character and a whitespace or an end of line.
     /// Fixed width areas can contain any number of consecutive fixed-width lines.
     pub static ref REGEX_FIXED_WIDTH: Regex = Regex::new(r"[ \t]*:( |$)").unwrap();
 

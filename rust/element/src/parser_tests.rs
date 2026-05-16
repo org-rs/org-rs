@@ -349,7 +349,14 @@ mod test_diary_sexp {
 
     #[test]
     fn test_diary_sexp() {
-        let input = "%(org-anniversary 1956 5 14)(2) Arthur Dent is %d years old\n";
+        let input = "%%(org-anniversary 1956 5 14) Arthur Dent is %d years old\n";
+        let count = get_type_count(input, SyntaxT::DiarySexp, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 diary sexp, found {}", count);
+    }
+
+    #[test]
+    fn test_diary_sexp_simple() {
+        let input = "%%(diary-sexp)\n";
         let count = get_type_count(input, SyntaxT::DiarySexp, ParseGranularity::Element);
         assert_eq!(count, 1, "Expected 1 diary sexp, found {}", count);
     }

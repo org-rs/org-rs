@@ -13,14 +13,12 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::affiliated::AffiliatedData;
-use crate::data::SyntaxNode;
-use crate::parser::Parser;
-use regex::Regex;
+use std::cell::RefCell;
 
-lazy_static! {
-    pub static ref REGEX_DIARY_SEXP: Regex = Regex::new(r"%%\(").unwrap();
-}
+use crate::affiliated::AffiliatedData;
+use crate::data::{Interval, Syntax, SyntaxNode};
+use crate::markup::REGEX_DIARY_SEXP;
+use crate::parser::Parser;
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Fallback: planning parser (not yet fully implemented).
@@ -35,13 +33,65 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         SyntaxNode::fallback(self.input, start, limit)
     }
 
-    /// Fallback: diary sexp parser (not yet fully implemented).
+    /// Parse a diary sexp element.
+    ///
+    /// Diary sexp format: `%%(SEXP)` at beginning of line (unindented).
+    /// The sexp must have balanced parentheses.
+    ///
+    /// Matches Elisp implementation:
+    /// - Uses `limit` to bound search
+    /// - Uses `start` for begin position
+    /// - Value is the full sexp string
+    /// Parse a diary sexp element.
+    ///
+    /// Diary sexp format: `%%(SEXP)` at beginning of line (unindented).
+    /// The sexp must have balanced parentheses.
+    ///
+    /// Matches Elisp implementation:
+    /// - Uses `limit` to bound search
+    /// - Uses `start` for begin position
+    /// - Value is the full sexp string
+    /// - Stores affiliated data in SyntaxNode
     pub fn diary_sexp_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        SyntaxNode::fallback(self.input, start, limit)
+        let input_slice = &self.input[start..limit];
+
+        let caps = match REGEX_DIARY_SEXP.captures(input_slice) {
+            Some(c) => c,
+            None => return SyntaxNode::fallback(self.input, start, limit),
+        };
+
+        let value = match caps.get(1) {
+            Some(m) => m.as_str(),
+            None => return SyntaxNode::fallback(self.input, start, limit),
+        };
+
+        let line_end = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i);
+
+        let end = line_end;
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::DiarySexp(Box::new(crate::data::DiarySexpData { value })),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank,
+            affiliated,
+        }
     }
 }
