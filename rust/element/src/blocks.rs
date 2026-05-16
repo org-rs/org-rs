@@ -29,10 +29,12 @@ lazy_static! {
 
     /// Used to identify center, comment, example, export, quote, source, verse
     /// and special blocks. Used together with REGEX_STARTS_WITH_HASHTAG
-    pub static ref REGEX_BLOCK_BEGIN: Regex = Regex::new(r"\+BEGIN_(\S+)").unwrap();
+    /// Case insensitive to match #+BEGIN_CENTER and #+begin_center
+    pub static ref REGEX_BLOCK_BEGIN: Regex = Regex::new(r"(?i)\+BEGIN_(\S+)").unwrap();
 
     /// Used to identify rare, but technically legal dynamic `BEGIN` blocks
-    pub static ref REGEX_DYNAMIC_BLOCK: Regex = Regex::new(r"\+BEGIN:? ").unwrap();
+    /// Note: uses #+BEGIN: (no underscore after BEGIN)
+    pub static ref REGEX_DYNAMIC_BLOCK: Regex = Regex::new(r"(?i)\+BEGIN:? ").unwrap();
 }
 
 /// Greater element
@@ -191,94 +193,358 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
     }
 
-    /// Fallback: center block parser (not yet fully implemented).
+    /// Parse a center block element.
     pub fn center_block_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+        let after_first = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+
+let after_first = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+
+        let end = find_block_end(self.input, start, limit);
+
+        if end >= limit && after_first >= limit {
+            return self.block_fallback(limit, start);
+        }
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::CenterBlock,
+            location: Interval { start, end },
+            content_location: None,
+            post_blank,
+            affiliated,
+        }
     }
 
-    /// Fallback: comment block parser (not yet fully implemented).
+    /// Parse a comment block element.
     pub fn comment_block_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+        let after_first = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+
+        let end = find_block_end(self.input, start, limit);
+
+        if end >= limit && after_first >= limit {
+            return self.block_fallback(limit, start);
+        }
+
+        let value = &self.input[start..end];
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::CommentBlock(Box::new(CommentBlockData { value })),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank,
+            affiliated,
+        }
     }
 
-    /// Fallback: example block parser (not yet fully implemented).
+    /// Parse an example block element.
     pub fn example_block_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+        let after_first = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+
+        let end = find_block_end(self.input, start, limit);
+
+        if end >= limit && after_first >= limit {
+            return self.block_fallback(limit, start);
+        }
+
+        let value = &self.input[start..end];
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::ExampleBlock(Box::new(ExampleBlockData {
+                label_fmt: None,
+                language: None,
+                number_lines: None,
+                options: "",
+                parameters: None,
+                preserve_indent: false,
+                retain_labels: false,
+                switches: None,
+                use_labels: false,
+                value,
+            })),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank,
+            affiliated,
+        }
     }
 
-    /// Fallback: export block parser (not yet fully implemented).
+    /// Parse an export block element.
     pub fn export_block_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+        let after_first = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+
+        let end = find_block_end(self.input, start, limit);
+
+        if end >= limit && after_first >= limit {
+            return self.block_fallback(limit, start);
+        }
+
+        let value = &self.input[start..end];
+
+        // Extract export type from #+BEGIN_EXPORT html
+        let type_s = if let Some(caps) = REGEX_BLOCK_BEGIN.captures(value) {
+            caps.get(1).map_or("html", |m| m.as_str())
+        } else {
+            "html"
+        };
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::ExportBlock(Box::new(ExportBlockData { type_s, value })),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank,
+            affiliated,
+        }
     }
 
-    /// Fallback: quote block parser (not yet fully implemented).
+    /// Parse a quote block element.
     pub fn quote_block_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+        let after_first = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+
+        let end = find_block_end(self.input, start, limit);
+
+        if end >= limit && after_first >= limit {
+            return self.block_fallback(limit, start);
+        }
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::QuoteBlock,
+            location: Interval { start, end },
+            content_location: None,
+            post_blank,
+            affiliated,
+        }
     }
 
-    /// Fallback: src block parser (not yet fully implemented).
+    /// Parse a src block element.
     pub fn src_block_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+        let after_first = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+
+        let end = find_block_end(self.input, start, limit);
+
+        if end >= limit && after_first >= limit {
+            return self.block_fallback(limit, start);
+        }
+
+        let value = &self.input[start..end];
+
+        // Extract language from #+BEGIN_SRC python
+        let language = if let Some(caps) = REGEX_BLOCK_BEGIN.captures(value) {
+            caps.get(1).map(|m| m.as_str())
+        } else {
+            None
+        };
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::SrcBlock(Box::new(SrcBlockData {
+                label_fmt: None,
+                language,
+                number_lines: None,
+                parameters: None,
+                preserve_indent: false,
+                retain_labels: false,
+                switches: None,
+                use_labels: false,
+                value,
+            })),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank,
+            affiliated,
+        }
     }
 
-    /// Fallback: verse block parser (not yet fully implemented).
+    /// Parse a verse block element.
     pub fn verse_block_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+        let after_first = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+
+        let end = find_block_end(self.input, start, limit);
+
+        if end >= limit && after_first >= limit {
+            return self.block_fallback(limit, start);
+        }
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::VerseBlock,
+            location: Interval { start, end },
+            content_location: None,
+            post_blank,
+            affiliated,
+        }
     }
 
-    /// Fallback: special block parser (not yet fully implemented).
+    /// Parse a special block element.
     pub fn special_block_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+        let after_first = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| start + i + 1);
+
+        let end = find_block_end(self.input, start, limit);
+
+        if end >= limit && after_first >= limit {
+            return self.block_fallback(limit, start);
+        }
+
+        let value = &self.input[start..end];
+
+        // Extract block type from #+BEGIN_NAME
+        let type_s = if let Some(caps) = REGEX_BLOCK_BEGIN.captures(value) {
+            caps.get(1).map_or("special", |m| m.as_str())
+        } else {
+            "special"
+        };
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::SpecialBlock(Box::new(SpecialBlockData { type_s, raw_value: value })),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank,
+            affiliated,
+        }
     }
 
-    /// Fallback: dynamic block parser (not yet fully implemented).
+/// Fallback: dynamic block parser (not yet fully implemented).
     pub fn dynamic_block_parser(
         &self,
         limit: usize,
         start: usize,
-        _affiliated: Option<AffiliatedData>,
+        affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        // Dynamic blocks use #+BEGIN: / #+END: (no underscore after END).
+        // Dynamic blocks use #+BEGIN: / #+END: (no underscore after BEGIN).
         let after_first = self.input[start..limit]
             .find('\n')
             .map_or(limit, |i| start + i + 1);
@@ -297,14 +563,31 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             }
             pos = line_end;
         };
+
+        if end >= limit && after_first >= limit {
+            return self.block_fallback(limit, start);
+        }
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
         SyntaxNode {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
-            data: Syntax::Paragraph,
+            data: Syntax::DynamicBlock(Box::new(DynamicBlockData {
+                arguments: "",
+                block_name: "",
+                drawer_name: "",
+            })),
             location: Interval { start, end },
             content_location: None,
-            post_blank: 0,
-            affiliated: None,
+            post_blank,
+            affiliated,
         }
     }
 }
