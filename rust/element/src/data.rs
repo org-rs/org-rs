@@ -944,23 +944,38 @@ impl<'a> TimestampData<'a> {
         let rest = parts[2].split_whitespace().collect::<Vec<_>>();
         if rest.len() > 1 {
             if let Some(time_part) = rest.get(1) {
-                let time_parts: Vec<&str> = time_part.split(':').collect();
+                // time_part may be "10:15" or "10:15-11:30"
+                let start_time = time_part.split('-').next().unwrap_or(time_part);
+                let time_parts: Vec<&str> = start_time.split(':').collect();
                 if time_parts.len() >= 2 {
                     hour_start = time_parts[0].parse().ok();
                     minute_start = time_parts[1]
-                        .trim_end_matches(|c| c == '>' && c == ']')
+                        .trim_end_matches(|c: char| c == '>' || c == ']')
                         .parse()
                         .ok();
                 }
             }
         }
 
+        // Check for end time in a time range: parts[3] = "11:30>" when input is "10:15-11:30"
+        let (hour_end, minute_end) = if parts.len() >= 4 {
+            let end_part = parts[3].trim_end_matches(|c: char| c == '>' || c == ']');
+            let ep: Vec<&str> = end_part.split(':').collect();
+            if ep.len() >= 2 {
+                (ep[0].parse().ok(), ep[1].parse().ok())
+            } else {
+                (hour_start, minute_start)
+            }
+        } else {
+            (hour_start, minute_start)
+        };
+
         Some(TimestampData {
             day_end: day_start,
             day_start,
-            hour_end: hour_start,
+            hour_end,
             hour_start,
-            minute_end: minute_start,
+            minute_end,
             minute_start,
             month_end: month_start,
             month_start,
