@@ -21,8 +21,8 @@ use regex::Regex;
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
 use crate::data::{
-    CodeData, EntityData, Interval, LinkData, Syntax, SyntaxNode, SyntaxT, TargetData,
-    TimestampData, VerbatimData,
+    CodeData, EntityData, FootnoteReferenceData, Interval, LinkData, Syntax, SyntaxNode, SyntaxT,
+    TargetData, TimestampData, VerbatimData,
 };
 use crate::environment::Environment;
 
@@ -541,6 +541,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     children.push(node);
                 }
                 pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_footnote_reference(remaining, pos) {
+                if restriction(SyntaxT::FootnoteReference) {
+                    children.push(node);
+                }
+                pos += consumed;
             } else if let Some((node, consumed)) = self.try_parse_timestamp(remaining, pos) {
                 if restriction(SyntaxT::Timestamp) {
                     children.push(node);
@@ -900,6 +905,35 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         };
 
         Some((Rc::new(node), close + 1))
+    }
+
+    fn try_parse_footnote_reference<'b: 'a>(
+        &self,
+        text: &'b str,
+        start: usize,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        if !text.starts_with("[fn:") {
+            return None;
+        }
+        let close = text.find(']')?;
+        let inner = &text[4..close];
+        let (label, type_s): (Option<&'a str>, &'a str) = if let Some(colon_pos) = inner.find(':') {
+            let label_part = &inner[..colon_pos];
+            (if label_part.is_empty() { None } else { Some(label_part) }, "inline")
+        } else {
+            (if inner.is_empty() { None } else { Some(inner) }, "standard")
+        };
+        let consumed = close + 1;
+        let node = SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::FootnoteReference(Box::new(FootnoteReferenceData { label, type_s })),
+            location: Interval { start, end: start + consumed },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        };
+        Some((Rc::new(node), consumed))
     }
 
     fn try_parse_plain_text<'b: 'a>(
