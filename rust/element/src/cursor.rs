@@ -187,8 +187,14 @@ impl<'a> Cursor<'a> {
     /// Skip over space, tabs and newline characters, going backwards
     /// Cursor position is set before the previous non-whitespace char
     pub fn skip_whitespace_backwards(&mut self) -> usize {
+        // If cursor is not past-end and the current char is non-whitespace, don't move.
+        if self.pos < self.data.len() {
+            if self.data[self.pos..].chars().next().map_or(false, |c| !c.is_whitespace()) {
+                return self.pos();
+            }
+        }
         while let Some(c) = self.get_prev_char() {
-            if !(c.is_whitespace()) {
+            if !c.is_whitespace() {
                 break;
             }
         }
