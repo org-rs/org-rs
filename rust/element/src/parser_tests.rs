@@ -1807,4 +1807,49 @@ mod od1_compliance {
             panic!("Expected Timestamp");
         }
     }
+
+    #[test]
+    fn table_does_not_swallow_following_paragraph() {
+        // table_parser initialises `end = start` and never updates it inside
+        // the row loop.  After the loop it does `if end == start { end = limit }`,
+        // so the table always claims location.end == limit.  Any element that
+        // follows the table within the same section is never parsed.
+        let input = "| a | b |\n| c | d |\nparagraph\n";
+        let para_count = get_type_count(input, SyntaxT::Paragraph, ParseGranularity::Element);
+        assert_eq!(
+            para_count, 1,
+            "paragraph after table should be a sibling, found {} paragraphs",
+            para_count
+        );
+    }
+
+    #[test]
+    fn planning_deadline_dropped_when_closed_follows_on_same_line() {
+        // parse_timestamp_from_str slices from the keyword to end of line.
+        // When DEADLINE: <date> CLOSED: [date] appear on the same line,
+        // the DEADLINE slice ends with ']' (the CLOSED bracket), so the
+        // `starts_with('<') && ends_with('>')` guard fails and deadline is
+        // silently set to None even though it was explicitly present.
+        let input = "* Head\nDEADLINE: <2023-12-31> CLOSED: [2024-01-01]\ncontent\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root_ch = tree.children.borrow();
+        let headline = root_ch.first().expect("headline");
+        let hl_ch = headline.children.borrow();
+        let section = hl_ch
+            .iter()
+            .find(|n| matches!(n.data, Syntax::Section))
+            .expect("section");
+        let sec_ch = section.children.borrow();
+        let planning = sec_ch
+            .iter()
+            .find(|n| matches!(n.data, Syntax::Planning(_)))
+            .expect("planning node");
+        if let Syntax::Planning(p) = &planning.data {
+            assert!(
+                p.deadline.is_some(),
+                "DEADLINE should be parsed even when CLOSED follows on the same line"
+            );
+        }
+    }
 }
