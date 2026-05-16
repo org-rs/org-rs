@@ -1396,3 +1396,158 @@ mod granularity {
         );
     }
 }
+
+/// Tests verifying coverage of the 21 Orgdown Level 1 (OD-1) syntax elements.
+/// Reference: https://gitlab.com/publicvoit/orgdown/-/blob/master/doc/Orgdown1-Syntax-Examples.org
+mod od1_compliance {
+    use super::*;
+
+    #[test]
+    fn two_paragraphs_blank_line() {
+        let input = "first paragraph\n\nsecond paragraph\n";
+        let count = get_type_count(input, SyntaxT::Paragraph, ParseGranularity::Element);
+        assert_eq!(count, 2, "Expected 2 paragraphs separated by blank line, found {}", count);
+    }
+
+    #[test]
+    fn nested_markup_bold_contains_italic() {
+        let input = "*bold /italic/ text*\n";
+        let italic = get_type_count(input, SyntaxT::Italic, ParseGranularity::Object);
+        assert_eq!(italic, 1, "Expected italic nested inside bold, found {}", italic);
+    }
+
+    #[test]
+    fn multiple_markup_on_same_line() {
+        let input = "*bold* and /italic/ and =code= and ~verbatim~\n";
+        let bold     = get_type_count(input, SyntaxT::Bold,     ParseGranularity::Object);
+        let italic   = get_type_count(input, SyntaxT::Italic,   ParseGranularity::Object);
+        let code     = get_type_count(input, SyntaxT::Code,     ParseGranularity::Object);
+        let verbatim = get_type_count(input, SyntaxT::Verbatim, ParseGranularity::Object);
+        assert_eq!(bold,     1, "Expected 1 bold");
+        assert_eq!(italic,   1, "Expected 1 italic");
+        assert_eq!(code,     1, "Expected 1 code");
+        assert_eq!(verbatim, 1, "Expected 1 verbatim");
+    }
+
+    #[test]
+    fn heading_levels_1_to_3() {
+        let input = "* Level 1\n** Level 2\n*** Level 3\n";
+        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
+        assert_eq!(count, 3, "Expected headlines at levels 1, 2 and 3, found {}", count);
+    }
+
+    #[test]
+    fn description_list_type() {
+        use crate::list::ListKind;
+        let input = "- term :: description text\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root = tree.children.borrow();
+        let section = root.first().expect("section node");
+        let section_ch = section.children.borrow();
+        let list = section_ch.first().expect("list node");
+        if let Syntax::PlainList(data) = &list.data {
+            assert!(
+                matches!(data.type_s, ListKind::Descriptive),
+                "Expected Descriptive list type, got {:?}",
+                data.type_s
+            );
+        } else {
+            panic!("Expected PlainList, got {:?}", list.data);
+        }
+    }
+
+    #[test]
+    fn checkbox_checked() {
+        let input = "- [X] done item\n";
+        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 item with [X] checkbox, found {}", count);
+    }
+
+    #[test]
+    fn checkbox_unchecked() {
+        let input = "- [ ] todo item\n";
+        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 item with [ ] checkbox, found {}", count);
+    }
+
+    #[test]
+    fn checkbox_in_progress() {
+        let input = "- [-] in-progress item\n";
+        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 item with [-] checkbox, found {}", count);
+    }
+
+    #[test]
+    fn src_block_with_language() {
+        let input = "#+BEGIN_SRC python\nprint('hello')\n#+END_SRC\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root = tree.children.borrow();
+        let section = root.first().expect("section");
+        let section_ch = section.children.borrow();
+        let block = section_ch.first().expect("src block");
+        if let Syntax::SrcBlock(data) = &block.data {
+            assert_eq!(data.language, Some("python"), "Expected language 'python', got {:?}", data.language);
+        } else {
+            panic!("Expected SrcBlock, got {:?}", block.data);
+        }
+    }
+
+    #[test]
+    fn all_five_block_types() {
+        for (keyword, syntax_t) in &[
+            ("EXAMPLE", SyntaxT::ExampleBlock),
+            ("QUOTE",   SyntaxT::QuoteBlock),
+            ("VERSE",   SyntaxT::VerseBlock),
+            ("SRC",     SyntaxT::SrcBlock),
+            ("COMMENT", SyntaxT::CommentBlock),
+        ] {
+            let input = format!("#+BEGIN_{k}\nsome content\n#+END_{k}\n", k = keyword);
+            let count = get_type_count(&input, *syntax_t, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 {} block, found {}", keyword, count);
+        }
+    }
+
+    #[test]
+    fn link_bare_https_url() {
+        let input = "Visit https://example.com today\n";
+        let count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+        assert!(count >= 1, "Expected bare https URL parsed as link, found {}", count);
+    }
+
+    #[test]
+    fn link_bracketed_no_description() {
+        let input = "[[https://example.com]]\n";
+        let count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+        assert_eq!(count, 1, "Expected 1 bracketed link without description, found {}", count);
+    }
+
+    #[test]
+    fn link_bracketed_with_description() {
+        let input = "[[https://example.com][visit here]]\n";
+        let count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+        assert_eq!(count, 1, "Expected 1 bracketed link with description, found {}", count);
+    }
+
+    #[test]
+    fn table_rows_including_hline() {
+        let input = "| Name | Age |\n|------+-----|\n| Alice | 30 |\n";
+        let row_count = get_type_count(input, SyntaxT::TableRow, ParseGranularity::Element);
+        assert_eq!(row_count, 3, "Expected 3 rows (header + hline + data), found {}", row_count);
+    }
+
+    #[test]
+    fn horizontal_rule_five_dashes() {
+        let input = "-----\n";
+        let count = get_type_count(input, SyntaxT::HorizontalRule, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 horizontal rule, found {}", count);
+    }
+
+    #[test]
+    fn comment_indented() {
+        let input = "  # indented comment\n";
+        let count = get_type_count(input, SyntaxT::Comment, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 indented comment, found {}", count);
+    }
+}
