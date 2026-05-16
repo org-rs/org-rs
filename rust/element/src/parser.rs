@@ -660,10 +660,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         for i in 2..bytes.len() - 1 {
             if &bytes[i..i + 2] == b"]]" {
                 let after = i + 2;
-                let valid_post = after >= bytes.len()
-                    || bytes[after] == b' '
-                    || bytes[after] == b'\t'
-                    || bytes[after] == b'\n';
+                let valid_post = after >= bytes.len() || Self::is_post_char(bytes[after]);
                 if valid_post {
                     found_close = Some(i + 2);
                     break;
@@ -713,10 +710,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         for i in 2..bytes.len() - 1 {
             if &bytes[i..i + 2] == b">>" {
                 let after = i + 2;
-                let valid_post = after >= bytes.len()
-                    || bytes[after] == b' '
-                    || bytes[after] == b'\t'
-                    || bytes[after] == b'\n';
+                let valid_post = after >= bytes.len() || Self::is_post_char(bytes[after]);
                 if valid_post {
                     found_close = Some(i + 2);
                     break;
@@ -786,7 +780,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             }
             if bytes[i] == marker {
                 // Last content char must be non-whitespace
-                if i > 2 {
+                if i >= 2 {
                     let prev = bytes[i - 1];
                     if prev != b' ' && prev != b'\t' && prev != b'\n' {
                         // Check POST condition
@@ -971,11 +965,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         for i in 1..text.len() {
             if bytes[i] == closing {
                 // Check for space or end after closing
-                if i + 1 >= text.len()
-                    || bytes[i + 1] == b' '
-                    || bytes[i + 1] == b'\n'
-                    || bytes[i + 1] == b'\t'
-                {
+                if i + 1 >= text.len() || Self::is_post_char(bytes[i + 1]) {
                     found_close = Some(i);
                     break;
                 }
