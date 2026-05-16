@@ -314,14 +314,16 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let starts_with_ordered = {
                 let bs = rest.as_bytes();
                 let mut j = 0;
-                while j < bs.len() && bs[j].is_ascii_digit() { j += 1; }
-                j > 0 && j < bs.len()
+                while j < bs.len() && bs[j].is_ascii_digit() {
+                    j += 1;
+                }
+                j > 0
+                    && j < bs.len()
                     && (bs[j] == b'.' || bs[j] == b')')
                     && (j + 1 >= bs.len() || bs[j + 1] == b' ' || bs[j + 1] == b'\t')
             };
-            let starts_with_bullet = rest.starts_with('-')
-                || rest.starts_with('+')
-                || starts_with_ordered;
+            let starts_with_bullet =
+                rest.starts_with('-') || rest.starts_with('+') || starts_with_ordered;
 
             if starts_with_bullet {
                 let (bullet, counter, checkbox, tag) = Self::parse_item_bullet(rest);

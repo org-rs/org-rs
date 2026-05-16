@@ -745,7 +745,10 @@ pub struct LinkData<'a> {
 
 impl<'a> LinkData<'a> {
     pub fn new_plain(raw: &'a str) -> Self {
-        let link_type = if raw.starts_with("https://") || raw.starts_with("http://") || raw.starts_with("ftp://") {
+        let link_type = if raw.starts_with("https://")
+            || raw.starts_with("http://")
+            || raw.starts_with("ftp://")
+        {
             LinkType::File
         } else {
             LinkType::Fuzzy
