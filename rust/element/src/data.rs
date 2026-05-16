@@ -587,6 +587,72 @@ pub struct EntityData<'a> {
     utf_8: &'a str,
 }
 
+impl<'a> EntityData<'a> {
+    pub fn new(name: &'a str) -> Option<Self> {
+        // Common entity names and their properties
+        // This is a basic mapping - full implementation would need all org entities
+        let (ascii, html, latex, latex_math_p, latin1, utf_8) = match name {
+            "alpha" => ("\\alpha", "&alpha;", "\\alpha", true, "α", "α"),
+            "beta" => ("\\beta", "&beta;", "\\beta", true, "β", "β"),
+            "gamma" => ("\\gamma", "&gamma;", "\\gamma", true, "γ", "γ"),
+            "delta" => ("\\delta", "&delta;", "\\delta", true, "δ", "δ"),
+            "epsilon" => ("\\epsilon", "&epsilon;", "\\epsilon", true, "ε", "ε"),
+            "zeta" => ("\\zeta", "&zeta;", "\\zeta", true, "ζ", "ζ"),
+            "eta" => ("\\eta", "&eta;", "\\eta", true, "η", "η"),
+            "theta" => ("\\theta", "&theta;", "\\theta", true, "θ", "θ"),
+            "iota" => ("\\iota", "&iota;", "\\iota", true, "ι", "ι"),
+            "kappa" => ("\\kappa", "&kappa;", "\\kappa", true, "κ", "κ"),
+            "lambda" => ("\\lambda", "&lambda;", "\\lambda", true, "λ", "λ"),
+            "mu" => ("\\mu", "&mu;", "\\mu", true, "μ", "μ"),
+            "nu" => ("\\nu", "&nu;", "\\nu", true, "ν", "ν"),
+            "xi" => ("\\xi", "&xi;", "\\xi", true, "ξ", "ξ"),
+            "pi" => ("\\pi", "&pi;", "\\pi", true, "π", "π"),
+            "rho" => ("\\rho", "&rho;", "\\rho", true, "ρ", "ρ"),
+            "sigma" => ("\\sigma", "&sigma;", "\\sigma", true, "σ", "σ"),
+            "tau" => ("\\tau", "&tau;", "\\tau", true, "τ", "τ"),
+            "upsilon" => ("\\upsilon", "&upsilon;", "\\upsilon", true, "υ", "υ"),
+            "phi" => ("\\phi", "&phi;", "\\phi", true, "φ", "φ"),
+            "chi" => ("\\chi", "&chi;", "\\chi", true, "χ", "χ"),
+            "psi" => ("\\psi", "&psi;", "\\psi", true, "ψ", "ψ"),
+            "omega" => ("\\omega", "&omega;", "\\omega", true, "ω", "ω"),
+            "deg" => ("\\deg", "&deg;", "^\\circ", false, "°", "°"),
+            "plusmn" => ("\\plusmn", "&plusmn;", "\\pm", false, "±", "±"),
+            "times" => ("\\times", "&times;", "\\times", false, "×", "×"),
+            "divide" => ("\\divide", "&divide;", "\\div", false, "÷", "÷"),
+            "leq" => ("\\leq", "&le;", "\\leq", false, "≤", "≤"),
+            "geq" => ("\\geq", "&ge;", "\\geq", false, "≥", "≥"),
+            "neq" => ("\\neq", "&ne;", "\\neq", false, "≠", "≠"),
+            "pm" => ("\\pm", "&plusmn;", "\\pm", false, "±", "±"),
+            "cdot" => ("\\cdot", "&middot;", "\\cdot", false, "·", "·"),
+            "rightarrow" => ("\\rightarrow", "&rarr;", "\\rightarrow", false, "→", "→"),
+            "leftarrow" => ("\\leftarrow", "&larr;", "\\leftarrow", false, "←", "←"),
+            "Rightarrow" => ("\\Rightarrow", "&rArr;", "\\Rightarrow", false, "⇒", "⇒"),
+            "Leftarrow" => ("\\Leftarrow", "&lArr;", "\\Leftarrow", false, "⇐", "⇐"),
+            "leftrightarrow" => ("\\leftrightarrow", "&harr;", "\\leftrightarrow", false, "↔", "↔"),
+            "copyright" => ("\\copyright", "&copy;", "\\copyright", false, "©", "©"),
+            "trade" => ("\\trade", "&trade;", "\\texttrademark", false, "™", "™"),
+            "registered" => ("\\registered", "&reg;", "\\textregistered", false, "®", "®"),
+            "nbsp" => ("\\nbsp", "&nbsp;", "~", false, " ", " "),
+            "8211" => ("\\8211", "&#8211;", "--", false, "–", "–"),
+            "8212" => ("\\8212", "&#8212;", "---", false, "—", "—"),
+            "8220" => ("\\8220", "&#8220;", "``", false, "\u{201C}", "\u{201C}"),
+            "8221" => ("\\8221", "&#8221;", "''", false, "\u{201D}", "\u{201D}"),
+            _ => return None,
+        };
+
+        Some(EntityData {
+            ascii,
+            html,
+            latex,
+            latex_math_p,
+            latin1,
+            name,
+            use_brackets_p: false,
+            utf_8,
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct ExportSnippetData<'a> {
     /// Relative back_end's name (string).

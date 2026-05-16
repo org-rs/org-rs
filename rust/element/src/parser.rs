@@ -20,7 +20,7 @@ use regex::Regex;
 
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
-use crate::data::{CodeData, Interval, Syntax, SyntaxNode, SyntaxT, TimestampData, VerbatimData};
+use crate::data::{CodeData, EntityData, Interval, Syntax, SyntaxNode, SyntaxT, TimestampData, VerbatimData};
 use crate::environment::Environment;
 
 use crate::blocks::{
@@ -543,6 +543,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     children.push(node);
                 }
                 pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_entity(remaining, pos) {
+                if restriction(SyntaxT::Entity) {
+                    children.push(node);
+                }
+                pos += consumed;
             } else if let Some((node, consumed)) = self.try_parse_plain_text(remaining, pos, end) {
                 children.push(node);
                 pos += consumed;
@@ -799,5 +804,54 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         };
 
         Some((Rc::new(node), close + 1))
+    }
+
+    fn try_parse_entity<'b: 'a>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        let bytes = text.as_bytes();
+        if bytes.is_empty() || bytes[0] != b'\\' {
+            return None;
+        }
+
+        // Entity name: backslash followed by word chars
+        let mut end = 1;
+        while end < bytes.len() {
+            let c = bytes[end];
+            // Entity names are alphanumeric or certain special chars
+            if c.is_ascii_alphanumeric() || c == b'-' {
+                end += 1;
+            } else {
+                break;
+            }
+        }
+
+        if end <= 1 {
+            return None;
+        }
+
+        // Check post-char: end of text, whitespace, or punctuation
+        let valid_post = end >= bytes.len() 
+            || bytes[end] == b' ' 
+            || bytes[end] == b'\t' 
+            || bytes[end] == b'\n'
+            || (end < bytes.len() && !bytes[end].is_ascii_alphanumeric());
+
+        if !valid_post {
+            return None;
+        }
+
+        let entity_name = &text[1..end];
+        let entity_data = EntityData::new(entity_name)?;
+
+        let node = SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Entity(Box::new(entity_data)),
+            location: Interval { start, end: start + end },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        };
+
+        Some((Rc::new(node), end))
     }
 }
