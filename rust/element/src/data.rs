@@ -555,7 +555,7 @@ pub struct PlanningData<'a> {
 #[derive(Debug)]
 pub struct CodeData<'a> {
     /// Contents (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug)]
@@ -837,7 +837,7 @@ pub enum TimeUnit {
 #[derive(Debug)]
 pub struct VerbatimData<'a> {
     ///Contents (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 /// A pre-order traversal of a [`SyntaxNode`].

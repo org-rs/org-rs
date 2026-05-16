@@ -85,9 +85,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 .map_or(limit, |i| start + i + 1);
         }
 
+        // Parse inline objects within the paragraph content
+        let children = self.parse_objects(start, end, |_| true);
+
         SyntaxNode {
             parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
+            children: RefCell::new(children),
             data: Syntax::Paragraph,
             location: Interval { start, end },
             content_location: Some(Interval { start, end }),
