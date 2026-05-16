@@ -740,7 +740,7 @@ pub struct LinkData<'a> {
     search_option: Option<&'a str>,
 
     /// Link type
-    link_type: LinkType,
+    pub link_type: LinkType,
 }
 
 impl<'a> LinkData<'a> {
@@ -848,7 +848,7 @@ pub struct TimestampData<'a> {
     /// Hour part from timestamp end.
     /// If no ending date is defined, it defaults to start hour part,
     /// if any (integer or nil).
-    hour_end: Option<usize>,
+    pub hour_end: Option<usize>,
 
     /// Hour part from timestamp start, if specified (integer or nil).
     hour_start: Option<usize>,
@@ -856,7 +856,7 @@ pub struct TimestampData<'a> {
     /// Minute part from timestamp end.
     /// If no ending date is defined, it defaults to start minute part,
     /// if any (integer or nil).
-    minute_end: Option<usize>,
+    pub minute_end: Option<usize>,
 
     /// Minute part from timestamp start, if specified (integer or nil).
     minute_start: Option<usize>,
@@ -1075,6 +1075,14 @@ mod test {
     use std::rc::Rc;
 
     use super::*;
+
+    #[test]
+    fn timestamp_with_time_component() {
+        let raw = "<2023-12-31 10:30>";
+        let ts = TimestampData::new(raw).expect("Timestamp with time should parse");
+        assert_eq!(ts.hour_start, Some(10));
+        assert_eq!(ts.minute_start, Some(30));
+    }
 
     #[test]
     fn can_contain() {

@@ -138,7 +138,7 @@ pub struct ItemData<'rope> {
     /// Item's check_box, if any (symbol on, off, trans, nil).
     checkbox: Option<CheckBox>,
     /// Item's counter, if any. Literal counters become ordinals (integer).
-    counter: usize,
+    pub counter: usize,
     /// Number of newline characters between the beginning
     /// of the item and the beginning of the contents (0, 1 or 2).
     pre_blank: usize,
