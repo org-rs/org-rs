@@ -736,6 +736,29 @@ pub struct LinkData<'a> {
     link_type: LinkType,
 }
 
+impl<'a> LinkData<'a> {
+    pub fn new(raw: &'a str) -> Self {
+        // Simple link parser - extract type from scheme if present
+        // e.g., "https://example.com" -> link_type = File, path = "https://example.com"
+        let (link_type, path) = if raw.starts_with("http://") || raw.starts_with("https://") {
+            (LinkType::File, raw)
+        } else if raw.starts_with("file:") {
+            (LinkType::File, raw.strip_prefix("file:").unwrap_or(raw))
+        } else {
+            (LinkType::Fuzzy, raw)
+        };
+
+        LinkData {
+            application: None,
+            format: LinkFormat::Bracket,
+            path,
+            raw_link: raw,
+            search_option: None,
+            link_type,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum LinkType {
     /// Line in some source code,
@@ -798,6 +821,12 @@ pub struct SuperscriptData {
 pub struct TargetData<'a> {
     ///Target's ID (string).
     value: &'a str,
+}
+
+impl<'a> TargetData<'a> {
+    pub fn new(value: &'a str) -> Self {
+        TargetData { value }
+    }
 }
 
 #[derive(Debug)]
