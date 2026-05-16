@@ -599,9 +599,9 @@ mod drawer {
     #[test]
     fn drawer_multiple_properties() {
         let input = ":PROPERTIES:\n:ID: test-id\n:CUSTOM_ID: custom-id\n:END:\n";
-        let count = get_type_count(input, SyntaxT::Drawer, ParseGranularity::Element);
+        let pd_count = get_type_count(input, SyntaxT::PropertyDrawer, ParseGranularity::Element);
         let prop_count = get_type_count(input, SyntaxT::NodeProperty, ParseGranularity::Element);
-        assert!(count >= 1 && prop_count >= 2, "Drawer: {}, Props: {}", count, prop_count);
+        assert!(pd_count >= 1 && prop_count >= 2, "Drawer: {}, Props: {}", pd_count, prop_count);
     }
 }
 
