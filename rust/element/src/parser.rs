@@ -20,7 +20,7 @@ use regex::Regex;
 
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
-use crate::data::{Syntax, SyntaxNode, SyntaxT};
+use crate::data::{CodeData, Interval, Syntax, SyntaxNode, SyntaxT, VerbatimData};
 use crate::environment::Environment;
 
 use crate::blocks::{
@@ -500,9 +500,257 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         beg: usize,
         end: usize,
         restriction: impl Fn(SyntaxT) -> bool,
-    ) -> Vec<Rc<SyntaxNode>> //acc
-    {
-        // TODO(#8): implement object parsing (bold, italic, links, etc.)
-        Vec::new()
+    ) -> Vec<Rc<SyntaxNode<'a>>> {
+        let mut children: Vec<Rc<SyntaxNode<'a>>> = Vec::new();
+        let mut pos = beg;
+
+        while pos < end {
+            let remaining = &self.input[pos..end];
+
+            // Try to parse each object type in order of precedence
+            if let Some((node, consumed)) = self.try_parse_bold(remaining, pos) {
+                if restriction(SyntaxT::Bold) {
+                    children.push(node);
+                }
+                pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_italic(remaining, pos) {
+                if restriction(SyntaxT::Italic) {
+                    children.push(node);
+                }
+                pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_code(remaining, pos) {
+                if restriction(SyntaxT::Code) {
+                    children.push(node);
+                }
+                pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_verbatim(remaining, pos) {
+                if restriction(SyntaxT::Verbatim) {
+                    children.push(node);
+                }
+                pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_underline(remaining, pos) {
+                if restriction(SyntaxT::Underline) {
+                    children.push(node);
+                }
+                pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_strikethrough(remaining, pos) {
+                if restriction(SyntaxT::StrikeThrough) {
+                    children.push(node);
+                }
+                pos += consumed;
+            } else if let Some((node, consumed)) = self.try_parse_plain_text(remaining, pos, end) {
+                children.push(node);
+                pos += consumed;
+            } else {
+                // Skip one character and continue
+                pos += 1;
+            }
+        }
+
+        children
+    }
+
+    fn is_pre_char(b: u8) -> bool {
+        matches!(b, b' ' | b'\t' | b'\n' | b'(' | b'{' | b'\'' | b'"' | b'-')
+    }
+
+    fn is_post_char(b: u8) -> bool {
+        matches!(
+            b,
+            b' ' | b'\t' | b'\n'
+                | b'.' | b',' | b'!' | b'?'
+                | b';' | b':' | b'\'' | b')'
+                | b'}' | b'\\' | b'[' | b'-'
+        )
+    }
+
+    fn try_parse_bold<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        self.parse_emphasis_marker(text, start, b'*', SyntaxT::Bold)
+    }
+
+    fn try_parse_italic<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        self.parse_emphasis_marker(text, start, b'/', SyntaxT::Italic)
+    }
+
+    fn try_parse_underline<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        self.parse_emphasis_marker(text, start, b'_', SyntaxT::Underline)
+    }
+
+    fn try_parse_strikethrough<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        self.parse_emphasis_marker(text, start, b'+', SyntaxT::StrikeThrough)
+    }
+
+    fn try_parse_code<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        self.parse_emphasis_marker(text, start, b'~', SyntaxT::Code)
+    }
+
+    fn try_parse_verbatim<'b>(&self, text: &'b str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        self.parse_emphasis_marker(text, start, b'=', SyntaxT::Verbatim)
+    }
+
+    fn parse_emphasis_marker<'b>(
+        &self,
+        text: &'b str,
+        start: usize,
+        marker: u8,
+        syntax: SyntaxT,
+    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        let bytes = text.as_bytes();
+        if bytes.is_empty() || bytes[0] != marker {
+            return None;
+        }
+
+        // Check PRE condition: start of text (position 0 in slice) is always valid
+        // For non-start positions, would need to check previous char
+        let valid_pre = true; // At start of content, always valid
+        if !valid_pre {
+            return None;
+        }
+
+        // Need at least: marker + 1 content + closing marker
+        if text.len() < 3 {
+            return None;
+        }
+
+        // First content char must be non-whitespace
+        if bytes[1] == b' ' || bytes[1] == b'\t' || bytes[1] == b'\n' {
+            return None;
+        }
+
+        let mut newlines = 0u8;
+        let mut found_close = None;
+
+        // Search for closing marker
+        for i in 2..text.len() {
+            if bytes[i] == b'\n' {
+                newlines += 1;
+                if newlines > 1 {
+                    break;
+                }
+            }
+            if bytes[i] == marker {
+                // Last content char must be non-whitespace
+                if i > 2 {
+                    let prev = bytes[i - 1];
+                    if prev != b' ' && prev != b'\t' && prev != b'\n' {
+                        // Check POST condition
+                        let valid_post = i + 1 >= text.len() || Self::is_post_char(bytes[i + 1]);
+                        if valid_post {
+                            found_close = Some(i);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        let close = found_close?;
+
+        // Extract content between markers
+        let content_start = start + 1;
+        let content_end = start + close;
+        let content = &self.input[content_start..content_end];
+
+        // Parse inner objects recursively
+        let inner_children = self.parse_objects(content_start, content_end, |_| true);
+
+        // Create the node based on syntax type
+        let node = match syntax {
+            SyntaxT::Bold => SyntaxNode {
+                parent: RefCell::new(None),
+                children: RefCell::new(inner_children),
+                data: Syntax::Bold,
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(Interval { start: content_start, end: content_end }),
+                post_blank: 0,
+                affiliated: None,
+            },
+            SyntaxT::Italic => SyntaxNode {
+                parent: RefCell::new(None),
+                children: RefCell::new(inner_children),
+                data: Syntax::Italic,
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(Interval { start: content_start, end: content_end }),
+                post_blank: 0,
+                affiliated: None,
+            },
+            SyntaxT::Underline => SyntaxNode {
+                parent: RefCell::new(None),
+                children: RefCell::new(inner_children),
+                data: Syntax::Underline,
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(Interval { start: content_start, end: content_end }),
+                post_blank: 0,
+                affiliated: None,
+            },
+            SyntaxT::StrikeThrough => SyntaxNode {
+                parent: RefCell::new(None),
+                children: RefCell::new(inner_children),
+                data: Syntax::StrikeThrough,
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(Interval { start: content_start, end: content_end }),
+                post_blank: 0,
+                affiliated: None,
+            },
+            SyntaxT::Code => SyntaxNode {
+                parent: RefCell::new(None),
+                children: RefCell::new(vec![]),
+                data: Syntax::Code(Box::new(CodeData { value: content })),
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(Interval { start: content_start, end: content_end }),
+                post_blank: 0,
+                affiliated: None,
+            },
+            SyntaxT::Verbatim => SyntaxNode {
+                parent: RefCell::new(None),
+                children: RefCell::new(vec![]),
+                data: Syntax::Verbatim(Box::new(VerbatimData { value: content })),
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(Interval { start: content_start, end: content_end }),
+                post_blank: 0,
+                affiliated: None,
+            },
+            _ => return None,
+        };
+
+        Some((Rc::new(node), close + 1))
+    }
+
+    fn try_parse_plain_text<'b: 'a>(&self, text: &'b str, start: usize, _end: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+        if text.is_empty() {
+            return None;
+        }
+
+        // Find where plain text ends (at next markup marker or end)
+        let bytes = text.as_bytes();
+        let mut consume = 0;
+
+        for (i, &b) in bytes.iter().enumerate() {
+            // Stop at emphasis markers that could start markup
+            if matches!(b, b'*' | b'/' | b'_' | b'+' | b'=' | b'~') && i > 0 {
+                // Check if it's a valid PRE char for markup
+                if Self::is_pre_char(bytes[i - 1]) {
+                    break;
+                }
+            }
+            consume = i + 1;
+        }
+
+        if consume == 0 {
+            return None;
+        }
+
+        let content = &text[..consume];
+        let node = SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::PlainText(content),
+            location: Interval { start, end: start + consume },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        };
+
+        Some((Rc::new(node), consume))
     }
 }
