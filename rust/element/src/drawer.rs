@@ -14,6 +14,7 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::affiliated::AffiliatedData;
 use crate::data::{Interval, Syntax, SyntaxNode};
@@ -98,9 +99,15 @@ pub fn drawer_parser(
                 0
             };
 
+            let children = if name.eq_ignore_ascii_case("PROPERTIES") {
+                self.parse_property_drawer_contents(start, end)
+            } else {
+                vec![]
+            };
+
             return SyntaxNode {
                 parent: RefCell::new(None),
-                children: RefCell::new(vec![]),
+                children: RefCell::new(children),
                 data: if name.eq_ignore_ascii_case("PROPERTIES") {
                     Syntax::PropertyDrawer
                 } else {
@@ -114,5 +121,85 @@ pub fn drawer_parser(
         }
 
         SyntaxNode::fallback(self.input, start, limit)
+    }
+
+    fn parse_property_drawer_contents(&self, start: usize, end: usize) -> Vec<Rc<SyntaxNode<'a>>> {
+        let mut children = Vec::new();
+        let input = self.input;
+
+        let first_line_end = match input[start..].find('\n') {
+            Some(nl) => start + nl + 1,
+            None => return children,
+        };
+
+        let content_end = if end > 0 && input.as_bytes().get(end - 1) == Some(&b'\n') {
+            end - 1
+        } else {
+            end
+        };
+
+        if first_line_end >= content_end {
+            return children;
+        }
+
+        let content = &input[first_line_end..content_end];
+        let mut pos = 0;
+
+        while pos < content.len() {
+            let line_end = match content[pos..].find('\n') {
+                Some(nl) => pos + nl,
+                None => content.len(),
+            };
+            let line = &content[pos..line_end];
+
+            if let Some((key, value)) = Self::parse_node_property_line(line) {
+                let prop_start = first_line_end + pos;
+                let prop_end = if line_end < content.len() {
+                    line_end + 1
+                } else {
+                    line_end
+                };
+
+                let node_data = crate::headline::NodePropertyData {
+                    key,
+                    value,
+                };
+                children.push(Rc::new(SyntaxNode {
+                    parent: RefCell::new(None),
+                    children: RefCell::new(vec![]),
+                    data: Syntax::NodeProperty(Box::new(node_data)),
+                    location: Interval { start: prop_start, end: prop_end },
+                    content_location: None,
+                    post_blank: 0,
+                    affiliated: None,
+                }));
+            }
+
+            pos = if line_end < content.len() { line_end + 1 } else { content.len() };
+        }
+
+        children
+    }
+
+    fn parse_node_property_line(line: &str) -> Option<(&str, &str)> {
+        let trimmed = line.trim();
+        if !trimmed.starts_with(':') {
+            return None;
+        }
+
+        let rest = &trimmed[1..];
+        if rest.is_empty() || rest.starts_with(':') {
+            return None;
+        }
+
+        if let Some(colon_pos) = rest.find(':') {
+            let key = &rest[..colon_pos];
+            let value = rest[colon_pos + 1..].trim();
+            if !key.is_empty() {
+                return Some((key, value));
+            }
+        }
+
+        None
     }
 }
