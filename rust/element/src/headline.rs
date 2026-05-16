@@ -255,7 +255,7 @@ fn find_headline_end(input: &str, from: usize, level: usize) -> usize {
                 stars += 1;
             }
             // A headline at same or higher level ends this subtree.
-            if stars <= level && pos + stars < input.len() && bytes[pos + stars] == b' ' {
+            if stars <= level && pos + stars < input.len() && (bytes[pos + stars] == b' ' || bytes[pos + stars] == b'\t') {
                 return pos;
             }
         }
