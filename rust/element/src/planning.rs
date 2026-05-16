@@ -29,10 +29,74 @@ lazy_static! {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    /// Fallback: planning parser (not yet fully implemented).
     pub fn planning_parser(&self, limit: usize) -> SyntaxNode<'a> {
         let start = self.cursor.borrow().pos();
-        SyntaxNode::fallback(self.input, start, limit)
+        let input_slice = &self.input[start..limit];
+
+        let line_end = input_slice.find('\n').map_or(limit, |i| start + i);
+        let line = &input_slice[..(line_end - start)];
+
+        let mut deadline = None;
+        let mut scheduled = None;
+        let mut closed = None;
+
+        if let Some(d) = self.parse_planning_timestamp(line, "DEADLINE:") {
+            deadline = Some(d);
+        }
+        if let Some(s) = self.parse_planning_timestamp(line, "SCHEDULED:") {
+            scheduled = Some(s);
+        }
+        if let Some(c) = self.parse_planning_timestamp(line, "CLOSED:") {
+            closed = Some(c);
+        }
+
+        if deadline.is_none() && scheduled.is_none() && closed.is_none() {
+            return SyntaxNode::fallback(self.input, start, limit);
+        }
+
+        let post_blank = if line_end < limit {
+            let remaining = &self.input[line_end..limit];
+            let trimmed = remaining.trim_start();
+            (remaining.len() - trimmed.len()).min(2)
+        } else {
+            0
+        };
+
+        let planning_data = crate::data::PlanningData {
+            closed,
+            deadline,
+            scheduled,
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::Planning(Box::new(planning_data)),
+            location: Interval { start, end: line_end },
+            content_location: None,
+            post_blank,
+            affiliated: None,
+        }
+    }
+
+    fn parse_planning_timestamp(&self, line: &'a str, keyword: &str) -> Option<crate::data::TimestampData<'a>> {
+        let keyword_pos = line.find(keyword)?;
+        let after_keyword = line[keyword_pos + keyword.len()..].trim_start();
+
+        self.parse_timestamp_from_str(after_keyword)
+    }
+
+    fn parse_timestamp_from_str(&self, s: &'a str) -> Option<crate::data::TimestampData<'a>> {
+        let s = s.trim();
+        if s.is_empty() {
+            return None;
+        }
+
+        if (s.starts_with('<') && s.ends_with('>')) || (s.starts_with('[') && s.ends_with(']')) {
+            crate::data::TimestampData::new(s)
+        } else {
+            None
+        }
     }
 
     /// Parse a clock line element.

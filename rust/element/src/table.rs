@@ -13,10 +13,11 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-// TODO add table related docs
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::affiliated::AffiliatedData;
-use crate::data::SyntaxNode;
+use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
 
@@ -28,41 +29,134 @@ lazy_static! {
 
 #[derive(Debug)]
 pub struct TableData<'a> {
-    /// Formulas associated to the table, if any (string or nil).
-    tblfm: Option<&'a str>,
-    //Table's origin (symbol table.el, org).
-    // type_s
-
-    //Raw table.el table or nil (string or nil).
-    // value
+    pub tblfm: Option<&'a str>,
 }
 
 #[derive(Debug)]
 pub struct TableRowData {
-    table_row_type: TableRowType,
+    pub table_row_type: TableRowType,
 }
 
-/// Row's type (symbol standard, rule).
 #[derive(Debug)]
 pub enum TableRowType {
     Standard,
     Rule,
 }
 
+impl<'a> TableData<'a> {
+    pub fn new() -> Self {
+        TableData { tblfm: None }
+    }
+}
+
+impl<'a> TableRowData {
+    pub fn new(row_type: TableRowType) -> Self {
+        TableRowData { table_row_type: row_type }
+    }
+}
+
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    /// Fallback: table row parser (not yet fully implemented).
     pub fn table_row_parser(&self) -> SyntaxNode<'a> {
         let start = self.cursor.borrow().pos();
-        SyntaxNode::fallback(self.input, start, self.input.len())
+        let limit = self.input.len();
+        
+        let end = self.input[start..limit]
+            .find('\n')
+            .map_or(limit, |i| (start + i + 1).min(limit));
+
+        let row_type = if REGEX_TABLE_RULE.is_match(&self.input[start..end]) {
+            TableRowType::Rule
+        } else {
+            TableRowType::Standard
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::TableRow(Box::new(TableRowData::new(row_type))),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        }
     }
 
-    /// Fallback: table parser (not yet fully implemented).
     pub fn table_parser(
         &self,
         limit: usize,
         start: usize,
         _maybe_aff: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        SyntaxNode::fallback(self.input, start, limit)
+        let mut end = start;
+        let mut children: Vec<Rc<SyntaxNode<'a>>> = vec![];
+        let mut current = start;
+
+        while current < limit {
+            let line_end = self.input[current..limit]
+                .find('\n')
+                .map_or(limit, |i| current + i + 1);
+
+            let line = &self.input[current..line_end];
+            
+            if REGEX_TABLE_BORDER.is_match(line) || line.trim().is_empty() {
+                if current > end {
+                    end = current;
+                }
+                
+                let row = self.parse_table_row_at(current, line_end.min(limit));
+                children.push(Rc::new(row));
+                
+                current = line_end;
+            } else if line.trim().is_empty() {
+                current = line_end;
+            } else {
+                break;
+            }
+        }
+
+        if children.is_empty() {
+            return SyntaxNode::fallback(self.input, start, limit);
+        }
+
+        if end == start {
+            end = limit;
+        }
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            remaining.chars().take_while(|c| c.is_whitespace()).count()
+        } else {
+            0
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(children),
+            data: Syntax::Table(Box::new(TableData::new())),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank,
+            affiliated: None,
+        }
+    }
+
+    fn parse_table_row_at(&self, start: usize, end: usize) -> SyntaxNode<'a> {
+        let line = &self.input[start..end];
+        
+        let row_type = if REGEX_TABLE_RULE.is_match(line) {
+            TableRowType::Rule
+        } else {
+            TableRowType::Standard
+        };
+
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(vec![]),
+            data: Syntax::TableRow(Box::new(TableRowData::new(row_type))),
+            location: Interval { start, end },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        }
     }
 }

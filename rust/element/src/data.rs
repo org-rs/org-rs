@@ -541,15 +541,15 @@ pub enum LineNumberingMode {
 pub struct PlanningData<'a> {
     /// Timestamp associated to closed keyword, if any
     /// (timestamp object or nil).
-    closed: Option<TimestampData<'a>>,
+    pub closed: Option<TimestampData<'a>>,
 
     /// Timestamp associated to deadline keyword, if any
     /// (timestamp object or nil).
-    deadline: Option<TimestampData<'a>>,
+    pub deadline: Option<TimestampData<'a>>,
 
     /// Timestamp associated to scheduled keyword, if any
     /// (timestamp object or nil).
-    scheduled: Option<TimestampData<'a>>,
+    pub scheduled: Option<TimestampData<'a>>,
 }
 
 #[derive(Debug)]
