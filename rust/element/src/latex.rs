@@ -14,18 +14,11 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::affiliated::AffiliatedData;
-/// LaTeX Environments
-///
-/// Pattern for LaTeX environments is:
-///
-/// \begin{NAME} CONTENTS \end{NAME}
-///
-/// NAME is constituted of alpha-numeric or asterisk characters.
-///
-/// CONTENTS can contain anything but the “\end{NAME}” string.
-use crate::data::SyntaxNode;
+use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 // TODO wirte latex regexes
 lazy_static! {
@@ -80,13 +73,78 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// `:post-affiliated' keywords.
     ///
     /// Assume point is at the beginning of the latex environment."
-    /// Fallback: LaTeX environment parser (not yet fully implemented).
     pub fn latex_environment_parser(
         &self,
         limit: usize,
         start: usize,
         _maybe_aff: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
+        let input_slice = &self.input[start..limit];
+
+        if let Some(caps) = REGEX_LATEX_BEGIN_ENVIRIONMENT.captures(input_slice) {
+            if let Some(env_name) = caps.get(1) {
+                let env_name_str = env_name.as_str();
+                let begin_line_end = start + caps.get(0).map_or(caps.len(), |m| m.end());
+
+                let end_marker = format!("\\end{{{}}}", env_name_str);
+                let mut search_pos = begin_line_end;
+                let mut end_pos = limit;
+                let mut found = false;
+
+                while search_pos < limit {
+                    if let Some(idx) = self.input[search_pos..limit].find(&end_marker) {
+                        let match_start = search_pos + idx;
+                        let match_end = match_start + end_marker.len();
+                        let line_start = self.input[..match_start].rfind('\n').map_or(0, |p| p + 1);
+                        let line = &self.input[line_start..match_start];
+
+                        if line.chars().all(|c| c == ' ' || c == '\t' || c == '\n') {
+                            end_pos = if match_end < limit && self.input.as_bytes().get(match_end) == Some(&b'\n') {
+                                match_end + 1
+                            } else {
+                                match_end
+                            };
+                            found = true;
+                            break;
+                        }
+                        search_pos = match_end;
+                    } else {
+                        break;
+                    }
+                }
+
+                if !found {
+                    return SyntaxNode::fallback(self.input, start, limit);
+                }
+
+                let post_blank = if end_pos < limit {
+                    let remaining = &self.input[end_pos..limit];
+                    let trimmed = remaining.trim_start();
+                    (remaining.len() - trimmed.len()).min(2)
+                } else {
+                    0
+                };
+
+                let value = &self.input[start..end_pos];
+                let env_data = LatexEnvironmentData {
+                    begin: start,
+                    end: end_pos,
+                    post_blank,
+                    value,
+                };
+
+                return SyntaxNode {
+                    parent: RefCell::new(None),
+                    children: RefCell::new(vec![]),
+                    data: Syntax::LatexEnvironment(Box::new(env_data)),
+                    location: Interval { start, end: end_pos },
+                    content_location: None,
+                    post_blank,
+                    affiliated: None,
+                };
+            }
+        }
+
         SyntaxNode::fallback(self.input, start, limit)
     }
 }
