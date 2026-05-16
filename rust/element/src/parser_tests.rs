@@ -1636,20 +1636,175 @@ mod od1_compliance {
     fn nested_list_inner_list_parsed() {
         let input = "- outer\n  - inner\n";
         let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert!(count >= 2, "Expected outer and inner PlainList, found {}", count);
+        assert!(
+            count >= 2,
+            "Expected outer and inner PlainList, found {}",
+            count
+        );
     }
 
     #[test]
     fn bold_in_list_item_parsed() {
         let input = "- *bold* item\n";
         let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
-        assert!(count >= 1, "Expected bold object inside list item, found {}", count);
+        assert!(
+            count >= 1,
+            "Expected bold object inside list item, found {}",
+            count
+        );
     }
 
     #[test]
     fn bold_in_table_cell_parsed() {
         let input = "| *bold* text |\n";
         let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
-        assert!(count >= 1, "Expected bold object inside table cell, found {}", count);
+        assert!(
+            count >= 1,
+            "Expected bold object inside table cell, found {}",
+            count
+        );
+    }
+
+    #[test]
+    fn bold_in_quote_block_parsed() {
+        let input = "#+BEGIN_QUOTE\n*bold*\n#+END_QUOTE\n";
+        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
+        assert!(
+            count >= 1,
+            "Expected bold object inside quote block content, found {}",
+            count
+        );
+    }
+
+    #[test]
+    fn bold_in_verse_block_parsed() {
+        let input = "#+BEGIN_VERSE\n*bold*\n#+END_VERSE\n";
+        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
+        assert!(
+            count >= 1,
+            "Expected bold object inside verse block content, found {}",
+            count
+        );
+    }
+
+    #[test]
+    fn bold_in_center_block_parsed() {
+        let input = "#+BEGIN_CENTER\n*bold*\n#+END_CENTER\n";
+        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
+        assert!(
+            count >= 1,
+            "Expected bold object inside center block content, found {}",
+            count
+        );
+    }
+
+    #[test]
+    fn headline_priority_extracted() {
+        let input = "* [#A] important task\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root = tree.children.borrow();
+        let headline = root.first().expect("headline");
+        if let Syntax::Headline(data) = &headline.data {
+            assert!(
+                data.priority > 0,
+                "Expected non-zero priority from [#A], got {}",
+                data.priority
+            );
+            assert!(
+                !data.title.contains("[#A]"),
+                "Priority cookie should not appear in title, got {:?}",
+                data.title
+            );
+        } else {
+            panic!("Expected Headline, got {:?}", headline.data);
+        }
+    }
+
+    #[test]
+    fn block_end_must_match_block_type() {
+        // #+END_SRC on its own line must not close a #+BEGIN_QUOTE block.
+        // With the bug, the quote closes early and "more" / "#+END_QUOTE"
+        // become spurious top-level paragraphs.
+        let input = "#+BEGIN_QUOTE\n#+END_SRC\nmore\n#+END_QUOTE\n";
+        let para_count = get_type_count(input, SyntaxT::Paragraph, ParseGranularity::Element);
+        assert_eq!(
+            para_count, 0,
+            "#+END_SRC should not terminate #+BEGIN_QUOTE; {} stray paragraph(s) found",
+            para_count
+        );
+    }
+
+    #[test]
+    fn planning_newline_consumed() {
+        // planning_parser sets location.end to the position OF '\n', not past it.
+        // That '\n' is then re-parsed as its own element, producing a phantom
+        // empty paragraph between the planning line and the actual content.
+        let input = "* Headline\nDEADLINE: <2023-12-31>\ncontent\n";
+        let para_count = get_type_count(input, SyntaxT::Paragraph, ParseGranularity::Element);
+        assert_eq!(
+            para_count, 1,
+            "Expected 1 paragraph after planning line, found {} (phantom newline paragraph?)",
+            para_count
+        );
+    }
+
+    #[test]
+    fn bold_in_headline_title() {
+        let input = "* *bold* heading\n";
+        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
+        assert!(
+            count >= 1,
+            "Expected bold object in headline title, found {}",
+            count
+        );
+    }
+
+    #[test]
+    fn double_blank_line_two_paragraphs() {
+        let input = "para1\n\n\npara2\n";
+        let count = get_type_count(input, SyntaxT::Paragraph, ParseGranularity::Element);
+        assert_eq!(
+            count, 2,
+            "Two blank lines should still give 2 paragraphs, found {}",
+            count
+        );
+    }
+
+    #[test]
+    fn bold_in_footnote_reference_inline_definition() {
+        let input = "text [fn::*bold* note] end\n";
+        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
+        assert!(
+            count >= 1,
+            "Expected bold inside footnote inline definition, found {}",
+            count
+        );
+    }
+
+    #[test]
+    fn timestamp_with_dayname_and_time() {
+        let input = "<2023-12-31 Sun 10:30>\n";
+        let parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root = tree.children.borrow();
+        let section = root.first().expect("section");
+        let section_ch = section.children.borrow();
+        let para = section_ch.first().expect("para");
+        let para_ch = para.children.borrow();
+        let ts = para_ch
+            .iter()
+            .find(|n| matches!(n.data, Syntax::Timestamp(_)))
+            .expect("timestamp");
+        if let Syntax::Timestamp(data) = &ts.data {
+            assert_eq!(
+                data.hour_start,
+                Some(10),
+                "Expected hour 10 from '<2023-12-31 Sun 10:30>', got {:?}",
+                data.hour_start
+            );
+        } else {
+            panic!("Expected Timestamp");
+        }
     }
 }

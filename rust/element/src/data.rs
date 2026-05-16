@@ -862,10 +862,10 @@ impl<'a> TargetData<'a> {
 pub struct TimestampData<'a> {
     /// Day part from timestamp end.
     /// If no ending date is defined, it defaults to start day part (integer).
-    day_end: usize,
+    pub day_end: usize,
 
     /// Day part from timestamp start (integer).
-    day_start: usize,
+    pub day_start: usize,
 
     /// Hour part from timestamp end.
     /// If no ending date is defined, it defaults to start hour part,
@@ -873,7 +873,7 @@ pub struct TimestampData<'a> {
     pub hour_end: Option<usize>,
 
     /// Hour part from timestamp start, if specified (integer or nil).
-    hour_start: Option<usize>,
+    pub hour_start: Option<usize>,
 
     /// Minute part from timestamp end.
     /// If no ending date is defined, it defaults to start minute part,
@@ -881,50 +881,50 @@ pub struct TimestampData<'a> {
     pub minute_end: Option<usize>,
 
     /// Minute part from timestamp start, if specified (integer or nil).
-    minute_start: Option<usize>,
+    pub minute_start: Option<usize>,
 
     /// Month part from timestamp end.
     /// If no ending date is defined, it defaults to start month part
     /// (integer).
-    month_end: usize,
+    pub month_end: usize,
 
     /// Month part from timestamp start (integer).
-    month_start: usize,
+    pub month_start: usize,
 
     /// Raw timestamp (string).
-    raw_value: &'a str,
+    pub raw_value: &'a str,
 
     // TODO maybe the following three fields can be combined into one
     /// Type of repeater, if any (symbol catch_up, restart, cumulate or nil)
-    repeater_type: Option<RepeaterType>,
+    pub repeater_type: Option<RepeaterType>,
 
     /// Unit of shift, if a repeater is defined
     /// (symbol year, month, week, day, hour or nil).
-    repeater_unit: Option<TimeUnit>,
+    pub repeater_unit: Option<TimeUnit>,
 
     /// Value of shift, if a repeater is defined (integer or nil).
-    repeater_value: Option<usize>,
+    pub repeater_value: Option<usize>,
 
     /// Type of timestamp:
     /// (symbol active, active_range, diary, inactive, inactive_range).
-    type_s: TimestampType,
+    pub type_s: TimestampType,
 
     /// Type of warning, if any (symbol all, first or nil)
-    warning_type: Option<WarningType>,
+    pub warning_type: Option<WarningType>,
 
     /// Unit of delay, if one is defined
     /// (symbol year, month, week, day, hour or nil).
-    warning_unit: Option<TimeUnit>,
+    pub warning_unit: Option<TimeUnit>,
 
     /// Value of delay, if one is defined (integer or nil).
-    warning_value: Option<usize>,
+    pub warning_value: Option<usize>,
 
     /// Year part from timestamp end.
     /// If no ending date is defined, it defaults to start year part (integer)
-    year_end: usize,
+    pub year_end: usize,
 
     /// Year part from timestamp start (integer).
-    year_start: usize,
+    pub year_start: usize,
 }
 
 impl<'a> TimestampData<'a> {
