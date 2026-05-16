@@ -179,8 +179,6 @@ impl<'a> Cursor<'a> {
             if !(c.is_whitespace()) {
                 self.get_prev_char();
                 break;
-            } else {
-                self.get_next_char();
             }
         }
         self.pos()
@@ -191,10 +189,7 @@ impl<'a> Cursor<'a> {
     pub fn skip_whitespace_backwards(&mut self) -> usize {
         while let Some(c) = self.get_prev_char() {
             if !(c.is_whitespace()) {
-                self.get_next_char();
                 break;
-            } else {
-                self.get_prev_char();
             }
         }
         self.pos()
