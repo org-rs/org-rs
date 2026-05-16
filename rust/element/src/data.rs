@@ -673,11 +673,11 @@ pub struct ExportSnippetData<'a> {
 #[derive(Debug)]
 pub struct FootnoteReferenceData<'a> {
     /// Footnote's label, if any (string or nil).
-    label: Option<&'a str>,
+    pub label: Option<&'a str>,
 
     /// Determine whether reference has its
     /// definition inline, or not (symbol inline, standard).
-    type_s: &'a str,
+    pub type_s: &'a str,
 }
 
 #[derive(Debug)]

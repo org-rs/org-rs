@@ -17,6 +17,7 @@ use std::cell::RefCell;
 
 use crate::affiliated::AffiliatedData;
 use crate::data::{Interval, Syntax, SyntaxNode};
+use crate::list::REGEX_ITEM;
 use crate::markup::REGEX_HORIZONTAL_RULE;
 use crate::parser::Parser;
 
@@ -73,6 +74,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 }
                 if REGEX_HORIZONTAL_RULE.is_match(trimmed) {
                     break; // horizontal rule
+                }
+                if let Some(m) = REGEX_ITEM.find(line) {
+                    if m.start() == 0 {
+                        break; // list item
+                    }
                 }
             }
 
