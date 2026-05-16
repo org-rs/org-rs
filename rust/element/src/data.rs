@@ -528,7 +528,7 @@ pub enum ClockStatus {
 #[derive(Debug)]
 pub struct DiarySexpData<'a> {
     /// Full Sexp (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug, Clone, Copy)]

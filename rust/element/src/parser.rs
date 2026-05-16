@@ -33,10 +33,10 @@ use crate::headline::{
 use crate::keyword::*;
 use crate::latex::REGEX_LATEX_BEGIN_ENVIRIONMENT;
 use crate::list::*;
+use crate::markup::REGEX_DIARY_SEXP;
 use crate::markup::REGEX_FIXED_WIDTH;
 use crate::markup::REGEX_FOOTNOTE_DEFINITION;
 use crate::markup::REGEX_HORIZONTAL_RULE;
-use crate::planning::REGEX_DIARY_SEXP;
 use crate::table::{REGEX_TABLE_BORDER, REGEX_TABLE_PRE_BORDER, REGEX_TABLE_RULE};
 
 /// determines the depth of the recursion.
