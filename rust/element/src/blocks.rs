@@ -98,7 +98,7 @@ pub struct ExampleBlockData<'a> {
 #[derive(Debug)]
 pub struct ExportBlockData<'a> {
     ///Related back_end's name (string).
-    type_s: &'a str,
+    pub type_s: &'a str,
 
     ///Contents (string)
     value: &'a str,
@@ -119,7 +119,7 @@ pub struct SrcBlockData<'a> {
     label_fmt: Option<&'a str>,
 
     /// Language of the code in the block, if specified (string or nil).
-    language: Option<&'a str>,
+    pub language: Option<&'a str>,
 
     /// Non_nil if code lines should be numbered.
     /// A `new` value starts numbering from 1 wheareas

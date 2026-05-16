@@ -666,6 +666,22 @@ mod test {
     }
 
     #[test]
+    fn skip_whitespace_odd_count() {
+        let rope = "   xyz";
+        let mut cursor = Cursor::new(&rope, 0);
+        cursor.skip_whitespace();
+        assert_eq!(cursor.get_next_char().unwrap(), 'x');
+    }
+
+    #[test]
+    fn skip_whitespace_backwards_odd_count() {
+        let rope = "xyz   ";
+        let mut cursor = Cursor::new(&rope, rope.len() - 1);
+        cursor.skip_whitespace_backwards();
+        assert_eq!(cursor.get_next_char().unwrap(), 'z');
+    }
+
+    #[test]
     fn line_begin() {
         let rope = "First line\nSecond line\r\nThird line";
         let mut cursor = Cursor::new(&rope, 13);

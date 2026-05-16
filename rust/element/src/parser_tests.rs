@@ -96,6 +96,19 @@ mod plain_list {
         let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
         assert!(count >= 0, "Plain list count: {}", count);
     }
+
+    #[test]
+    fn numbered_list_over_ten() {
+        let input = "10. item\n11. another\n12. yet another\n";
+        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 plain list with items >=10, found {}", count);
+        let item_count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
+        assert!(
+            item_count >= 3,
+            "Expected at least 3 items for list items >=10, found {}",
+            item_count
+        );
+    }
 }
 
 mod item {
@@ -141,6 +154,34 @@ mod item {
         let input = "1. first item\n2. second item\n";
         let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
         assert!(count >= 2, "Expected at least 2 items, found {}", count);
+    }
+
+    #[test]
+    fn item_with_counter_set() {
+        let input = "1. [@3] item\n2. next\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+
+        let root_children = tree.children.borrow();
+        let section = root_children.first().expect("Expected section");
+        let section_children = section.children.borrow();
+        let list_node = section_children
+            .first()
+            .expect("Expected plain list");
+        let list_children = list_node.children.borrow();
+        let first_item = list_children
+            .first()
+            .expect("Expected first item");
+
+        if let Syntax::Item(data) = &first_item.data {
+            assert_eq!(
+                data.counter, 3,
+                "Item counter should be 3 from [@3], got {}",
+                data.counter
+            );
+        } else {
+            panic!("Expected Item, got: {:?}", first_item.data);
+        }
     }
 }
 
@@ -202,6 +243,70 @@ mod headline {
         let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
         assert_eq!(count, 1, "Expected 1 headline, found {}", count);
     }
+
+    #[test]
+    fn headline_with_tab_after_stars() {
+        let input = "*\tOne\n**\tSub\n*\tTwo\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root_children = tree.children.borrow();
+        let h1 = root_children.first().expect("Expected first headline");
+        if let Syntax::Headline(_) = &h1.data {
+            let h1_end = h1.location.end;
+            let h2 = root_children.get(1).expect("Expected second headline");
+            if let Syntax::Headline(_) = &h2.data {
+                assert!(
+                    h1_end <= h2.location.start,
+                    "First headline end ({}) should not overlap second headline start ({}): \
+                     headlines with tab should form proper subtree boundaries",
+                    h1_end,
+                    h2.location.start
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn headline_with_unicode_tags() {
+        let input = "* title :café:标签:\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root_children = tree.children.borrow();
+        let h = root_children.first().expect("Expected headline");
+        if let Syntax::Headline(data) = &h.data {
+            let tag_strs: Vec<&str> = data.tags.iter().map(|t| t.0).collect();
+            assert!(
+                tag_strs.contains(&"café"),
+                "Tags should include unicode 'café', got {:?}",
+                tag_strs
+            );
+            assert!(
+                tag_strs.contains(&"标签"),
+                "Tags should include CJK '标签', got {:?}",
+                tag_strs
+            );
+        } else {
+            panic!("Expected Headline");
+        }
+    }
+
+    #[test]
+    fn headline_comment_not_in_title() {
+        let input = "* COMMENT stuff\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root_children = tree.children.borrow();
+        let h = root_children.first().expect("Expected headline");
+        if let Syntax::Headline(data) = &h.data {
+            assert!(
+                !data.title.starts_with("COMMENT"),
+                "Title should not include COMMENT keyword, got: {:?}",
+                data.title
+            );
+        } else {
+            panic!("Expected Headline");
+        }
+    }
 }
 
 mod table {
@@ -258,6 +363,43 @@ mod table {
         let input = "| a | b |";
         let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
         assert!(count >= 1, "Expected 1 table, found {}", count);
+    }
+
+    #[test]
+    fn table_hline_detection() {
+        let input = "| h1 | h2 |\n|---|\n| c1 | c2 |\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+
+        let root_children = tree.children.borrow();
+        let section = root_children.first().expect("Expected section");
+        let section_children = section.children.borrow();
+        let table = section_children
+            .first()
+            .expect("Expected table");
+        let table_children = table.children.borrow();
+
+        let rule_row = table_children.get(1).expect("Expected second table row (hline)");
+        if let Syntax::TableRow(data) = &rule_row.data {
+            assert!(
+                matches!(data.table_row_type, crate::table::TableRowType::Rule),
+                "Expected hline row to be Rule, got {:?}",
+                data.table_row_type
+            );
+        } else {
+            panic!("Expected TableRow, got: {:?}", rule_row.data);
+        }
+    }
+
+    #[test]
+    fn table_blank_line_terminates() {
+        let input = "| a |\n\nend\n";
+        let count = get_type_count(input, SyntaxT::TableRow, ParseGranularity::Element);
+        assert_eq!(
+            count, 1,
+            "Expected 1 table row (blank line should terminate table), found {}",
+            count
+        );
     }
 }
 
@@ -347,6 +489,71 @@ mod blocks {
             "Expected 0 center blocks for incomplete, found {}",
             count
         );
+    }
+
+    #[test]
+    fn export_block_type() {
+        let input = "#+BEGIN_EXPORT html\n<div>HTML</div>\n#+END_EXPORT\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+
+        let root_children = tree.children.borrow();
+        let section = root_children.first().expect("Expected section");
+        let section_children = section.children.borrow();
+        let block = section_children
+            .first()
+            .expect("Expected export block");
+
+        if let Syntax::ExportBlock(data) = &block.data {
+            assert_eq!(
+                data.type_s, "html",
+                "Expected export type_s 'html', got {:?}",
+                data.type_s
+            );
+        } else {
+            panic!("Expected ExportBlock, got: {:?}", block.data);
+        }
+    }
+
+    #[test]
+    fn src_block_language() {
+        let input = "#+BEGIN_SRC python\nprint('hello')\n#+END_SRC\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+
+        let root_children = tree.children.borrow();
+        let section = root_children.first().expect("Expected section");
+        let section_children = section.children.borrow();
+        let block = section_children
+            .first()
+            .expect("Expected src block");
+
+        if let Syntax::SrcBlock(data) = &block.data {
+            assert_eq!(
+                data.language,
+                Some("python"),
+                "Expected language 'python', got {:?}",
+                data.language
+            );
+        } else {
+            panic!("Expected SrcBlock, got: {:?}", block.data);
+        }
+    }
+
+    #[test]
+    fn block_end_edge_cases() {
+        let parser = Parser::new(
+            "#+BEGIN_CENTER\ncenter\n#+end_center \n",
+            ParseGranularity::Element,
+            DefaultEnvironment,
+        );
+        let tree = parser.parse_buffer();
+        let count = get_type_count(
+            "#+BEGIN_CENTER\ncenter\n#+end_center \n",
+            SyntaxT::CenterBlock,
+            ParseGranularity::Element,
+        );
+        assert_eq!(count, 1, "Expected 1 center block with trailing space on END, found {}", count);
     }
 }
 
@@ -721,11 +928,46 @@ mod fixed_width {
     }
 
     #[test]
+    fn multiline_value_strips_colons() {
+        let input = ": Line 1\n: Line 2\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+
+        let root_children = tree.children.borrow();
+        let section = root_children.first().expect("Expected section");
+        let section_children = section.children.borrow();
+        let fw_node = section_children
+            .first()
+            .expect("Expected fixed-width node");
+
+        if let Syntax::FixedWidth(data) = &fw_node.data {
+            assert!(
+                !data.value.contains(':'),
+                "Fixed-width value should not contain colons, got: {:?}",
+                data.value
+            );
+            assert!(
+                data.value.contains("Line 1"),
+                "Fixed-width value should contain 'Line 1', got: {:?}",
+                data.value
+            );
+            assert!(
+                data.value.contains("Line 2"),
+                "Fixed-width value should contain 'Line 2', got: {:?}",
+                data.value
+            );
+        } else {
+            panic!("Expected FixedWidth, got: {:?}", fw_node.data);
+        }
+    }
+
+    #[test]
     fn indented() {
         let input = "  : Indented fixed width\n";
         let count = get_type_count(input, SyntaxT::FixedWidth, ParseGranularity::Element);
         assert_eq!(count, 1, "Expected 1 indented fixed width, found {}", count);
     }
+
 }
 
 mod babel_call {
@@ -832,6 +1074,33 @@ mod keyword {
         let count = get_type_count(input, SyntaxT::Keyword, ParseGranularity::Element);
         assert_eq!(count, 1, "Expected 1 keyword, found {}", count);
     }
+
+    #[test]
+    fn keyword_edge_cases() {
+        let parser = Parser::new(
+            "#+KEY: val\n#+EMPTY:\n#+COLONS: a::b::c\n#+UNICODE: café 标签\n",
+            ParseGranularity::Element,
+            DefaultEnvironment,
+        );
+        let tree = parser.parse_buffer();
+        let count = get_type_count(
+            "#+KEY: val\n#+EMPTY:\n#+COLONS: a::b::c\n#+UNICODE: café 标签\n",
+            SyntaxT::Keyword,
+            ParseGranularity::Element,
+        );
+        assert_eq!(count, 4, "Expected 4 keywords, found {}", count);
+    }
+}
+
+mod affiliated {
+    use super::*;
+
+    #[test]
+    fn collects_all_affiliated_types() {
+        let input = "#+NAME: my-name\n#+CAPTION: my caption\n#+ATTR_HTML: class=foo\n#+HEADER: :var x=1\n: fixed-width\n";
+        let count = get_type_count(input, SyntaxT::FixedWidth, ParseGranularity::Element);
+        assert_eq!(count, 1, "Expected 1 fixed-width with affiliated keywords, found {}", count);
+    }
 }
 
 mod horizontal_rule {
@@ -869,6 +1138,20 @@ mod inlinetask {
             "Expected headline or inlinetask, found headline: {}, inlinetask: {}",
             headline_count,
             count
+        );
+    }
+
+    #[test]
+    fn fifteen_stars_is_not_headline() {
+        let input = "*************** Inlinetask\n";
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root_children = tree.children.borrow();
+        let first = root_children.first().expect("Expected first child");
+        assert!(
+            !matches!(first.data, Syntax::Headline(_)),
+            "15+ stars should NOT be a Headline, got: {:?}",
+            first.data
         );
     }
 }
@@ -944,6 +1227,121 @@ mod object_parsing {
         let input = "<2023-12-31>\n";
         let count = get_type_count(input, SyntaxT::Timestamp, ParseGranularity::Object);
         assert_eq!(count, 1, "Expected 1 timestamp object, found {}", count);
+    }
+
+    #[test]
+    fn single_char_bold() {
+        let input = "*a*\n";
+        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
+        assert_eq!(count, 1, "Expected 1 bold from single-char '*a*', found {}", count);
+    }
+
+    #[test]
+    fn single_char_italic() {
+        let input = "/a/\n";
+        let count = get_type_count(input, SyntaxT::Italic, ParseGranularity::Object);
+        assert_eq!(count, 1, "Expected 1 italic from single-char '/a/', found {}", count);
+    }
+
+    #[test]
+    fn link_after_punctuation() {
+        let input = "[[link]].\n";
+        let count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+        assert_eq!(count, 1, "Expected 1 link before '.', found {}", count);
+    }
+
+    #[test]
+    fn target_after_punctuation() {
+        let input = "<<target>>.\n";
+        let count = get_type_count(input, SyntaxT::Target, ParseGranularity::Object);
+        assert_eq!(count, 1, "Expected 1 target before '.', found {}", count);
+    }
+
+    #[test]
+    fn timestamp_after_punctuation() {
+        let input = "<2023-12-31>.\n";
+        let count = get_type_count(input, SyntaxT::Timestamp, ParseGranularity::Object);
+        assert_eq!(count, 1, "Expected 1 timestamp before '.', found {}", count);
+    }
+
+    #[test]
+    fn timestamp_with_time_range() {
+        let input = "<2023-12-01 10:15-11:30>\n";
+        let parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+
+        let root_children = tree.children.borrow();
+        let section = root_children.first().expect("Expected section");
+        let section_children = section.children.borrow();
+        let para = section_children.first().expect("Expected paragraph");
+        let para_children = para.children.borrow();
+        let ts_node = para_children.first().expect("Expected timestamp");
+
+        if let Syntax::Timestamp(data) = &ts_node.data {
+            assert_eq!(
+                data.hour_end,
+                Some(11),
+                "Expected hour_end 11 from time range 10:15-11:30, got {:?}",
+                data.hour_end
+            );
+            assert_eq!(
+                data.minute_end,
+                Some(30),
+                "Expected minute_end 30 from time range 10:15-11:30, got {:?}",
+                data.minute_end
+            );
+        } else {
+            panic!("Expected Timestamp, got: {:?}", ts_node.data);
+        }
+    }
+
+    #[test]
+    fn link_type_with_brackets() {
+        use crate::data::LinkType;
+        let input = "[[https://example.com]]\n";
+        let parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root_children = tree.children.borrow();
+        let section = root_children.first().expect("Expected section");
+        let section_children = section.children.borrow();
+        let para = section_children.first().expect("Expected paragraph");
+        let para_children = para.children.borrow();
+        let link_node = para_children.first().expect("Expected link");
+        if let Syntax::Link(data) = &link_node.data {
+            assert!(
+                matches!(data.link_type, LinkType::File),
+                "Expected LinkType::File for https link, got {:?}",
+                data.link_type
+            );
+        } else {
+            panic!("Expected Link, got: {:?}", link_node.data);
+        }
+    }
+}
+
+mod paragraph_edge_cases {
+    use super::*;
+
+    #[test]
+    fn paragraph_with_dash_prefix() {
+        let input = "para1\n----- text\npara2\n";
+        let count = get_type_count(input, SyntaxT::Paragraph, ParseGranularity::Element);
+        assert_eq!(
+            count, 1,
+            "Expected 1 paragraph (----- text is not a horizontal rule), found {}",
+            count
+        );
+    }
+
+    #[test]
+    fn paragraph_contains_list_item() {
+        let input = "before\n- item\nafter\n";
+        let list_count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
+        assert!(
+            list_count >= 1,
+            "Expected at least 1 list when '- item' is mid-paragraph, found {}",
+            list_count
+        );
     }
 }
 
