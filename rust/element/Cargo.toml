@@ -12,3 +12,9 @@ regex = "1"
 lazy_static = "^1.3.0"
 strum = "0.28"
 strum_macros = "0.28"
+lexpr = "0.2"
+goof = "0.3"
+
+[[bin]]
+name = "corpus-check"
+path = "src/bin/corpus_check.rs"
