@@ -13,8 +13,8 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::affiliated::AffiliatedData;
-use crate::data::SyntaxNode;
+use crate::affiliated::ElementSpan;
+use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
 
@@ -45,12 +45,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     ///
     /// Format: `#+CALL: name(args)` or `#+CALL: name[:header] args`
     /// Case insensitive (matches CALL, call, etc.)
-    pub fn babel_call_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
+    pub fn babel_call_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let input_slice = &self.input[start..limit];
 
         if !REGEX_BABEL_CALL.is_match(input_slice) {
@@ -58,44 +54,31 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         let line_end = input_slice.find('\n').map_or(limit, |i| start + i);
-
-        let end = line_end;
         let value = &self.input[start..line_end];
 
-        // Simple parsing - extract call name and arguments
-        let call_match = REGEX_BABEL_CALL.find(input_slice);
-        let call_name = if let Some(m) = call_match {
-            let after = &input_slice[m.end()..];
-            after.split_whitespace().next().unwrap_or("")
-        } else {
-            ""
-        };
+        let call_name = REGEX_BABEL_CALL.find(input_slice)
+            .map(|m| input_slice[m.end()..].split_whitespace().next().unwrap_or(""))
+            .unwrap_or("");
 
-        let post_blank = if end < limit {
-            let remaining = &self.input[end..limit];
-            let trimmed = remaining.trim_start();
-            (remaining.len() - trimmed.len()).min(2)
-        } else {
-            0
-        };
+        let post_blank = (line_end < limit).then(|| {
+            let remaining = &self.input[line_end..limit];
+            remaining.len() - remaining.trim_start().len()
+        })
+        .unwrap_or(0)
+        .min(2);
 
-        use crate::data::{Interval, Syntax};
-        use std::cell::RefCell;
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::BabelCall(Box::new(BabelCallData {
+        SyntaxNode::new(
+            Syntax::BabelCall(Box::new(BabelCallData {
                 call: call_name,
                 inside_header: None,
                 arguments: None,
                 end_header: None,
                 value,
             })),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank,
-            affiliated,
-        }
+            (start, line_end),
+        )
+        .post_blank(post_blank)
+        .affiliated(affiliated)
+        .build()
     }
 }

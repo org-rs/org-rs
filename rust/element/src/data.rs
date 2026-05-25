@@ -19,18 +19,14 @@
 use crate::{
     affiliated::AffiliatedData,
     babel::BabelCallData,
-    blocks::{
-        CommentBlockData, DynamicBlockData, ExampleBlockData, ExportBlockData, SpecialBlockData,
-        SrcBlockData,
-    },
+    blocks::{DynamicBlockData, ExampleBlockData, ExportBlockData, SpecialBlockData, SrcBlockData},
     data::Syntax::BabelCall,
-    drawer::DrawerData,
     headline::{HeadlineData, InlineTaskData, NodePropertyData},
     keyword::KeywordData,
-    latex::{LatexEnvironmentData, LatexFragmentData},
+    latex::LatexEnvironmentData,
     list::{ItemData, PlainListData},
-    markup::{CommentData, FixedWidthData, FootnoteDefinitionData},
-    table::{TableData, TableRowData},
+    markup::FootnoteDefinitionData,
+    table::{SpreadsheetCellData, SpreadsheetData, SpreadsheetRowData, TableRowType},
 };
 
 use std::{
@@ -56,6 +52,11 @@ pub struct SyntaxNode<'a> {
     /// Parent node.
     pub parent: RefCell<Option<Weak<SyntaxNode<'a>>>>,
     /// Child nodes of this node.
+    // TODO: revisit whether Rc is the right choice here.  The tree is
+    // essentially single-owner; Rc + Weak parent back-pointers was chosen to
+    // allow the Nodes iterator to clone references and to form Weak parent
+    // links without cycles, but Box children with raw/weak parent pointers
+    // (or an arena) may be simpler and cheaper.
     pub children: RefCell<Vec<Rc<SyntaxNode<'a>>>>,
 
     pub data: Syntax<'a>,
@@ -77,7 +78,75 @@ pub struct SyntaxNode<'a> {
     pub affiliated: Option<AffiliatedData<'a>>,
 }
 
+/// Builder for [`SyntaxNode`], obtained via [`SyntaxNode::new`].
+///
+/// `data` and `location` are required; all other fields default to their zero
+/// values (`None`, `0`, empty `Vec`).
+///
+/// ```rust,ignore
+/// SyntaxNode::new(Syntax::CenterBlock, location)
+///     .content(content_location)
+///     .post_blank(n)
+///     .affiliated(aff)
+///     .build()
+/// ```
+pub struct SyntaxNodeBuilder<'a> {
+    data: Syntax<'a>,
+    location: Interval,
+    content_location: Option<Interval>,
+    post_blank: usize,
+    affiliated: Option<AffiliatedData<'a>>,
+    children: Vec<Rc<SyntaxNode<'a>>>,
+}
+
+impl<'a> SyntaxNodeBuilder<'a> {
+    pub fn content(mut self, loc: impl Into<Interval>) -> Self {
+        self.content_location = Some(loc.into());
+        self
+    }
+
+    pub fn post_blank(mut self, n: usize) -> Self {
+        self.post_blank = n;
+        self
+    }
+
+    pub fn affiliated(mut self, aff: Option<AffiliatedData<'a>>) -> Self {
+        self.affiliated = aff;
+        self
+    }
+
+    pub fn children(mut self, ch: Vec<Rc<SyntaxNode<'a>>>) -> Self {
+        self.children = ch;
+        self
+    }
+
+    pub fn build(self) -> SyntaxNode<'a> {
+        SyntaxNode {
+            parent: RefCell::new(None),
+            children: RefCell::new(self.children),
+            data: self.data,
+            location: self.location,
+            content_location: self.content_location,
+            post_blank: self.post_blank,
+            affiliated: self.affiliated,
+        }
+    }
+}
+
 impl<'a> SyntaxNode<'a> {
+    /// Begin constructing a [`SyntaxNode`].  Returns a [`SyntaxNodeBuilder`]
+    /// pre-loaded with the two required fields; call `.build()` to finish.
+    pub fn new(data: Syntax<'a>, location: impl Into<Interval>) -> SyntaxNodeBuilder<'a> {
+        SyntaxNodeBuilder {
+            data,
+            location: location.into(),
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+            children: vec![],
+        }
+    }
+
     pub fn create_root() -> SyntaxNode<'a> {
         SyntaxNode {
             parent: RefCell::new(None),
@@ -154,16 +223,16 @@ pub enum Syntax<'a> {
     Clock(Box<ClockData<'a>>),
 
     /// Element
-    Comment(Box<CommentData<'a>>),
+    Comment(&'a str),
 
     /// Element
-    CommentBlock(Box<CommentBlockData<'a>>),
+    CommentBlock(&'a str),
 
     /// Element
-    DiarySexp(Box<DiarySexpData<'a>>),
+    DiarySexp(&'a str),
 
     /// Greater element
-    Drawer(Box<DrawerData<'a>>),
+    Drawer(&'a str),
 
     /// Greater element
     DynamicBlock(Box<DynamicBlockData<'a>>),
@@ -175,7 +244,7 @@ pub enum Syntax<'a> {
     ExportBlock(Box<ExportBlockData<'a>>),
 
     /// Element
-    FixedWidth(Box<FixedWidthData<'a>>),
+    FixedWidth(Cow<'a, str>),
 
     /// Greater element
     FootnoteDefinition(Box<FootnoteDefinitionData<'a>>),
@@ -241,11 +310,20 @@ pub enum Syntax<'a> {
     /// Element
     SrcBlock(Box<SrcBlockData<'a>>),
 
-    /// Greater element
-    Table(Box<TableData<'a>>),
+    /// Greater element — a plain display table with no formula.
+    Table,
 
-    /// Element containing objects.
-    TableRow(Box<TableRowData>),
+    /// Greater element — a table with a `#+TBLFM:` formula requiring recalculation.
+    Spreadsheet(Box<SpreadsheetData<'a>>),
+
+    /// Element containing objects — a row inside a [`Syntax::Table`].
+    TableRow(TableRowType),
+
+    /// Element — a row inside a [`Syntax::Spreadsheet`].
+    SpreadsheetRow(SpreadsheetRowData),
+
+    /// Object — an individually addressable cell inside a [`Syntax::SpreadsheetRow`].
+    SpreadsheetCell(Box<SpreadsheetCellData<'a>>),
 
     /// Element containing objects.
     VerseBlock,
@@ -254,7 +332,7 @@ pub enum Syntax<'a> {
     Bold,
 
     /// Object.
-    Code(Box<CodeData<'a>>),
+    Code(&'a str),
 
     /// Object
     Entity(Box<EntityData<'a>>),
@@ -277,7 +355,7 @@ pub enum Syntax<'a> {
     LineBreak,
 
     /// Object
-    LatexFragment(Box<LatexFragmentData<'a>>),
+    LatexFragment(&'a str),
 
     /// Recursive object.
     Link(Box<LinkData<'a>>),
@@ -304,7 +382,7 @@ pub enum Syntax<'a> {
     TableCell,
 
     /// Object
-    Target(Box<TargetData<'a>>),
+    Target(&'a str),
 
     /// Object
     Timestamp(Box<TimestampData<'a>>),
@@ -313,7 +391,7 @@ pub enum Syntax<'a> {
     Underline,
 
     /// Object
-    Verbatim(Box<VerbatimData<'a>>),
+    Verbatim(&'a str),
 
     /// Special object
     PlainText(&'a str),
@@ -330,7 +408,8 @@ impl SyntaxT {
         use SyntaxT::*;
         match self {
             CenterBlock | Drawer | DynamicBlock | FootnoteDefinition | Headline | InlineTask
-            | Item | PlainList | PropertyDrawer | QuoteBlock | Section | SpecialBlock | Table => {
+            | Item | PlainList | PropertyDrawer | QuoteBlock | Section | SpecialBlock | Table
+            | Spreadsheet => {
                 true
             }
             _ => false,
@@ -344,7 +423,8 @@ impl SyntaxT {
             | DynamicBlock | ExampleBlock | ExportBlock | FixedWidth | FootnoteDefinition
             | Headline | HorizontalRule | InlineTask | Item | Keyword | LatexEnvironment
             | NodeProperty | Paragraph | PlainList | Planning | PropertyDrawer | QuoteBlock
-            | Section | SpecialBlock | SrcBlock | Table | TableRow | VerseBlock => true,
+            | Section | SpecialBlock | SrcBlock | Table | Spreadsheet | TableRow | SpreadsheetRow
+            | VerseBlock => true,
             _ => false,
         }
     }
@@ -355,7 +435,7 @@ impl SyntaxT {
             Bold | Code | Entity | ExportSnippet | FootnoteReference | InlineBabelCall
             | InlineSrcBlock | Italic | LineBreak | LatexFragment | Link | Macro | RadioTarget
             | StatisticsCookie | StrikeThrough | Subscript | Superscript | TableCell | Target
-            | Timestamp | Underline | Verbatim | PlainText => true,
+            | Timestamp | Underline | Verbatim | PlainText | SpreadsheetCell => true,
             _ => false,
         }
     }
@@ -525,16 +605,16 @@ pub struct ClockData<'a> {
     pub raw: &'a str,
 }
 
+impl<'a> ClockData<'a> {
+    pub fn new(raw: &'a str) -> Box<Self> {
+        Box::new(Self { duration: "", status: ClockStatus::Running, raw })
+    }
+}
+
 #[derive(Debug)]
 pub enum ClockStatus {
     Running,
     Closed,
-}
-
-#[derive(Debug)]
-pub struct DiarySexpData<'a> {
-    /// Full Sexp (string).
-    pub value: &'a str,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -556,12 +636,6 @@ pub struct PlanningData<'a> {
     /// Timestamp associated to scheduled keyword, if any
     /// (timestamp object or nil).
     pub scheduled: Option<TimestampData<'a>>,
-}
-
-#[derive(Debug)]
-pub struct CodeData<'a> {
-    /// Contents (string).
-    pub value: &'a str,
 }
 
 #[derive(Debug)]
@@ -853,18 +927,6 @@ pub struct SuperscriptData {
 }
 
 #[derive(Debug)]
-pub struct TargetData<'a> {
-    ///Target's ID (string).
-    value: &'a str,
-}
-
-impl<'a> TargetData<'a> {
-    pub fn new(value: &'a str) -> Self {
-        TargetData { value }
-    }
-}
-
-#[derive(Debug)]
 pub struct TimestampData<'a> {
     /// Day part from timestamp end.
     /// If no ending date is defined, it defaults to start day part (integer).
@@ -1052,12 +1114,6 @@ pub enum TimeUnit {
     Week,
     Day,
     Hour,
-}
-
-#[derive(Debug)]
-pub struct VerbatimData<'a> {
-    ///Contents (string).
-    pub value: &'a str,
 }
 
 /// A pre-order traversal of a [`SyntaxNode`].

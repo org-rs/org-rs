@@ -45,8 +45,7 @@
 //! “CAPTION” keyword can contain objects in both VALUE and OPTIONAL fileds.
 
 use crate::cursor::REGEX_EMPTY_LINE;
-use crate::data::StringOrObject;
-use crate::data::SyntaxT;
+use crate::data::{Interval, StringOrObject, SyntaxT};
 use crate::parser::Parser;
 use regex::{Match, Regex};
 use std::borrow::Cow;
@@ -97,6 +96,40 @@ lazy_static! {
               r"(?P<NAME>(?:DATA|LABEL|NAME|RESNAME|(?:S(?:OURC|RCNAM)|TBLNAM)E))",
               r"(?P<ATTR>ATTR_[-_A-Za-z0-9]+)):")
        ).unwrap();
+}
+
+/// The span and affiliated keywords that together describe where an element begins.
+///
+/// `span.start` is the position of the first affiliated keyword (or the element
+/// itself when there are none), `span.end` is the parse limit.  Produced by
+/// [`Parser::collect_affiliated_keywords`] and consumed by every element parser
+/// that can carry affiliated keywords.
+pub struct ElementSpan<'a> {
+    pub span: Interval,
+    pub affiliated: Option<AffiliatedData<'a>>,
+}
+
+/// Builder for [`ElementSpan`], obtained via [`ElementSpan::new`].
+pub struct ElementSpanBuilder<'a> {
+    span: Interval,
+    affiliated: Option<AffiliatedData<'a>>,
+}
+
+impl<'a> ElementSpanBuilder<'a> {
+    pub fn affiliated(mut self, aff: Option<AffiliatedData<'a>>) -> Self {
+        self.affiliated = aff;
+        self
+    }
+
+    pub fn build(self) -> ElementSpan<'a> {
+        ElementSpan { span: self.span, affiliated: self.affiliated }
+    }
+}
+
+impl<'a> ElementSpan<'a> {
+    pub fn new(span: impl Into<Interval>) -> ElementSpanBuilder<'a> {
+        ElementSpanBuilder { span: span.into(), affiliated: None }
+    }
 }
 
 /// Since CAPTION is both DUAL and PARSED DualVal has to be able to store Strings or StringOrObject
@@ -181,9 +214,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// objects itself." - It is hard to encode this into a type system, since in all other
     /// cases, apart from affiliated keywords, objects parents are nodes of syntax trees
     /// (ACC or PARENT)
-    pub fn collect_affiliated_keywords(&self, limit: usize) -> (usize, Option<AffiliatedData<'a>>) {
+    pub fn collect_affiliated_keywords(&self, limit: usize) -> ElementSpan<'a> {
         if !self.cursor.borrow().is_bol() {
-            return (self.cursor.borrow().pos(), None);
+            return ElementSpan::new((self.cursor.borrow().pos(), limit)).build();
         }
         let origin = self.cursor.borrow().pos();
         let _restrict = |that| SyntaxT::Keyword.can_contain(that);
@@ -255,10 +288,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // They will be parsed as a paragraph.
         if looking_at!(REGEX_EMPTY_LINE, self).is_some() {
             self.cursor.borrow_mut().set(origin);
-            return (origin, None);
+            return ElementSpan::new((origin, limit)).build();
         }
 
-        return (origin, Some(output));
+        return ElementSpan::new((origin, limit)).affiliated(Some(output)).build();
     }
 }
 
@@ -353,17 +386,17 @@ mod test {
         {
             let p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
             let maybe_collected = p.collect_affiliated_keywords(text.len());
-            assert_eq!(0, maybe_collected.0);
-            assert!(maybe_collected.1.is_none());
+            assert_eq!(0, maybe_collected.span.start);
+            assert!(maybe_collected.affiliated.is_none());
         }
         text.pop();
         text.push_str("#+BEGIN_SRC");
 
         let p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
         let maybe_collected = p.collect_affiliated_keywords(text.len());
-        assert_eq!(0, maybe_collected.0);
-        assert!(maybe_collected.1.is_some());
-        let collected = maybe_collected.1.unwrap();
+        assert_eq!(0, maybe_collected.span.start);
+        assert!(maybe_collected.affiliated.is_some());
+        let collected = maybe_collected.affiliated.unwrap();
         let mut test_attrs: HashMap<String, Vec<Cow<str>>> = HashMap::new();
         test_attrs.insert(
             "ATTR_HTML".to_string(),
