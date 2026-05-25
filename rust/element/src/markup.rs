@@ -19,6 +19,7 @@ use std::borrow::Cow;
 use crate::affiliated::ElementSpan;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
+use memchr::memchr;
 use regex::Regex;
 
 fn strip_line_prefix(line: &str) -> &str {
@@ -103,8 +104,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut end = span.start;
 
         while end < span.end {
-            let line_end = self.input[end..span.end]
-                .find('\n')
+            let line_end = memchr(b'\n', self.input[end..span.end].as_bytes())
                 .map_or(span.end, |i| end + i + 1);
             let line = self.input[end..line_end].trim_start();
             if line.starts_with("# ") || line == "#" || line == "#\n" {
@@ -115,8 +115,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         if end == span.start {
-            end = self.input[span.start..span.end]
-                .find('\n')
+            end = memchr(b'\n', self.input[span.start..span.end].as_bytes())
                 .map_or(span.end, |i| span.start + i + 1);
         }
 
@@ -130,7 +129,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// dashes and nothing else (ignoring surrounding whitespace).
     pub fn horizontal_rule_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
         let span = element_span.span;
-        let end = self.input[span.start..span.end].find('\n').map_or(span.end, |i| span.start + i + 1);
+        let end = memchr(b'\n', self.input[span.start..span.end].as_bytes()).map_or(span.end, |i| span.start + i + 1);
         SyntaxNode::new(Syntax::HorizontalRule, (span.start, end)).build()
     }
 
@@ -161,8 +160,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         };
 
         let after_label = begin + label_end;
-        let line_end_pos = self.input[after_label..limit]
-            .find('\n')
+        let line_end_pos = memchr(b'\n', self.input[after_label..limit].as_bytes())
             .map_or(limit, |i| after_label + i);
 
         let mut end = line_end_pos;
@@ -195,7 +193,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 }
             }
 
-            if let Some(nl) = remaining.find('\n') {
+            if let Some(nl) = memchr(b'\n', remaining.as_bytes()) {
                 search_pos += nl + 1;
             } else {
                 end = limit;
@@ -261,8 +259,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut end_area = content_start;
 
         while end_area < limit {
-            let line_end = self.input[end_area..limit]
-                .find('\n')
+            let line_end = memchr(b'\n', self.input[end_area..limit].as_bytes())
                 .map_or(limit, |i| end_area + i + 1);
 
             let line = &self.input[end_area..line_end];
@@ -280,8 +277,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         if end_area == content_start {
-            end_area = self.input[content_start..limit]
-                .find('\n')
+            end_area = memchr(b'\n', self.input[content_start..limit].as_bytes())
                 .map_or(limit, |i| content_start + i + 1);
         }
 

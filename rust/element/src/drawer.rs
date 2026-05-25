@@ -19,6 +19,7 @@ use crate::affiliated::ElementSpan;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use lazy_static::lazy_static;
+use memchr::memchr;
 use regex::Regex;
 
 lazy_static! {
@@ -67,7 +68,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                         }
                     }
                 }
-                if let Some(nl) = self.input[search_pos..limit].find('\n') {
+                if let Some(nl) = memchr(b'\n', self.input[search_pos..limit].as_bytes()) {
                     search_pos += nl + 1;
                 } else {
                     break;
@@ -111,7 +112,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut children = Vec::new();
         let input = self.input;
 
-        let first_line_end = match input[start..].find('\n') {
+        let first_line_end = match memchr(b'\n', input[start..].as_bytes()) {
             Some(nl) => start + nl + 1,
             None => return children,
         };
@@ -130,7 +131,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut pos = 0;
 
         while pos < content.len() {
-            let line_end = match content[pos..].find('\n') {
+            let line_end = match memchr(b'\n', content[pos..].as_bytes()) {
                 Some(nl) => pos + nl,
                 None => content.len(),
             };

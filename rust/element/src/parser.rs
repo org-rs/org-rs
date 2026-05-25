@@ -16,6 +16,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use memchr::{memchr, memchr2};
 use regex::Regex;
 
 use crate::affiliated::ElementSpan;
@@ -188,8 +189,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
             // Skip blank lines between elements (they belong to post_blank, not new elements).
             {
-                let line_end = self.input[current_pos..span.end]
-                    .find('\n')
+                let line_end = memchr(b'\n', self.input[current_pos..span.end].as_bytes())
                     .map_or(span.end, |i| current_pos + i + 1);
                 if self.input[current_pos..line_end].trim().is_empty() {
                     self.cursor.borrow_mut().set(line_end);
@@ -630,14 +630,25 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         // Find closing ]]
         let mut found_close = None;
-        for i in 2..bytes.len() - 1 {
-            if &bytes[i..i + 2] == b"]]" {
-                let after = i + 2;
-                let valid_post = after >= bytes.len() || Self::is_post_char(bytes[after]);
-                if valid_post {
-                    found_close = Some(i + 2);
-                    break;
+        let mut search_pos = 2;
+        while search_pos + 1 < bytes.len() {
+            match memchr(b']', &bytes[search_pos..]) {
+                Some(offset) => {
+                    let i = search_pos + offset;
+                    if i + 1 < bytes.len() && bytes[i + 1] == b']' {
+                        let after = i + 2;
+                        let valid_post =
+                            after >= bytes.len() || Self::is_post_char(bytes[after]);
+                        if valid_post {
+                            found_close = Some(after);
+                            break;
+                        }
+                        search_pos = i + 2;
+                    } else {
+                        search_pos = i + 1;
+                    }
                 }
+                None => break,
             }
         }
 
@@ -663,14 +674,25 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         // Find closing >>
         let mut found_close = None;
-        for i in 2..bytes.len() - 1 {
-            if &bytes[i..i + 2] == b">>" {
-                let after = i + 2;
-                let valid_post = after >= bytes.len() || Self::is_post_char(bytes[after]);
-                if valid_post {
-                    found_close = Some(i + 2);
-                    break;
+        let mut search_pos = 2;
+        while search_pos + 1 < bytes.len() {
+            match memchr(b'>', &bytes[search_pos..]) {
+                Some(offset) => {
+                    let i = search_pos + offset;
+                    if i + 1 < bytes.len() && bytes[i + 1] == b'>' {
+                        let after = i + 2;
+                        let valid_post =
+                            after >= bytes.len() || Self::is_post_char(bytes[after]);
+                        if valid_post {
+                            found_close = Some(after);
+                            break;
+                        }
+                        search_pos = i + 2;
+                    } else {
+                        search_pos = i + 1;
+                    }
                 }
+                None => break,
             }
         }
 
@@ -713,28 +735,34 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let mut newlines = 0u8;
         let mut found_close = None;
+        let mut pos = 2;
 
         // Search for closing marker
-        for i in 2..text.len() {
-            if bytes[i] == b'\n' {
-                newlines += 1;
-                if newlines > 1 {
-                    break;
-                }
-            }
-            if bytes[i] == marker {
-                // Last content char must be non-whitespace
-                if i >= 2 {
-                    let prev = bytes[i - 1];
-                    if prev != b' ' && prev != b'\t' && prev != b'\n' {
-                        // Check POST condition
-                        let valid_post = i + 1 >= text.len() || Self::is_post_char(bytes[i + 1]);
-                        if valid_post {
-                            found_close = Some(i);
+        while pos < text.len() {
+            match memchr2(b'\n', marker, &bytes[pos..]) {
+                Some(offset) => {
+                    let i = pos + offset;
+                    if bytes[i] == b'\n' {
+                        newlines += 1;
+                        if newlines > 1 {
                             break;
                         }
+                        pos = i + 1;
+                    } else {
+                        // Found marker - last content char must be non-whitespace
+                        let prev = bytes[i - 1];
+                        if prev != b' ' && prev != b'\t' && prev != b'\n' {
+                            let valid_post =
+                                i + 1 >= text.len() || Self::is_post_char(bytes[i + 1]);
+                            if valid_post {
+                                found_close = Some(i);
+                                break;
+                            }
+                        }
+                        pos = i + 1;
                     }
                 }
+                None => break,
             }
         }
 
@@ -875,13 +903,18 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         // Find closing bracket
         let mut found_close = None;
-        for i in 1..text.len() {
-            if bytes[i] == closing {
-                // Check for space or end after closing
-                if i + 1 >= text.len() || Self::is_post_char(bytes[i + 1]) {
-                    found_close = Some(i);
-                    break;
+        let mut search_pos = 1;
+        while search_pos < text.len() {
+            match memchr(closing, &bytes[search_pos..]) {
+                Some(offset) => {
+                    let i = search_pos + offset;
+                    if i + 1 >= text.len() || Self::is_post_char(bytes[i + 1]) {
+                        found_close = Some(i);
+                        break;
+                    }
+                    search_pos = i + 1;
                 }
+                None => break,
             }
         }
 

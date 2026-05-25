@@ -28,6 +28,7 @@ use crate::{
     markup::FootnoteDefinitionData,
     table::{SpreadsheetCellData, SpreadsheetData, SpreadsheetRowData, TableRowType},
 };
+use memchr::memchr;
 
 use std::{
     borrow::Cow,
@@ -190,8 +191,7 @@ impl<'a> SyntaxNode<'a> {
     /// Used for element parsers that are not yet implemented, so that parsing
     /// can continue past the unrecognised content without panicking.
     pub fn fallback(input: &str, start: usize, limit: usize) -> SyntaxNode<'a> {
-        let end = input[start..limit]
-            .find('\n')
+        let end = memchr(b'\n', input[start..limit].as_bytes())
             .map_or(limit, |i| (start + i + 1).min(limit));
         SyntaxNode {
             parent: RefCell::new(None),

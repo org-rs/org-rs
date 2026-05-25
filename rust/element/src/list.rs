@@ -65,6 +65,7 @@
 use crate::affiliated::ElementSpan;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
+use memchr::memchr;
 use regex::Regex;
 use std::borrow::Cow;
 use std::cell::Cell;
@@ -313,7 +314,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let input = self.input;
 
         while pos < limit {
-            let (line, next_pos) = match input[pos..].find('\n') {
+            let (line, next_pos) = match memchr(b'\n', input[pos..].as_bytes()) {
                 Some(nl_pos) => (&input[pos..pos + nl_pos], pos + nl_pos + 1),
                 None => (&input[pos..], limit),
             };

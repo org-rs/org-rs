@@ -36,6 +36,7 @@ use std::cell::RefCell;
 
 use crate::data::{Interval, Syntax, SyntaxNode, TimestampData};
 use crate::parser::Parser;
+use memchr::memchr;
 use regex::Regex;
 
 const ORG_CLOSED_STRING: &str = "CLOSED";
@@ -161,8 +162,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         // Find end of the headline *line*.
-        let line_end = self.input[begin..]
-            .find('\n')
+        let line_end = memchr(b'\n', &self.input.as_bytes()[begin..])
             .map_or(self.input.len(), |i| begin + i);
 
         // The text after the stars and the space.
@@ -322,7 +322,7 @@ fn find_headline_end(input: &str, from: usize, level: usize) -> usize {
             }
         }
         // Advance to next line.
-        match input[pos..].find('\n') {
+        match memchr(b'\n', &bytes[pos..]) {
             Some(i) => pos += i + 1,
             None => return input.len(),
         }
