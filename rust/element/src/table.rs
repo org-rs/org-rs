@@ -16,9 +16,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::affiliated::AffiliatedData;
-use crate::data::{Interval, Syntax, SyntaxNode};
-use crate::parser::Parser;
+use crate::prelude::*;
 use regex::Regex;
 
 lazy_static! {
@@ -89,34 +87,24 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         start: usize,
         _maybe_aff: Option<AffiliatedData>,
     ) -> SyntaxNode<'a> {
-        let mut end = start;
-        let mut children: Vec<Rc<SyntaxNode<'a>>> = vec![];
-        let mut current = start;
-
-        while current < limit {
-            let line_end = self.input[current..limit]
-                .find('\n')
-                .map_or(limit, |i| current + i + 1);
-
-            let line = &self.input[current..line_end];
-
-            if line.trim().is_empty() {
-                break;
-            } else if REGEX_TABLE_BORDER.is_match(line) {
-                let row = self.parse_table_row_at(current, line_end.min(limit));
-                children.push(Rc::new(row));
+        let (end, children) = {
+            let mut current = start;
+            let mut rows: Vec<Rc<SyntaxNode<'a>>> = Vec::new();
+            loop {
+                if current >= limit { break; }
+                let line_end = self.input[current..limit]
+                    .find('\n')
+                    .map_or(limit, |i| current + i + 1);
+                let line = &self.input[current..line_end];
+                if line.trim().is_empty() || !REGEX_TABLE_BORDER.is_match(line) { break; }
+                rows.push(Rc::new(self.parse_table_row_at(current, line_end)));
                 current = line_end;
-            } else {
-                break;
             }
-        }
+            (current, rows)
+        };
 
         if children.is_empty() {
             return SyntaxNode::fallback(self.input, start, limit);
-        }
-
-        if end == start {
-            end = limit;
         }
 
         let post_blank = if end < limit {
@@ -146,12 +134,23 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             TableRowType::Standard
         };
 
+        // For standard rows at object granularity, parse cell content as
+        // objects so markup inside cells (e.g. *bold*) appears in the tree.
+        // Exclude the trailing newline from the content span.
+        let content_location = (matches!(row_type, TableRowType::Standard)
+            && self.granularity == ParseGranularity::Object)
+            .then(|| Interval { start, end: (end - 1).max(start) });
+
+        let children = content_location
+            .map(|loc| self.parse_objects(loc, |that| SyntaxT::TableCell.can_contain(that)))
+            .unwrap_or_default();
+
         SyntaxNode {
             parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
+            children: RefCell::new(children),
             data: Syntax::TableRow(Box::new(TableRowData::new(row_type))),
             location: Interval { start, end },
-            content_location: None,
+            content_location,
             post_blank: 0,
             affiliated: None,
         }

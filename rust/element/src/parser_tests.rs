@@ -1725,12 +1725,18 @@ mod od1_compliance {
     fn block_end_must_match_block_type() {
         // #+END_SRC on its own line must not close a #+BEGIN_QUOTE block.
         // With the bug, the quote closes early and "more" / "#+END_QUOTE"
-        // become spurious top-level paragraphs.
+        // become stray section-level paragraphs.
         let input = "#+BEGIN_QUOTE\n#+END_SRC\nmore\n#+END_QUOTE\n";
-        let para_count = get_type_count(input, SyntaxT::Paragraph, ParseGranularity::Element);
+        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let tree = parser.parse_buffer();
+        let root = tree.children.borrow();
+        let section = root.first().expect("section");
+        let para_count = section.children.borrow().iter()
+            .filter(|n| matches!(n.data, Syntax::Paragraph))
+            .count();
         assert_eq!(
             para_count, 0,
-            "#+END_SRC should not terminate #+BEGIN_QUOTE; {} stray paragraph(s) found",
+            "#+END_SRC should not terminate #+BEGIN_QUOTE; {} stray paragraph(s) at section level",
             para_count
         );
     }
