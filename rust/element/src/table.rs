@@ -17,6 +17,7 @@ use std::fmt;
 use std::rc::Rc;
 
 use crate::prelude::*;
+use memchr::memchr;
 use regex::Regex;
 
 lazy_static! {
@@ -92,8 +93,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let start = self.cursor.borrow().pos();
         let limit = self.input.len();
 
-        let end = self.input[start..limit]
-            .find('\n')
+        let end = memchr(b'\n', self.input[start..limit].as_bytes())
             .map_or(limit, |i| (start + i + 1).min(limit));
 
         let row_type = if REGEX_TABLE_RULE.is_match(&self.input[start..end]) {
@@ -112,8 +112,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let mut rows: Vec<Rc<SyntaxNode<'a>>> = Vec::new();
             loop {
                 if current >= span.end { break; }
-                let line_end = self.input[current..span.end]
-                    .find('\n')
+                let line_end = memchr(b'\n', self.input[current..span.end].as_bytes())
                     .map_or(span.end, |i| current + i + 1);
                 let line = &self.input[current..line_end];
                 if line.trim().is_empty() || !REGEX_TABLE_BORDER.is_match(line) { break; }

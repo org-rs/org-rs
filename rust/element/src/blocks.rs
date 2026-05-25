@@ -16,6 +16,7 @@
 use crate::affiliated::ElementSpan;
 use crate::data::{Interval, LineNumberingMode, Syntax, SyntaxNode};
 use crate::parser::Parser;
+use memchr::memchr;
 use regex::Regex;
 
 lazy_static! {
@@ -158,8 +159,7 @@ fn find_block_bounds_impl(
     limit: usize,
     is_end: impl Fn(&str) -> bool,
 ) -> Option<BlockBounds> {
-    let content_start = input[start..limit]
-        .find('\n')
+    let content_start = memchr(b'\n', input[start..limit].as_bytes())
         .map_or(limit, |i| start + i + 1);
 
     if content_start >= limit {
@@ -168,7 +168,7 @@ fn find_block_bounds_impl(
 
     let mut pos = content_start;
     while pos < limit {
-        let line_end = input[pos..limit].find('\n').map_or(limit, |i| pos + i + 1);
+        let line_end = memchr(b'\n', input[pos..limit].as_bytes()).map_or(limit, |i| pos + i + 1);
         if is_end(&input[pos..line_end]) {
             return Some(BlockBounds {
                 location: Interval { start, end: line_end },
@@ -293,7 +293,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return self.block_fallback(Interval { start, end: limit }, "EXPORT");
         };
         let value = &self.input[bounds.content.start..bounds.content.end];
-        let first_line_end = self.input[start..limit].find('\n').map_or(limit, |i| start + i);
+        let first_line_end = memchr(b'\n', self.input[start..limit].as_bytes()).map_or(limit, |i| start + i);
         let type_s = self.input[start..first_line_end].split_whitespace().nth(1).unwrap_or("html");
         SyntaxNode::new(
             Syntax::ExportBlock(Box::new(ExportBlockData { type_s, value })),
@@ -324,7 +324,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return self.block_fallback(Interval { start, end: limit }, "SRC");
         };
         let value = &self.input[bounds.content.start..bounds.content.end];
-        let first_line_end = self.input[start..limit].find('\n').map_or(limit, |i| start + i);
+        let first_line_end = memchr(b'\n', self.input[start..limit].as_bytes()).map_or(limit, |i| start + i);
         let language = self.input[start..first_line_end].split_whitespace().nth(1);
         SyntaxNode::new(
             Syntax::SrcBlock(Box::new(SrcBlockData {
@@ -361,7 +361,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Parse a special block element.
     pub fn special_block_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
-        let first_line_end = self.input[start..limit].find('\n').map_or(limit, |i| start + i);
+        let first_line_end = memchr(b'\n', self.input[start..limit].as_bytes()).map_or(limit, |i| start + i);
         let type_s = REGEX_BLOCK_BEGIN
             .captures(&self.input[start..first_line_end])
             .and_then(|c| c.get(1))

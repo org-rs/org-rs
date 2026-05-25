@@ -18,6 +18,7 @@ use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::list::REGEX_ITEM;
 use crate::markup::REGEX_HORIZONTAL_RULE;
 use crate::parser::Parser;
+use memchr::memchr;
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Parse a paragraph starting at `start`, bounded by `limit`.
@@ -34,8 +35,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // start pattern, or the limit.
         while end < limit {
             // Find end of current line.
-            let line_end = self.input[end..limit]
-                .find('\n')
+            let line_end = memchr(b'\n', self.input[end..limit].as_bytes())
                 .map_or(limit, |i| end + i + 1);
 
             // Check if this line is blank (only whitespace).
@@ -81,8 +81,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         // Ensure we advance at least one line to avoid infinite loops.
         if end == start {
-            end = self.input[start..limit]
-                .find('\n')
+            end = memchr(b'\n', self.input[start..limit].as_bytes())
                 .map_or(limit, |i| start + i + 1);
         }
 

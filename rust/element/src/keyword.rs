@@ -16,6 +16,7 @@
 use crate::affiliated::ElementSpan;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
+use memchr::memchr;
 use regex::Regex;
 
 lazy_static! {
@@ -38,8 +39,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// (or the keyword itself when there is no affiliation).
     pub fn keyword_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
         let ElementSpan { span: Interval { start, end: limit }, affiliated: _ } = element_span;
-        let line_end = self.input[start..limit]
-            .find('\n')
+        let line_end = memchr(b'\n', self.input[start..limit].as_bytes())
             .map_or(limit, |i| start + i + 1);
 
         let line = &self.input[start..line_end].trim_end();

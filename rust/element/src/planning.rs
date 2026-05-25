@@ -18,6 +18,7 @@ use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::markup::REGEX_DIARY_SEXP;
 use crate::parser::Parser;
 use lazy_static::lazy_static;
+use memchr::memchr;
 use regex::Regex;
 
 lazy_static! {
@@ -31,7 +32,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let start = self.cursor.borrow().pos();
         let input_slice = &self.input[start..limit];
 
-        let nl_offset = input_slice.find('\n');
+        let nl_offset = memchr(b'\n', input_slice.as_bytes());
         let line_end = nl_offset.map_or(limit, |i| start + i);
         let end = nl_offset.map_or(limit, |i| (start + i + 1).min(limit));
         let line = &input_slice[..(line_end - start)];
@@ -105,7 +106,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let start = self.cursor.borrow().pos();
         let input_slice = &self.input[start..limit];
 
-        let line_end = input_slice.find('\n').map_or(limit, |i| start + i);
+        let line_end = memchr(b'\n', input_slice.as_bytes()).map_or(limit, |i| start + i);
 
         let value = &self.input[start..line_end];
 
@@ -220,8 +221,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             None => return SyntaxNode::fallback(self.input, start, limit),
         };
 
-        let line_end = self.input[start..limit]
-            .find('\n')
+        let line_end = memchr(b'\n', self.input[start..limit].as_bytes())
             .map_or(limit, |i| start + i);
 
         let end = line_end;

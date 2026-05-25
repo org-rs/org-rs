@@ -16,6 +16,7 @@
 use crate::affiliated::ElementSpan;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
+use memchr::memchr;
 use regex::Regex;
 
 lazy_static! {
@@ -53,7 +54,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return SyntaxNode::fallback(self.input, start, limit);
         }
 
-        let line_end = input_slice.find('\n').map_or(limit, |i| start + i);
+        let line_end = memchr(b'\n', input_slice.as_bytes()).map_or(limit, |i| start + i);
         let value = &self.input[start..line_end];
 
         let call_name = REGEX_BABEL_CALL.find(input_slice)
