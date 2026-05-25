@@ -13,7 +13,7 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::cell::RefCell;
+use std::fmt;
 use std::rc::Rc;
 
 use crate::prelude::*;
@@ -23,36 +23,68 @@ lazy_static! {
     pub static ref REGEX_TABLE_BORDER: Regex = Regex::new(r"[ \t]*\|").unwrap();
     pub static ref REGEX_TABLE_RULE: Regex = Regex::new(r"^[ \t]*\|-+").unwrap();
     pub static ref REGEX_TABLE_PRE_BORDER: Regex = Regex::new(r"^[ \t]*($|[^|])").unwrap();
+    static ref REGEX_TBLFM: Regex = Regex::new(r"(?i)^[ \t]*#\+TBLFM:(.*)").unwrap();
 }
 
-#[derive(Debug)]
-pub struct TableData<'a> {
-    pub tblfm: Option<&'a str>,
+/// A 1-based row index in a spreadsheet.  Displays as `@N` (org Calc syntax).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Row(pub usize);
+
+/// A 1-based column index in a spreadsheet.  Displays as `$N` (org Calc syntax).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Col(pub usize);
+
+impl fmt::Display for Row {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "@{}", self.0)
+    }
 }
 
+impl fmt::Display for Col {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "${}", self.0)
+    }
+}
+
+impl From<usize> for Row {
+    fn from(n: usize) -> Self { Row(n) }
+}
+
+impl From<usize> for Col {
+    fn from(n: usize) -> Self { Col(n) }
+}
+
+/// Data for a `#+TBLFM` spreadsheet table.
 #[derive(Debug)]
-pub struct TableRowData {
-    pub table_row_type: TableRowType,
+pub struct SpreadsheetData<'a> {
+    /// The raw `#+TBLFM:` formula string.
+    pub formula: &'a str,
+    pub row_count: Row,
+    pub col_count: Col,
+}
+
+/// A row inside a [`Syntax::Spreadsheet`].
+#[derive(Debug)]
+pub struct SpreadsheetRowData {
+    /// 1-based data-row index (rule rows do not increment this).
+    pub index: Row,
+    /// `true` for `|---|` separator rows.
+    pub is_rule: bool,
+}
+
+/// A single cell inside a [`Syntax::SpreadsheetRow`].
+#[derive(Debug)]
+pub struct SpreadsheetCellData<'a> {
+    /// Raw cell content (not yet formula-evaluated).
+    pub value: &'a str,
+    pub row: Row,
+    pub col: Col,
 }
 
 #[derive(Debug)]
 pub enum TableRowType {
     Standard,
     Rule,
-}
-
-impl<'a> TableData<'a> {
-    pub fn new() -> Self {
-        TableData { tblfm: None }
-    }
-}
-
-impl<'a> TableRowData {
-    pub fn new(row_type: TableRowType) -> Self {
-        TableRowData {
-            table_row_type: row_type,
-        }
-    }
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
@@ -70,31 +102,19 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             TableRowType::Standard
         };
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::TableRow(Box::new(TableRowData::new(row_type))),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
-        }
+        SyntaxNode::new(Syntax::TableRow(row_type), (start, end)).build()
     }
 
-    pub fn table_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _maybe_aff: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
+    pub fn table_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let span = element_span.span;
         let (end, children) = {
-            let mut current = start;
+            let mut current = span.start;
             let mut rows: Vec<Rc<SyntaxNode<'a>>> = Vec::new();
             loop {
-                if current >= limit { break; }
-                let line_end = self.input[current..limit]
+                if current >= span.end { break; }
+                let line_end = self.input[current..span.end]
                     .find('\n')
-                    .map_or(limit, |i| current + i + 1);
+                    .map_or(span.end, |i| current + i + 1);
                 let line = &self.input[current..line_end];
                 if line.trim().is_empty() || !REGEX_TABLE_BORDER.is_match(line) { break; }
                 rows.push(Rc::new(self.parse_table_row_at(current, line_end)));
@@ -104,24 +124,42 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         };
 
         if children.is_empty() {
-            return SyntaxNode::fallback(self.input, start, limit);
+            return SyntaxNode::fallback(self.input, span.start, span.end);
         }
 
-        let post_blank = if end < limit {
-            let remaining = &self.input[end..limit];
-            remaining.chars().take_while(|c| c.is_whitespace()).count()
-        } else {
-            0
-        };
+        // Look for a #+TBLFM: line immediately after the table rows.
+        let formula = self.input[end..span.end]
+            .lines()
+            .find_map(|line| REGEX_TBLFM.captures(line).map(|c| c.get(1).map_or("", |m| m.as_str().trim())));
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(children),
-            data: Syntax::Table(Box::new(TableData::new())),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank,
-            affiliated: None,
+        let post_blank = (end < span.end).then(|| {
+            let remaining = &self.input[end..span.end];
+            remaining.len() - remaining.trim_start().len()
+        })
+        .unwrap_or(0);
+
+        match formula {
+            None => SyntaxNode::new(Syntax::Table, (span.start, end))
+                .post_blank(post_blank)
+                .affiliated(element_span.affiliated)
+                .children(children)
+                .build(),
+            Some(formula) => {
+                let row_count = Row(children.iter()
+                    .filter(|r| matches!(&r.data, Syntax::TableRow(TableRowType::Standard)))
+                    .count());
+                let col_count = Col(children.first()
+                    .map(|r| r.children.borrow().len())
+                    .unwrap_or(0));
+                SyntaxNode::new(
+                    Syntax::Spreadsheet(Box::new(SpreadsheetData { formula, row_count, col_count })),
+                    (span.start, end),
+                )
+                .post_blank(post_blank)
+                .affiliated(element_span.affiliated)
+                .children(children)
+                .build()
+            }
         }
     }
 
@@ -134,25 +172,19 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             TableRowType::Standard
         };
 
-        // For standard rows at object granularity, parse cell content as
-        // objects so markup inside cells (e.g. *bold*) appears in the tree.
-        // Exclude the trailing newline from the content span.
         let content_location = (matches!(row_type, TableRowType::Standard)
             && self.granularity == ParseGranularity::Object)
-            .then(|| Interval { start, end: (end - 1).max(start) });
+            .then(|| (start, (end - 1).max(start)));
 
         let children = content_location
             .map(|loc| self.parse_objects(loc, |that| SyntaxT::TableCell.can_contain(that)))
             .unwrap_or_default();
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(children),
-            data: Syntax::TableRow(Box::new(TableRowData::new(row_type))),
-            location: Interval { start, end },
-            content_location,
-            post_blank: 0,
-            affiliated: None,
+        let mut builder = SyntaxNode::new(Syntax::TableRow(row_type), (start, end))
+            .children(children);
+        if let Some(loc) = content_location {
+            builder = builder.content(loc);
         }
+        builder.build()
     }
 }

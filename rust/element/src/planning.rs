@@ -13,9 +13,7 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::cell::RefCell;
-
-use crate::affiliated::AffiliatedData;
+use crate::affiliated::ElementSpan;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::markup::REGEX_DIARY_SEXP;
 use crate::parser::Parser;
@@ -70,15 +68,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             scheduled,
         };
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Planning(Box::new(planning_data)),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank,
-            affiliated: None,
-        }
+        SyntaxNode::new(Syntax::Planning(Box::new(planning_data)), (start, end))
+            .post_blank(post_blank)
+            .build()
     }
 
     pub fn parse_planning_timestamp(
@@ -134,19 +126,16 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             0
         };
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Clock(Box::new(crate::data::ClockData {
+        SyntaxNode::new(
+            Syntax::Clock(Box::new(crate::data::ClockData {
                 duration: "",
                 status: crate::data::ClockStatus::Running,
                 raw: value,
             })),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank,
-            affiliated: None,
-        }
+            (start, end),
+        )
+        .post_blank(post_blank)
+        .build()
     }
 
     /// Validate clock timestamp format and check for invalid dates.
@@ -217,12 +206,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Uses `start` for begin position
     /// - Value is the full sexp string
     /// - Stores affiliated data in SyntaxNode
-    pub fn diary_sexp_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
+    pub fn diary_sexp_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let input_slice = &self.input[start..limit];
 
         let caps = match REGEX_DIARY_SEXP.captures(input_slice) {
@@ -249,14 +234,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             0
         };
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::DiarySexp(Box::new(crate::data::DiarySexpData { value })),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank,
-            affiliated,
-        }
+        SyntaxNode::new(Syntax::DiarySexp(value), (start, end))
+            .post_blank(post_blank)
+            .affiliated(affiliated)
+            .build()
     }
 }

@@ -62,7 +62,7 @@
 //!     (item))))
 //!
 
-use crate::affiliated::AffiliatedData;
+use crate::affiliated::ElementSpan;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
@@ -188,14 +188,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Fallback: plain list parser (not yet fully implemented).
     pub fn plain_list_parser(
         &'a self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
+        element_span: ElementSpan<'a>,
         structure: Rc<ListStruct>,
     ) -> SyntaxNode<'a> {
+        let span = element_span.span;
         let items = &structure.items;
         if items.is_empty() {
-            return SyntaxNode::fallback(self.input, start, limit);
+            return SyntaxNode::fallback(self.input, span.start, span.end);
         }
 
         let first_indent = items[0].indent;
@@ -213,7 +212,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let end_pos = if i + 1 < items.len() && items[i + 1].indent == first_indent {
                 items[i + 1].position
             } else {
-                limit
+                span.end
             };
 
             let item_node = self.item_parser_internal(item, end_pos);
@@ -224,7 +223,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let end = if let Some(last) = children.last() {
             last.location.end
         } else {
-            limit
+            span.end
         };
 
         // Recurse into item content at Element/Object granularity.
@@ -235,7 +234,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             for item_rc in &children {
                 if let Some(loc) = item_rc.content_location {
                     let item_children =
-                        self.parse_elements(loc.start, loc.end, ParserMode::Planning, None);
+                        self.parse_elements(loc, ParserMode::Planning, None);
                     item_rc.children.replace(item_children);
                 }
             }
@@ -246,15 +245,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             type_s: list_type,
         };
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(children),
-            data: Syntax::PlainList(Box::new(list_data)),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
-        }
+        SyntaxNode::new(Syntax::PlainList(Box::new(list_data)), (span.start, end))
+            .children(children)
+            .affiliated(element_span.affiliated)
+            .build()
     }
 
     fn get_list_type(items: &[ListItem]) -> ListKind {

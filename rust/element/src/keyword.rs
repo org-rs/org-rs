@@ -12,11 +12,8 @@
 //
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
-//
 
-use std::cell::RefCell;
-
-use crate::affiliated::AffiliatedData;
+use crate::affiliated::ElementSpan;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
@@ -39,62 +36,35 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// A keyword follows the pattern `#+KEY: VALUE`.  `start` is the
     /// buffer position at the beginning of the first affiliated keyword
     /// (or the keyword itself when there is no affiliation).
-    pub fn keyword_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _maybe_aff: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
+    pub fn keyword_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated: _ } = element_span;
         let line_end = self.input[start..limit]
             .find('\n')
             .map_or(limit, |i| start + i + 1);
 
         let line = &self.input[start..line_end].trim_end();
 
-        // Strip leading whitespace and the `#+` prefix.
         let stripped = line.trim_start();
-        let after_hash = if stripped.starts_with("#+") {
-            &stripped[2..]
-        } else {
-            stripped
-        };
+        let after_hash = if stripped.starts_with("#+") { &stripped[2..] } else { stripped };
 
-        // Split at first `:` to get KEY and VALUE.
         let (key, value) = match after_hash.find(':') {
-            Some(i) => {
-                let k = &after_hash[..i];
-                let v = after_hash.get(i + 1..).unwrap_or("").trim_start();
-                (k, v)
-            }
+            Some(i) => (&after_hash[..i], after_hash.get(i + 1..).unwrap_or("").trim_start()),
             None => (after_hash, ""),
         };
 
-        // Find key and value as slices of self.input so lifetimes work.
         let key_offset = key.as_ptr() as usize - self.input.as_ptr() as usize;
         let key_ref = &self.input[key_offset..key_offset + key.len()];
-        let (value_ref, value_offset) = if value.is_empty() {
-            // Empty value may be a static "" literal, not a subslice of input.
-            ("", 0)
+        let value_ref = if value.is_empty() {
+            ""
         } else {
             let off = value.as_ptr() as usize - self.input.as_ptr() as usize;
-            (&self.input[off..off + value.len()], off)
+            &self.input[off..off + value.len()]
         };
-        let _ = value_offset; // suppress unused warning
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Keyword(Box::new(KeywordData {
-                key: key_ref,
-                value: value_ref,
-            })),
-            location: Interval {
-                start,
-                end: line_end,
-            },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
-        }
+        SyntaxNode::new(
+            Syntax::Keyword(Box::new(KeywordData { key: key_ref, value: value_ref })),
+            (start, line_end),
+        )
+        .build()
     }
 }

@@ -13,9 +13,7 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::cell::RefCell;
-
-use crate::affiliated::AffiliatedData;
+use crate::affiliated::ElementSpan;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::list::REGEX_ITEM;
 use crate::markup::REGEX_HORIZONTAL_RULE;
@@ -27,12 +25,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// A paragraph extends from the current position to the first blank
     /// line or to the start of the next element-level construct
     /// (headline, keyword, block, etc.), whichever comes first.
-    pub fn paragraph_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _maybe_aff: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
+    pub fn paragraph_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let bytes = self.input.as_bytes();
         let mut end = start;
 
@@ -92,18 +86,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 .map_or(limit, |i| start + i + 1);
         }
 
-        // Parse inline objects within the paragraph content
-        let children = self.parse_objects(Interval { start, end }, |_| true);
+        let children = self.parse_objects((start, end), |_| true);
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(children),
-            data: Syntax::Paragraph,
-            location: Interval { start, end },
-            content_location: Some(Interval { start, end }),
-            post_blank: 0,
-            affiliated: None,
-        }
+        SyntaxNode::new(Syntax::Paragraph, (start, end))
+            .content((start, end))
+            .affiliated(affiliated)
+            .children(children)
+            .build()
     }
 
     /// Parse a section bounded by `limit`.
@@ -113,21 +102,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// before the first headline in the document).
     pub fn section_parser(&self, limit: usize) -> SyntaxNode<'a> {
         let begin = self.cursor.borrow().pos();
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Section,
-            location: Interval {
-                start: begin,
-                end: limit,
-            },
-            content_location: Some(Interval {
-                start: begin,
-                end: limit,
-            }),
-            post_blank: 0,
-            affiliated: None,
-        }
+        SyntaxNode::new(Syntax::Section, (begin, limit))
+            .content((begin, limit))
+            .build()
     }
 }

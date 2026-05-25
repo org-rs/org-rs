@@ -13,10 +13,9 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::affiliated::AffiliatedData;
+use crate::affiliated::ElementSpan;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use lazy_static::lazy_static;
@@ -29,35 +28,22 @@ lazy_static! {
     pub static ref REGEX_DRAWER: Regex = Regex::new(r"(?im)^[ \t]*:((?:\w|[-_])+):[ \t]*$").unwrap();
 }
 
-#[derive(Debug)]
-pub struct DrawerData<'a> {
-    /// Drawer's name (string).
-    pub drawer_name: &'a str,
-}
-
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Parse a drawer element.
     ///
     /// Format: `:NAME:\n...content...\n:END:`
     /// Case insensitive (matches :NAME: and :END:)
-    pub fn drawer_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
+    pub fn drawer_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let input_slice = &self.input[start..limit];
 
-        // Check if we start with a drawer begin line
         if let Some(caps) = REGEX_DRAWER.captures(input_slice) {
             let name = caps.get(1).map_or("", |m| m.as_str());
 
-            // If it's "END", not a start
             if name.eq_ignore_ascii_case("END") {
                 return SyntaxNode::fallback(self.input, start, limit);
             }
 
-            // Find the :END: line
             let mut search_pos = start;
             let mut end = limit;
             let mut found_end = false;
@@ -66,7 +52,6 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 if let Some(cap) = REGEX_DRAWER.captures(&self.input[search_pos..limit]) {
                     if let Some(m) = cap.get(1) {
                         if m.as_str().eq_ignore_ascii_case("END") {
-                            // Found :END:, calculate end position
                             let match_start = search_pos + cap.get(0).map_or(0, |x| x.start());
                             let match_end = search_pos + cap.get(0).map_or(0, |x| x.end());
                             end = if match_end < limit
@@ -77,11 +62,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                                 match_end
                             };
                             found_end = true;
+                            let _ = match_start;
                             break;
                         }
                     }
                 }
-                // Move to next line
                 if let Some(nl) = self.input[search_pos..limit].find('\n') {
                     search_pos += nl + 1;
                 } else {
@@ -93,13 +78,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 return SyntaxNode::fallback(self.input, start, limit);
             }
 
-            let post_blank = if end < limit {
+            let post_blank = (end < limit).then(|| {
                 let remaining = &self.input[end..limit];
-                let trimmed = remaining.trim_start();
-                (remaining.len() - trimmed.len()).min(2)
-            } else {
-                0
-            };
+                remaining.len() - remaining.trim_start().len()
+            })
+            .unwrap_or(0)
+            .min(2);
 
             let children = if name.eq_ignore_ascii_case("PROPERTIES") {
                 self.parse_property_drawer_contents(start, end)
@@ -107,19 +91,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 vec![]
             };
 
-            return SyntaxNode {
-                parent: RefCell::new(None),
-                children: RefCell::new(children),
-                data: if name.eq_ignore_ascii_case("PROPERTIES") {
-                    Syntax::PropertyDrawer
-                } else {
-                    Syntax::Drawer(Box::new(DrawerData { drawer_name: name }))
-                },
-                location: Interval { start, end },
-                content_location: None,
-                post_blank,
-                affiliated,
+            let data = if name.eq_ignore_ascii_case("PROPERTIES") {
+                Syntax::PropertyDrawer
+            } else {
+                Syntax::Drawer(name)
             };
+
+            return SyntaxNode::new(data, (start, end))
+                .post_blank(post_blank)
+                .affiliated(affiliated)
+                .children(children)
+                .build();
         }
 
         SyntaxNode::fallback(self.input, start, limit)
@@ -156,32 +138,18 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
             if let Some((key, value)) = Self::parse_node_property_line(line) {
                 let prop_start = first_line_end + pos;
-                let prop_end = if line_end < content.len() {
-                    line_end + 1
-                } else {
-                    line_end
-                };
-
+                let prop_end = if line_end < content.len() { line_end + 1 } else { line_end };
                 let node_data = crate::headline::NodePropertyData { key, value };
-                children.push(Rc::new(SyntaxNode {
-                    parent: RefCell::new(None),
-                    children: RefCell::new(vec![]),
-                    data: Syntax::NodeProperty(Box::new(node_data)),
-                    location: Interval {
-                        start: prop_start,
-                        end: prop_end,
-                    },
-                    content_location: None,
-                    post_blank: 0,
-                    affiliated: None,
-                }));
+                children.push(Rc::new(
+                    SyntaxNode::new(
+                        Syntax::NodeProperty(Box::new(node_data)),
+                        (prop_start, prop_end),
+                    )
+                    .build(),
+                ));
             }
 
-            pos = if line_end < content.len() {
-                line_end + 1
-            } else {
-                content.len()
-            };
+            pos = if line_end < content.len() { line_end + 1 } else { content.len() };
         }
 
         children

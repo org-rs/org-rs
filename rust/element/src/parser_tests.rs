@@ -380,11 +380,11 @@ mod table {
         let rule_row = table_children
             .get(1)
             .expect("Expected second table row (hline)");
-        if let Syntax::TableRow(data) = &rule_row.data {
+        if let Syntax::TableRow(row_type) = &rule_row.data {
             assert!(
-                matches!(data.table_row_type, crate::table::TableRowType::Rule),
+                matches!(row_type, crate::table::TableRowType::Rule),
                 "Expected hline row to be Rule, got {:?}",
-                data.table_row_type
+                row_type
             );
         } else {
             panic!("Expected TableRow, got: {:?}", rule_row.data);
@@ -943,21 +943,21 @@ mod fixed_width {
         let section_children = section.children.borrow();
         let fw_node = section_children.first().expect("Expected fixed-width node");
 
-        if let Syntax::FixedWidth(data) = &fw_node.data {
+        if let Syntax::FixedWidth(value) = &fw_node.data {
             assert!(
-                !data.value.contains(':'),
+                !value.contains(':'),
                 "Fixed-width value should not contain colons, got: {:?}",
-                data.value
+                value
             );
             assert!(
-                data.value.contains("Line 1"),
+                value.contains("Line 1"),
                 "Fixed-width value should contain 'Line 1', got: {:?}",
-                data.value
+                value
             );
             assert!(
-                data.value.contains("Line 2"),
+                value.contains("Line 2"),
                 "Fixed-width value should contain 'Line 2', got: {:?}",
-                data.value
+                value
             );
         } else {
             panic!("Expected FixedWidth, got: {:?}", fw_node.data);

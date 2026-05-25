@@ -18,11 +18,12 @@ use std::rc::Rc;
 
 use regex::Regex;
 
+use crate::affiliated::ElementSpan;
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
 use crate::data::{
-    CodeData, EntityData, FootnoteReferenceData, Interval, LinkData, Syntax, SyntaxNode, SyntaxT,
-    TargetData, TimestampData, VerbatimData,
+    EntityData, FootnoteReferenceData, Interval, LinkData, Syntax, SyntaxNode, SyntaxT,
+    TimestampData,
 };
 use crate::environment::Environment;
 
@@ -144,7 +145,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let end = self.input.len();
         let mut root = SyntaxNode::create_root();
-        root.children = RefCell::new(self.parse_elements(0, end, ParserMode::FirstSection, None));
+        root.children = RefCell::new(self.parse_elements((0, end), ParserMode::FirstSection, None));
         root
     }
 
@@ -164,13 +165,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// TODO do not forget to fix child-parent and parent-child links on tree updates
     pub fn parse_elements(
         &'a self,
-        beg: usize,
-        end: usize,
+        span: impl Into<Interval>,
         mut mode: ParserMode,
         structure: Option<Rc<ListStruct>>,
     ) -> Vec<Rc<SyntaxNode>> {
+        let span = span.into();
         let pos = self.cursor.borrow_mut().pos();
-        self.cursor.borrow_mut().set(beg);
+        self.cursor.borrow_mut().set(span.start);
 
         // When parsing only headlines, skip any text before first one.
         if self.granularity == ParseGranularity::Headline && !self.cursor.borrow_mut().on_headline()
@@ -181,15 +182,15 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut elements: Vec<Rc<SyntaxNode>> = vec![];
         loop {
             let current_pos = self.cursor.borrow().pos();
-            if current_pos >= end {
+            if current_pos >= span.end {
                 break;
             }
 
             // Skip blank lines between elements (they belong to post_blank, not new elements).
             {
-                let line_end = self.input[current_pos..end]
+                let line_end = self.input[current_pos..span.end]
                     .find('\n')
-                    .map_or(end, |i| current_pos + i + 1);
+                    .map_or(span.end, |i| current_pos + i + 1);
                 if self.input[current_pos..line_end].trim().is_empty() {
                     self.cursor.borrow_mut().set(line_end);
                     continue;
@@ -202,7 +203,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 None => None,
                 Some(rc) => Some(rc.clone()),
             };
-            let element: SyntaxNode = self.current_element(end, mode, list_struct);
+            let element: SyntaxNode = self.current_element(span.end, mode, list_struct);
 
             // (goto-char (org-element-property :end element))
             self.cursor.borrow_mut().set(element.location.end);
@@ -239,8 +240,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                                 .unwrap_or(mode);
 
                         element.children.replace(self.parse_elements(
-                            content_location.start,
-                            content_location.end,
+                            content_location,
                             new_mode,
                             list_sturct,
                         ));
@@ -388,7 +388,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             // When not at bol, point is at the beginning of an item or
             // a footnote definition: next item is always a paragraph.
             if !self.cursor.borrow().is_bol() {
-                return self.paragraph_parser(limit, self.cursor.borrow().pos(), None);
+                let pos = self.cursor.borrow().pos();
+                return self.paragraph_parser(ElementSpan::new((pos, limit)).build());
             }
 
             // Clock.
@@ -402,29 +403,28 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             }
 
             // From there, elements can have affiliated keywords.
-            let (aff_start, affiliated) = self.collect_affiliated_keywords(limit);
+            let element_span = self.collect_affiliated_keywords(limit);
 
             // If parsing affiliated keywords left cursor off-limits
             // then parse them as regular keywords.
-            if (affiliated.is_some() && self.cursor.borrow().pos() >= limit) {
-                self.cursor.borrow_mut().set(aff_start);
-                return self.keyword_parser(limit, aff_start, None);
+            if element_span.affiliated.is_some() && self.cursor.borrow().pos() >= limit {
+                self.cursor.borrow_mut().set(element_span.span.start);
+                return self.keyword_parser(ElementSpan::new((element_span.span.start, limit)).build());
             }
 
             // LaTeX Environment
-            //org-element--latex-begin-environment
             if looking_at!(REGEX_LATEX_BEGIN_ENVIRIONMENT, self).is_some() {
-                return self.latex_environment_parser(limit, aff_start, affiliated);
+                return self.latex_environment_parser(element_span);
             }
 
             // Drawer and Property Drawer.
             if looking_at!(REGEX_DRAWER, self).is_some() {
-                return self.drawer_parser(limit, aff_start, affiliated);
+                return self.drawer_parser(element_span);
             }
 
-            //  Fixed Width
+            // Fixed Width
             if looking_at!(REGEX_FIXED_WIDTH, self).is_some() {
-                return self.fixed_width_parser(limit, aff_start, affiliated);
+                return self.fixed_width_parser(element_span);
             }
 
             // Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
@@ -437,7 +437,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 self.cursor.borrow_mut().set(pos + end);
                 if looking_at!(REGEX_COLON_OR_EOL, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
-                    return self.comment_parser(limit, aff_start, affiliated);
+                    return self.comment_parser(element_span);
                 }
 
                 let block_name = capturing_at!(REGEX_BLOCK_BEGIN, self)
@@ -445,74 +445,66 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 if let Some(name) = block_name {
                     self.cursor.borrow_mut().goto_line_begin();
                     match name.as_ref() {
-                        "CENTER" => return self.center_block_parser(limit, aff_start, affiliated),
-                        "COMMENT" => {
-                            return self.comment_block_parser(limit, aff_start, affiliated);
-                        }
-                        "EXAMPLE" => {
-                            return self.example_block_parser(limit, aff_start, affiliated);
-                        }
-                        "EXPORT" => return self.export_block_parser(limit, aff_start, affiliated),
-                        "QUOTE" => return self.quote_block_parser(limit, aff_start, affiliated),
-                        "SRC" => return self.src_block_parser(limit, aff_start, affiliated),
-                        "VERSE" => return self.verse_block_parser(limit, aff_start, affiliated),
-                        _ => return self.special_block_parser(limit, aff_start, affiliated),
+                        "CENTER" => return self.center_block_parser(element_span),
+                        "COMMENT" => return self.comment_block_parser(element_span),
+                        "EXAMPLE" => return self.example_block_parser(element_span),
+                        "EXPORT" => return self.export_block_parser(element_span),
+                        "QUOTE" => return self.quote_block_parser(element_span),
+                        "SRC" => return self.src_block_parser(element_span),
+                        "VERSE" => return self.verse_block_parser(element_span),
+                        _ => return self.special_block_parser(element_span),
                     }
                 }
 
                 if looking_at!(REGEX_BABEL_CALL, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
-                    return self.babel_call_parser(limit, aff_start, affiliated);
+                    return self.babel_call_parser(element_span);
                 }
 
                 if looking_at!(REGEX_DYNAMIC_BLOCK, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
-                    return self.dynamic_block_parser(limit, aff_start, affiliated);
+                    return self.dynamic_block_parser(element_span);
                 }
 
                 if looking_at!(REGEX_KEYWORD, self).is_some() {
                     self.cursor.borrow_mut().goto_line_begin();
-                    return self.keyword_parser(limit, aff_start, affiliated);
+                    return self.keyword_parser(element_span);
                 }
 
                 // If none of the above fits then this is just a paragraph
                 self.cursor.borrow_mut().goto_line_begin();
-                return self.paragraph_parser(limit, aff_start, affiliated);
+                return self.paragraph_parser(element_span);
             }
 
             // Footnote Definition
             if looking_at!(REGEX_FOOTNOTE_DEFINITION, self).is_some() {
-                return self.footnote_definition_parser(limit, aff_start, affiliated);
+                return self.footnote_definition_parser(element_span);
             }
 
-            //  Horizontal Rule.
+            // Horizontal Rule.
             if looking_at!(REGEX_HORIZONTAL_RULE, self).is_some() {
-                return self.horizontal_rule_parser(limit, aff_start, affiliated);
+                return self.horizontal_rule_parser(element_span);
             }
 
             // Diary Sexp.
             if looking_at!(REGEX_DIARY_SEXP, self).is_some() {
-                return self.diary_sexp_parser(limit, aff_start, affiliated);
+                return self.diary_sexp_parser(element_span);
             }
 
             // Table
             // NB: table.el style tables are not supported
             if looking_at!(REGEX_TABLE_BORDER, self).is_some() {
-                return self.table_parser(limit, aff_start, affiliated);
+                return self.table_parser(element_span);
             }
 
             // List.
-            //  ((looking-at (org-item-re))
-            //   (org-element-plain-list-parser
-            //    limit affiliated
-            //    (or structure (org-element--list-struct limit))))
             if looking_at!(REGEX_ITEM, self).is_some() {
                 let s = structure.unwrap_or(self.list_struct(limit));
-                return self.plain_list_parser(limit, aff_start, affiliated, s.clone());
+                return self.plain_list_parser(element_span, s.clone());
             }
 
             // Default element: Paragraph.
-            return self.paragraph_parser(limit, aff_start, affiliated);
+            return self.paragraph_parser(element_span);
         };
 
         let current_element = get_current_element();
@@ -534,82 +526,47 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// (defun org-element--parse-objects (beg end acc restriction &optional parent)
     pub fn parse_objects(
         &self,
-        interval: Interval,
+        interval: impl Into<Interval>,
         restriction: impl Fn(SyntaxT) -> bool,
     ) -> Vec<Rc<SyntaxNode<'a>>> {
+        let interval = interval.into();
         let mut children: Vec<Rc<SyntaxNode<'a>>> = Vec::new();
         let mut pos = interval.start;
+
+        // Parse order and type tag for the restriction check.  Two entries carry
+        // SyntaxT::Link: the first handles bracket links `[[…]]`, the second plain
+        // URLs.  Both yield Link nodes, so both are gated by the same restriction.
+        let parsers: &[(SyntaxT, fn(&Parser<'a, Environment>, &'a str, usize) -> Option<(Rc<SyntaxNode<'a>>, usize)>)] = &[
+            (SyntaxT::Bold,              Self::try_parse_bold),
+            (SyntaxT::Italic,            Self::try_parse_italic),
+            (SyntaxT::Code,              Self::try_parse_code),
+            (SyntaxT::Verbatim,          Self::try_parse_verbatim),
+            (SyntaxT::Underline,         Self::try_parse_underline),
+            (SyntaxT::StrikeThrough,     Self::try_parse_strikethrough),
+            (SyntaxT::FootnoteReference, Self::try_parse_footnote_reference),
+            (SyntaxT::Timestamp,         Self::try_parse_timestamp),
+            (SyntaxT::Entity,            Self::try_parse_entity),
+            (SyntaxT::Link,              Self::try_parse_link),
+            (SyntaxT::Target,            Self::try_parse_target),
+            (SyntaxT::Link,              Self::try_parse_plain_link),
+        ];
 
         while pos < interval.end {
             let remaining = &self.input[pos..interval.end];
 
-            // Try to parse each object type in order of precedence
-            if let Some((node, consumed)) = self.try_parse_bold(remaining, pos) {
-                if restriction(SyntaxT::Bold) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_italic(remaining, pos) {
-                if restriction(SyntaxT::Italic) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_code(remaining, pos) {
-                if restriction(SyntaxT::Code) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_verbatim(remaining, pos) {
-                if restriction(SyntaxT::Verbatim) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_underline(remaining, pos) {
-                if restriction(SyntaxT::Underline) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_strikethrough(remaining, pos) {
-                if restriction(SyntaxT::StrikeThrough) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_footnote_reference(remaining, pos)
-            {
-                if restriction(SyntaxT::FootnoteReference) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_timestamp(remaining, pos) {
-                if restriction(SyntaxT::Timestamp) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_entity(remaining, pos) {
-                if restriction(SyntaxT::Entity) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_link(remaining, pos) {
-                if restriction(SyntaxT::Link) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_target(remaining, pos) {
-                if restriction(SyntaxT::Target) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_plain_link(remaining, pos) {
-                if restriction(SyntaxT::Link) {
-                    children.push(node);
-                }
-                pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_plain_text(remaining, pos, interval.end) {
+            let consumed = parsers.iter().find_map(|&(ty, parse)| {
+                parse(self, remaining, pos).map(|(node, c)| {
+                    if restriction(ty) { children.push(node); }
+                    c
+                })
+            });
+
+            if let Some(c) = consumed {
+                pos += c;
+            } else if let Some((node, c)) = self.try_parse_plain_text(remaining, pos) {
                 children.push(node);
-                pos += consumed;
+                pos += c;
             } else {
-                // Skip one character and continue
                 pos += 1;
             }
         }
@@ -641,59 +598,31 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         )
     }
 
-    fn try_parse_bold<'b>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_bold(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'*', SyntaxT::Bold)
     }
 
-    fn try_parse_italic<'b>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_italic(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'/', SyntaxT::Italic)
     }
 
-    fn try_parse_underline<'b>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_underline(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'_', SyntaxT::Underline)
     }
 
-    fn try_parse_strikethrough<'b>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_strikethrough(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'+', SyntaxT::StrikeThrough)
     }
 
-    fn try_parse_code<'b>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_code(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'~', SyntaxT::Code)
     }
 
-    fn try_parse_verbatim<'b>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_verbatim(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         self.parse_emphasis_marker(text, start, b'=', SyntaxT::Verbatim)
     }
 
-    fn try_parse_link<'b: 'a>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_link(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         let bytes = text.as_bytes();
         if bytes.len() < 4 || &bytes[0..2] != b"[[" {
             return None;
@@ -717,33 +646,16 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let content_end = close - 2;
         let raw = &text[..close];
 
-        // Use LinkData constructor - it handles basic link parsing
         let link_data = LinkData::new(raw);
 
-        let node = SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Link(Box::new(link_data)),
-            location: Interval {
-                start,
-                end: start + close,
-            },
-            content_location: Some(Interval {
-                start: start + content_start,
-                end: start + content_end,
-            }),
-            post_blank: 0,
-            affiliated: None,
-        };
+        let node = SyntaxNode::new(Syntax::Link(Box::new(link_data)), (start, start + close))
+            .content((start + content_start, start + content_end))
+            .build();
 
         Some((Rc::new(node), close))
     }
 
-    fn try_parse_target<'b: 'a>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_target(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         let bytes = text.as_bytes();
         if bytes.len() < 4 || &bytes[0..2] != b"<<" {
             return None;
@@ -765,19 +677,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let close = found_close?;
         let content = &text[2..close - 2];
 
-        let target_data = TargetData::new(content);
-        let node = SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Target(Box::new(target_data)),
-            location: Interval {
-                start,
-                end: start + close,
-            },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
-        };
+        let node = SyntaxNode::new(Syntax::Target(content), (start, start + close)).build();
 
         Some((Rc::new(node), close))
     }
@@ -842,74 +742,26 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let content_location = Interval { start: start + 1, end: start + close };
         let content = &self.input[content_location.start..content_location.end];
-        let inner_children = self.parse_objects(content_location, |_| true);
 
-        let node = match syntax {
-            SyntaxT::Bold => SyntaxNode {
-                parent: RefCell::new(None),
-                children: RefCell::new(inner_children),
-                data: Syntax::Bold,
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(content_location),
-                post_blank: 0,
-                affiliated: None,
-            },
-            SyntaxT::Italic => SyntaxNode {
-                parent: RefCell::new(None),
-                children: RefCell::new(inner_children),
-                data: Syntax::Italic,
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(content_location),
-                post_blank: 0,
-                affiliated: None,
-            },
-            SyntaxT::Underline => SyntaxNode {
-                parent: RefCell::new(None),
-                children: RefCell::new(inner_children),
-                data: Syntax::Underline,
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(content_location),
-                post_blank: 0,
-                affiliated: None,
-            },
-            SyntaxT::StrikeThrough => SyntaxNode {
-                parent: RefCell::new(None),
-                children: RefCell::new(inner_children),
-                data: Syntax::StrikeThrough,
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(content_location),
-                post_blank: 0,
-                affiliated: None,
-            },
-            SyntaxT::Code => SyntaxNode {
-                parent: RefCell::new(None),
-                children: RefCell::new(vec![]),
-                data: Syntax::Code(Box::new(CodeData { value: content })),
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(content_location),
-                post_blank: 0,
-                affiliated: None,
-            },
-            SyntaxT::Verbatim => SyntaxNode {
-                parent: RefCell::new(None),
-                children: RefCell::new(vec![]),
-                data: Syntax::Verbatim(Box::new(VerbatimData { value: content })),
-                location: Interval { start, end: start + close + 1 },
-                content_location: Some(content_location),
-                post_blank: 0,
-                affiliated: None,
-            },
-            _ => return None,
+        let (data, children) = match syntax {
+            SyntaxT::Bold          => (Syntax::Bold,              self.parse_objects(content_location, |_| true)),
+            SyntaxT::Italic        => (Syntax::Italic,            self.parse_objects(content_location, |_| true)),
+            SyntaxT::Underline     => (Syntax::Underline,         self.parse_objects(content_location, |_| true)),
+            SyntaxT::StrikeThrough => (Syntax::StrikeThrough,     self.parse_objects(content_location, |_| true)),
+            SyntaxT::Code          => (Syntax::Code(content),     vec![]),
+            SyntaxT::Verbatim      => (Syntax::Verbatim(content), vec![]),
+            _                      => return None,
         };
+
+        let node = SyntaxNode::new(data, (start, start + close + 1))
+            .content(content_location)
+            .children(children)
+            .build();
 
         Some((Rc::new(node), close + 1))
     }
 
-    fn try_parse_plain_link<'b: 'a>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_plain_link(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         const PROTOCOLS: &[&[u8]] = &[b"https://", b"http://", b"ftp://", b"mailto:"];
         let bytes = text.as_bytes();
         let proto_len = PROTOCOLS.iter().find_map(|&p| {
@@ -926,26 +778,15 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return None;
         }
         let raw = &text[..url_end];
-        let node = SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Link(Box::new(LinkData::new_plain(raw))),
-            location: Interval {
-                start,
-                end: start + url_end,
-            },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
-        };
+        let node = SyntaxNode::new(
+            Syntax::Link(Box::new(LinkData::new_plain(raw))),
+            (start, start + url_end),
+        )
+        .build();
         Some((Rc::new(node), url_end))
     }
 
-    fn try_parse_footnote_reference<'b: 'a>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_footnote_reference(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         if !text.starts_with("[fn:") {
             return None;
         }
@@ -968,24 +809,18 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             .unwrap_or_default();
 
         let consumed = close + 1;
-        let node = SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(children),
-            data: Syntax::FootnoteReference(Box::new(FootnoteReferenceData { label, type_s })),
-            location: Interval { start, end: start + consumed },
-            content_location: definition_location,
-            post_blank: 0,
-            affiliated: None,
-        };
-        Some((Rc::new(node), consumed))
+        let mut builder = SyntaxNode::new(
+            Syntax::FootnoteReference(Box::new(FootnoteReferenceData { label, type_s })),
+            (start, start + consumed),
+        )
+        .children(children);
+        if let Some(loc) = definition_location {
+            builder = builder.content(loc);
+        }
+        Some((Rc::new(builder.build()), consumed))
     }
 
-    fn try_parse_plain_text<'b: 'a>(
-        &self,
-        text: &'b str,
-        start: usize,
-        _end: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_plain_text(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         if text.is_empty() {
             return None;
         }
@@ -1025,27 +860,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         let content = &text[..consume];
-        let node = SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::PlainText(content),
-            location: Interval {
-                start,
-                end: start + consume,
-            },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
-        };
+        let node = SyntaxNode::new(Syntax::PlainText(content), (start, start + consume)).build();
 
         Some((Rc::new(node), consume))
     }
 
-    pub fn try_parse_timestamp<'b: 'a>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    pub fn try_parse_timestamp(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || (bytes[0] != b'<' && bytes[0] != b'[') {
             return None;
@@ -1074,30 +894,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // Try to create a valid TimestampData
         let timestamp_data = TimestampData::new(raw)?;
 
-        let node = SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Timestamp(Box::new(timestamp_data)),
-            location: Interval {
-                start,
-                end: start + close + 1,
-            },
-            content_location: Some(Interval {
-                start: start + 1,
-                end: start + close,
-            }),
-            post_blank: 0,
-            affiliated: None,
-        };
+        let node = SyntaxNode::new(
+            Syntax::Timestamp(Box::new(timestamp_data)),
+            (start, start + close + 1),
+        )
+        .content((start + 1, start + close))
+        .build();
 
         Some((Rc::new(node), close + 1))
     }
 
-    fn try_parse_entity<'b: 'a>(
-        &self,
-        text: &'b str,
-        start: usize,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_entity(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || bytes[0] != b'\\' {
             return None;
@@ -1133,18 +940,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let entity_name = &text[1..end];
         let entity_data = EntityData::new(entity_name)?;
 
-        let node = SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Entity(Box::new(entity_data)),
-            location: Interval {
-                start,
-                end: start + end,
-            },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
-        };
+        let node = SyntaxNode::new(
+            Syntax::Entity(Box::new(entity_data)),
+            (start, start + end),
+        )
+        .build();
 
         Some((Rc::new(node), end))
     }

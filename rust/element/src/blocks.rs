@@ -13,9 +13,7 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::cell::RefCell;
-
-use crate::affiliated::AffiliatedData;
+use crate::affiliated::ElementSpan;
 use crate::data::{Interval, LineNumberingMode, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
@@ -48,12 +46,6 @@ pub struct DynamicBlockData<'a> {
 
     /// Drawer's name (string).
     drawer_name: &'a str,
-}
-
-#[derive(Debug)]
-pub struct CommentBlockData<'a> {
-    /// Comments, without block's boundaries (string).
-    value: &'a str,
 }
 
 #[derive(Debug)]
@@ -147,72 +139,67 @@ pub struct SrcBlockData<'a> {
     value: &'a str,
 }
 
-/// Find the bounds of a block that starts at `start` within `input[..limit]`.
+/// Spans for a parsed block.
 ///
-/// Returns `None` when the `#+BEGIN_` line is the last line (degenerate block).
-/// Otherwise returns `Some((after_first, content_end, block_end))`:
-///   - `after_first`  — first byte of the block body (after the BEGIN line)
-///   - `content_end`  — first byte of the matching `#+END_<type>` line
-///   - `block_end`    — first byte past the `#+END_` line
+/// `location` covers the whole block from `#+BEGIN_` through the end of the
+/// `#+END_` line.  `content` covers the lines between those delimiters.
+pub struct BlockBounds {
+    pub location: Interval,
+    pub content: Interval,
+}
+
+/// Shared iterator that scans lines from `content_start` until `is_end` matches.
 ///
-/// When no `#+END_` line is found, `content_end == block_end == limit`.
-fn find_block_bounds(
+/// Returns `None` when the opening line is the last line (degenerate block).
+/// When no end line is found the entire remaining span is treated as content.
+fn find_block_bounds_impl(
     input: &str,
     start: usize,
     limit: usize,
-    block_type: &str,
-) -> Option<(usize, usize, usize)> {
-    let after_first = input[start..limit]
+    is_end: impl Fn(&str) -> bool,
+) -> Option<BlockBounds> {
+    let content_start = input[start..limit]
         .find('\n')
         .map_or(limit, |i| start + i + 1);
 
-    if after_first >= limit {
+    if content_start >= limit {
         return None;
     }
 
-    let expected = format!("#+END_{}", block_type.to_ascii_uppercase());
-    let mut pos = after_first;
+    let mut pos = content_start;
     while pos < limit {
         let line_end = input[pos..limit].find('\n').map_or(limit, |i| pos + i + 1);
-        let upper = input[pos..line_end].trim().to_ascii_uppercase();
-        if upper == expected
-            || upper.starts_with(&format!("{} ", expected))
-            || upper.starts_with(&format!("{}\t", expected))
-        {
-            return Some((after_first, pos, line_end));
+        if is_end(&input[pos..line_end]) {
+            return Some(BlockBounds {
+                location: Interval { start, end: line_end },
+                content: Interval { start: content_start, end: pos },
+            });
         }
         pos = line_end;
     }
-    Some((after_first, limit, limit))
+    Some(BlockBounds {
+        location: Interval { start, end: limit },
+        content: Interval { start: content_start, end: limit },
+    })
+}
+
+/// Find the bounds of a named block (`#+BEGIN_TYPE` / `#+END_TYPE`).
+fn find_block_bounds(input: &str, start: usize, limit: usize, block_type: &str) -> Option<BlockBounds> {
+    let expected = format!("#+END_{}", block_type.to_ascii_uppercase());
+    find_block_bounds_impl(input, start, limit, |line| {
+        let upper = line.trim().to_ascii_uppercase();
+        upper == expected
+            || upper.starts_with(&format!("{} ", expected))
+            || upper.starts_with(&format!("{}\t", expected))
+    })
 }
 
 /// Find bounds of a dynamic block (`#+BEGIN:` / `#+END:`).
-///
-/// Returns `None` when the `#+BEGIN:` line is the last line.
-/// Otherwise returns `Some((after_first, content_end, block_end))`.
-fn find_dynamic_block_bounds(
-    input: &str,
-    start: usize,
-    limit: usize,
-) -> Option<(usize, usize, usize)> {
-    let after_first = input[start..limit]
-        .find('\n')
-        .map_or(limit, |i| start + i + 1);
-
-    if after_first >= limit {
-        return None;
-    }
-
-    let mut pos = after_first;
-    while pos < limit {
-        let line_end = input[pos..limit].find('\n').map_or(limit, |i| pos + i + 1);
-        let upper = input[pos..line_end].trim().to_ascii_uppercase();
-        if upper.starts_with("#+END:") || upper.starts_with("#+END ") {
-            return Some((after_first, pos, line_end));
-        }
-        pos = line_end;
-    }
-    Some((after_first, limit, limit))
+fn find_dynamic_block_bounds(input: &str, start: usize, limit: usize) -> Option<BlockBounds> {
+    find_block_bounds_impl(input, start, limit, |line| {
+        let upper = line.trim().to_ascii_uppercase();
+        upper.starts_with("#+END:") || upper.starts_with("#+END ")
+    })
 }
 
 fn post_blank(input: &str, end: usize, limit: usize) -> usize {
@@ -226,93 +213,61 @@ fn post_blank(input: &str, end: usize, limit: usize) -> usize {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    /// Fallback block parser: consumes from `start` to the matching
-    /// `#+END_` line (or `limit`) and returns a Paragraph node.
-    fn block_fallback(&self, limit: usize, start: usize, block_type: &str) -> SyntaxNode<'a> {
-        let end = find_block_bounds(self.input, start, limit, block_type)
-            .map(|(_, _, block_end)| block_end)
-            .unwrap_or(limit);
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Paragraph,
-            location: Interval { start, end },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
-        }
+    /// Fallback: consume from `start` to the matching `#+END_` line (or
+    /// `limit`) and return a `Paragraph` node so parsing can continue.
+    fn block_fallback(&self, span: Interval, block_type: &str) -> SyntaxNode<'a> {
+        let end = find_block_bounds(self.input, span.start, span.end, block_type)
+            .map(|b| b.location.end)
+            .unwrap_or(span.end);
+        SyntaxNode::new(Syntax::Paragraph, (span.start, end)).build()
+    }
+
+    /// Shared implementation for the three content-only blocks (CENTER, QUOTE, VERSE):
+    /// blocks whose only parse output is a location, content span, and affiliated data.
+    fn parse_content_block(
+        &self,
+        element_span: ElementSpan<'a>,
+        tag: &str,
+        syntax: Syntax<'a>,
+    ) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, tag) else {
+            return self.block_fallback(Interval { start, end: limit }, tag);
+        };
+        SyntaxNode::new(syntax, bounds.location)
+            .content(bounds.content)
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build()
     }
 
     /// Parse a center block element.
-    pub fn center_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
-        let Some((after_first, content_end, end)) =
-            find_block_bounds(self.input, start, limit, "CENTER")
-        else {
-            return self.block_fallback(limit, start, "CENTER");
-        };
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::CenterBlock,
-            location: Interval { start, end },
-            content_location: (after_first < content_end)
-                .then_some(Interval { start: after_first, end: content_end }),
-            post_blank: post_blank(self.input, end, limit),
-            affiliated,
-        }
+    pub fn center_block_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        self.parse_content_block(element_span, "CENTER", Syntax::CenterBlock)
     }
 
     /// Parse a comment block element.
-    pub fn comment_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
-        let Some((after_first, content_end, end)) =
-            find_block_bounds(self.input, start, limit, "COMMENT")
-        else {
-            return self.block_fallback(limit, start, "COMMENT");
+    pub fn comment_block_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "COMMENT") else {
+            return self.block_fallback(Interval { start, end: limit }, "COMMENT");
         };
-
-        let value = &self.input[after_first..content_end];
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::CommentBlock(Box::new(CommentBlockData { value })),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank: post_blank(self.input, end, limit),
-            affiliated,
-        }
+        let value = &self.input[bounds.content.start..bounds.content.end];
+        SyntaxNode::new(Syntax::CommentBlock(value), bounds.location)
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build()
     }
 
     /// Parse an example block element.
-    pub fn example_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
-        let Some((after_first, content_end, end)) =
-            find_block_bounds(self.input, start, limit, "EXAMPLE")
-        else {
-            return self.block_fallback(limit, start, "EXAMPLE");
+    pub fn example_block_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "EXAMPLE") else {
+            return self.block_fallback(Interval { start, end: limit }, "EXAMPLE");
         };
-
-        let value = &self.input[after_first..content_end];
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::ExampleBlock(Box::new(ExampleBlockData {
+        let value = &self.input[bounds.content.start..bounds.content.end];
+        SyntaxNode::new(
+            Syntax::ExampleBlock(Box::new(ExampleBlockData {
                 label_fmt: None,
                 language: None,
                 number_lines: None,
@@ -324,97 +279,55 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 use_labels: false,
                 value,
             })),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank: post_blank(self.input, end, limit),
-            affiliated,
-        }
+            bounds.location,
+        )
+        .post_blank(post_blank(self.input, bounds.location.end, limit))
+        .affiliated(affiliated)
+        .build()
     }
 
     /// Parse an export block element.
-    pub fn export_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
-        let Some((after_first, content_end, end)) =
-            find_block_bounds(self.input, start, limit, "EXPORT")
-        else {
-            return self.block_fallback(limit, start, "EXPORT");
+    pub fn export_block_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "EXPORT") else {
+            return self.block_fallback(Interval { start, end: limit }, "EXPORT");
         };
-
-        let value = &self.input[after_first..content_end];
-
-        // Extract export backend from first line: "#+BEGIN_EXPORT html"
-        let first_line_end = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i);
-        let first_line = &self.input[start..first_line_end];
-        let type_s = first_line.split_whitespace().nth(1).unwrap_or("html");
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::ExportBlock(Box::new(ExportBlockData { type_s, value })),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank: post_blank(self.input, end, limit),
-            affiliated,
-        }
+        let value = &self.input[bounds.content.start..bounds.content.end];
+        let first_line_end = self.input[start..limit].find('\n').map_or(limit, |i| start + i);
+        let type_s = self.input[start..first_line_end].split_whitespace().nth(1).unwrap_or("html");
+        SyntaxNode::new(
+            Syntax::ExportBlock(Box::new(ExportBlockData { type_s, value })),
+            bounds.location,
+        )
+        .post_blank(post_blank(self.input, bounds.location.end, limit))
+        .affiliated(affiliated)
+        .build()
     }
 
     /// Parse a quote block element.
-    pub fn quote_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
-        let Some((after_first, content_end, end)) =
-            find_block_bounds(self.input, start, limit, "QUOTE")
-        else {
-            return self.block_fallback(limit, start, "QUOTE");
+    pub fn quote_block_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "QUOTE") else {
+            return self.block_fallback(Interval { start, end: limit }, "QUOTE");
         };
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::QuoteBlock,
-            location: Interval { start, end },
-            content_location: (after_first < content_end)
-                .then_some(Interval { start: after_first, end: content_end }),
-            post_blank: post_blank(self.input, end, limit),
-            affiliated,
-        }
+        SyntaxNode::new(Syntax::QuoteBlock, bounds.location)
+            .content(bounds.content)
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build()
     }
 
     /// Parse a src block element.
-    pub fn src_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
-        let Some((after_first, content_end, end)) =
-            find_block_bounds(self.input, start, limit, "SRC")
-        else {
-            return self.block_fallback(limit, start, "SRC");
+    pub fn src_block_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "SRC") else {
+            return self.block_fallback(Interval { start, end: limit }, "SRC");
         };
-
-        let value = &self.input[after_first..content_end];
-
-        // Extract language from first line: "#+BEGIN_SRC python"
-        let first_line_end = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i);
-        let first_line = &self.input[start..first_line_end];
-        let language = first_line.split_whitespace().nth(1);
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::SrcBlock(Box::new(SrcBlockData {
+        let value = &self.input[bounds.content.start..bounds.content.end];
+        let first_line_end = self.input[start..limit].find('\n').map_or(limit, |i| start + i);
+        let language = self.input[start..first_line_end].split_whitespace().nth(1);
+        SyntaxNode::new(
+            Syntax::SrcBlock(Box::new(SrcBlockData {
                 label_fmt: None,
                 language,
                 number_lines: None,
@@ -425,110 +338,65 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 use_labels: false,
                 value,
             })),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank: post_blank(self.input, end, limit),
-            affiliated,
-        }
+            bounds.location,
+        )
+        .post_blank(post_blank(self.input, bounds.location.end, limit))
+        .affiliated(affiliated)
+        .build()
     }
 
     /// Parse a verse block element.
-    pub fn verse_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
-        let Some((after_first, content_end, end)) =
-            find_block_bounds(self.input, start, limit, "VERSE")
-        else {
-            return self.block_fallback(limit, start, "VERSE");
+    pub fn verse_block_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "VERSE") else {
+            return self.block_fallback(Interval { start, end: limit }, "VERSE");
         };
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::VerseBlock,
-            location: Interval { start, end },
-            content_location: (after_first < content_end)
-                .then_some(Interval { start: after_first, end: content_end }),
-            post_blank: post_blank(self.input, end, limit),
-            affiliated,
-        }
+        SyntaxNode::new(Syntax::VerseBlock, bounds.location)
+            .content(bounds.content)
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build()
     }
 
     /// Parse a special block element.
-    pub fn special_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
-        // Extract block type from #+BEGIN_NAME before bounding the block.
-        let first_line_end = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i);
-        let first_line = &self.input[start..first_line_end];
+    pub fn special_block_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let first_line_end = self.input[start..limit].find('\n').map_or(limit, |i| start + i);
         let type_s = REGEX_BLOCK_BEGIN
-            .captures(first_line)
+            .captures(&self.input[start..first_line_end])
             .and_then(|c| c.get(1))
             .map_or("special", |m| m.as_str());
-
-        let Some((after_first, content_end, end)) =
-            find_block_bounds(self.input, start, limit, type_s)
-        else {
-            return self.block_fallback(limit, start, type_s);
+        let Some(bounds) = find_block_bounds(self.input, start, limit, type_s) else {
+            return self.block_fallback(Interval { start, end: limit }, type_s);
         };
-
-        let raw_value = &self.input[after_first..content_end];
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::SpecialBlock(Box::new(SpecialBlockData { type_s, raw_value })),
-            location: Interval { start, end },
-            content_location: (after_first < content_end)
-                .then_some(Interval { start: after_first, end: content_end }),
-            post_blank: post_blank(self.input, end, limit),
-            affiliated,
-        }
+        let raw_value = &self.input[bounds.content.start..bounds.content.end];
+        SyntaxNode::new(
+            Syntax::SpecialBlock(Box::new(SpecialBlockData { type_s, raw_value })),
+            bounds.location,
+        )
+        .content(bounds.content)
+        .post_blank(post_blank(self.input, bounds.location.end, limit))
+        .affiliated(affiliated)
+        .build()
     }
 
     /// Fallback: dynamic block parser (not yet fully implemented).
-    pub fn dynamic_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        affiliated: Option<AffiliatedData<'a>>,
-    ) -> SyntaxNode<'a> {
-        let Some((after_first, content_end, end)) =
-            find_dynamic_block_bounds(self.input, start, limit)
-        else {
-            // Degenerate: BEGIN: is the last line; consume to limit as paragraph.
-            return SyntaxNode {
-                parent: RefCell::new(None),
-                children: RefCell::new(vec![]),
-                data: Syntax::Paragraph,
-                location: Interval { start, end: limit },
-                content_location: None,
-                post_blank: 0,
-                affiliated: None,
-            };
+    pub fn dynamic_block_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let Some(bounds) = find_dynamic_block_bounds(self.input, start, limit) else {
+            return SyntaxNode::new(Syntax::Paragraph, (start, limit)).build();
         };
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::DynamicBlock(Box::new(DynamicBlockData {
+        SyntaxNode::new(
+            Syntax::DynamicBlock(Box::new(DynamicBlockData {
                 arguments: "",
                 block_name: "",
                 drawer_name: "",
             })),
-            location: Interval { start, end },
-            content_location: (after_first < content_end)
-                .then_some(Interval { start: after_first, end: content_end }),
-            post_blank: post_blank(self.input, end, limit),
-            affiliated,
-        }
+            bounds.location,
+        )
+        .content(bounds.content)
+        .post_blank(post_blank(self.input, bounds.location.end, limit))
+        .affiliated(affiliated)
+        .build()
     }
 }
