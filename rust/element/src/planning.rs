@@ -33,7 +33,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let start = self.cursor.borrow().pos();
         let input_slice = &self.input[start..limit];
 
-        let line_end = input_slice.find('\n').map_or(limit, |i| start + i);
+        let nl_offset = input_slice.find('\n');
+        let line_end = nl_offset.map_or(limit, |i| start + i);
+        let end = nl_offset.map_or(limit, |i| (start + i + 1).min(limit));
         let line = &input_slice[..(line_end - start)];
 
         let mut deadline = None;
@@ -54,8 +56,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return SyntaxNode::fallback(self.input, start, limit);
         }
 
-        let post_blank = if line_end < limit {
-            let remaining = &self.input[line_end..limit];
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
             let trimmed = remaining.trim_start();
             (remaining.len() - trimmed.len()).min(2)
         } else {
@@ -72,37 +74,24 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::Planning(Box::new(planning_data)),
-            location: Interval {
-                start,
-                end: line_end,
-            },
+            location: Interval { start, end },
             content_location: None,
             post_blank,
             affiliated: None,
         }
     }
 
-    fn parse_planning_timestamp(
+    pub fn parse_planning_timestamp(
         &self,
         line: &'a str,
         keyword: &str,
     ) -> Option<crate::data::TimestampData<'a>> {
         let keyword_pos = line.find(keyword)?;
         let after_keyword = line[keyword_pos + keyword.len()..].trim_start();
-
-        self.parse_timestamp_from_str(after_keyword)
-    }
-
-    fn parse_timestamp_from_str(&self, s: &'a str) -> Option<crate::data::TimestampData<'a>> {
-        let s = s.trim();
-        if s.is_empty() {
-            return None;
-        }
-
-        if (s.starts_with('<') && s.ends_with('>')) || (s.starts_with('[') && s.ends_with(']')) {
-            crate::data::TimestampData::new(s)
-        } else {
-            None
+        let (node, _) = self.try_parse_timestamp(after_keyword, 0)?;
+        match std::rc::Rc::try_unwrap(node).ok()?.data {
+            crate::data::Syntax::Timestamp(ts) => Some(*ts),
+            _ => None,
         }
     }
 

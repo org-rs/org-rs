@@ -147,41 +147,91 @@ pub struct SrcBlockData<'a> {
     value: &'a str,
 }
 
-/// Find the end of a block that starts at `start` within `input[..limit]`.
+/// Find the bounds of a block that starts at `start` within `input[..limit]`.
 ///
-/// Scans forward for a line whose trimmed, uppercased content starts with
-/// `#+END_` and returns the byte position just past that line.  Falls back
-/// to `limit` when no closing line is found.
-fn find_block_end(input: &str, start: usize, limit: usize) -> usize {
-    // Skip the opening #+BEGIN_ line first.
+/// Returns `None` when the `#+BEGIN_` line is the last line (degenerate block).
+/// Otherwise returns `Some((after_first, content_end, block_end))`:
+///   - `after_first`  — first byte of the block body (after the BEGIN line)
+///   - `content_end`  — first byte of the matching `#+END_<type>` line
+///   - `block_end`    — first byte past the `#+END_` line
+///
+/// When no `#+END_` line is found, `content_end == block_end == limit`.
+fn find_block_bounds(
+    input: &str,
+    start: usize,
+    limit: usize,
+    block_type: &str,
+) -> Option<(usize, usize, usize)> {
     let after_first = input[start..limit]
         .find('\n')
         .map_or(limit, |i| start + i + 1);
 
+    if after_first >= limit {
+        return None;
+    }
+
+    let expected = format!("#+END_{}", block_type.to_ascii_uppercase());
     let mut pos = after_first;
     while pos < limit {
         let line_end = input[pos..limit].find('\n').map_or(limit, |i| pos + i + 1);
-        let trimmed = input[pos..line_end].trim();
-        if trimmed.len() >= 6 {
-            let upper: String = trimmed
-                .chars()
-                .take(6)
-                .collect::<String>()
-                .to_ascii_uppercase();
-            if upper == "#+END_" {
-                return line_end;
-            }
+        let upper = input[pos..line_end].trim().to_ascii_uppercase();
+        if upper == expected
+            || upper.starts_with(&format!("{} ", expected))
+            || upper.starts_with(&format!("{}\t", expected))
+        {
+            return Some((after_first, pos, line_end));
         }
         pos = line_end;
     }
-    limit
+    Some((after_first, limit, limit))
+}
+
+/// Find bounds of a dynamic block (`#+BEGIN:` / `#+END:`).
+///
+/// Returns `None` when the `#+BEGIN:` line is the last line.
+/// Otherwise returns `Some((after_first, content_end, block_end))`.
+fn find_dynamic_block_bounds(
+    input: &str,
+    start: usize,
+    limit: usize,
+) -> Option<(usize, usize, usize)> {
+    let after_first = input[start..limit]
+        .find('\n')
+        .map_or(limit, |i| start + i + 1);
+
+    if after_first >= limit {
+        return None;
+    }
+
+    let mut pos = after_first;
+    while pos < limit {
+        let line_end = input[pos..limit].find('\n').map_or(limit, |i| pos + i + 1);
+        let upper = input[pos..line_end].trim().to_ascii_uppercase();
+        if upper.starts_with("#+END:") || upper.starts_with("#+END ") {
+            return Some((after_first, pos, line_end));
+        }
+        pos = line_end;
+    }
+    Some((after_first, limit, limit))
+}
+
+fn post_blank(input: &str, end: usize, limit: usize) -> usize {
+    if end < limit {
+        let remaining = &input[end..limit];
+        let trimmed = remaining.trim_start();
+        (remaining.len() - trimmed.len()).min(2)
+    } else {
+        0
+    }
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Fallback block parser: consumes from `start` to the matching
     /// `#+END_` line (or `limit`) and returns a Paragraph node.
-    fn block_fallback(&self, limit: usize, start: usize) -> SyntaxNode<'a> {
-        let end = find_block_end(self.input, start, limit);
+    fn block_fallback(&self, limit: usize, start: usize, block_type: &str) -> SyntaxNode<'a> {
+        let end = find_block_bounds(self.input, start, limit, block_type)
+            .map(|(_, _, block_end)| block_end)
+            .unwrap_or(limit);
         SyntaxNode {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
@@ -200,26 +250,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         start: usize,
         affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        let after_first = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i + 1);
-
-        let after_first = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i + 1);
-
-        let end = find_block_end(self.input, start, limit);
-
-        if end >= limit && after_first >= limit {
-            return self.block_fallback(limit, start);
-        }
-
-        let post_blank = if end < limit {
-            let remaining = &self.input[end..limit];
-            let trimmed = remaining.trim_start();
-            (remaining.len() - trimmed.len()).min(2)
-        } else {
-            0
+        let Some((after_first, content_end, end)) =
+            find_block_bounds(self.input, start, limit, "CENTER")
+        else {
+            return self.block_fallback(limit, start, "CENTER");
         };
 
         SyntaxNode {
@@ -227,8 +261,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             children: RefCell::new(vec![]),
             data: Syntax::CenterBlock,
             location: Interval { start, end },
-            content_location: None,
-            post_blank,
+            content_location: (after_first < content_end)
+                .then_some(Interval { start: after_first, end: content_end }),
+            post_blank: post_blank(self.input, end, limit),
             affiliated,
         }
     }
@@ -240,25 +275,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         start: usize,
         affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        let after_first = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i + 1);
-
-        let end = find_block_end(self.input, start, limit);
-
-        if end >= limit && after_first >= limit {
-            return self.block_fallback(limit, start);
-        }
-
-        let value = &self.input[start..end];
-
-        let post_blank = if end < limit {
-            let remaining = &self.input[end..limit];
-            let trimmed = remaining.trim_start();
-            (remaining.len() - trimmed.len()).min(2)
-        } else {
-            0
+        let Some((after_first, content_end, end)) =
+            find_block_bounds(self.input, start, limit, "COMMENT")
+        else {
+            return self.block_fallback(limit, start, "COMMENT");
         };
+
+        let value = &self.input[after_first..content_end];
 
         SyntaxNode {
             parent: RefCell::new(None),
@@ -266,7 +289,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             data: Syntax::CommentBlock(Box::new(CommentBlockData { value })),
             location: Interval { start, end },
             content_location: None,
-            post_blank,
+            post_blank: post_blank(self.input, end, limit),
             affiliated,
         }
     }
@@ -278,25 +301,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         start: usize,
         affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        let after_first = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i + 1);
-
-        let end = find_block_end(self.input, start, limit);
-
-        if end >= limit && after_first >= limit {
-            return self.block_fallback(limit, start);
-        }
-
-        let value = &self.input[start..end];
-
-        let post_blank = if end < limit {
-            let remaining = &self.input[end..limit];
-            let trimmed = remaining.trim_start();
-            (remaining.len() - trimmed.len()).min(2)
-        } else {
-            0
+        let Some((after_first, content_end, end)) =
+            find_block_bounds(self.input, start, limit, "EXAMPLE")
+        else {
+            return self.block_fallback(limit, start, "EXAMPLE");
         };
+
+        let value = &self.input[after_first..content_end];
 
         SyntaxNode {
             parent: RefCell::new(None),
@@ -315,7 +326,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             })),
             location: Interval { start, end },
             content_location: None,
-            post_blank,
+            post_blank: post_blank(self.input, end, limit),
             affiliated,
         }
     }
@@ -327,17 +338,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         start: usize,
         affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        let after_first = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i + 1);
+        let Some((after_first, content_end, end)) =
+            find_block_bounds(self.input, start, limit, "EXPORT")
+        else {
+            return self.block_fallback(limit, start, "EXPORT");
+        };
 
-        let end = find_block_end(self.input, start, limit);
-
-        if end >= limit && after_first >= limit {
-            return self.block_fallback(limit, start);
-        }
-
-        let value = &self.input[start..end];
+        let value = &self.input[after_first..content_end];
 
         // Extract export backend from first line: "#+BEGIN_EXPORT html"
         let first_line_end = self.input[start..limit]
@@ -346,21 +353,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let first_line = &self.input[start..first_line_end];
         let type_s = first_line.split_whitespace().nth(1).unwrap_or("html");
 
-        let post_blank = if end < limit {
-            let remaining = &self.input[end..limit];
-            let trimmed = remaining.trim_start();
-            (remaining.len() - trimmed.len()).min(2)
-        } else {
-            0
-        };
-
         SyntaxNode {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
             data: Syntax::ExportBlock(Box::new(ExportBlockData { type_s, value })),
             location: Interval { start, end },
             content_location: None,
-            post_blank,
+            post_blank: post_blank(self.input, end, limit),
             affiliated,
         }
     }
@@ -372,22 +371,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         start: usize,
         affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        let after_first = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i + 1);
-
-        let end = find_block_end(self.input, start, limit);
-
-        if end >= limit && after_first >= limit {
-            return self.block_fallback(limit, start);
-        }
-
-        let post_blank = if end < limit {
-            let remaining = &self.input[end..limit];
-            let trimmed = remaining.trim_start();
-            (remaining.len() - trimmed.len()).min(2)
-        } else {
-            0
+        let Some((after_first, content_end, end)) =
+            find_block_bounds(self.input, start, limit, "QUOTE")
+        else {
+            return self.block_fallback(limit, start, "QUOTE");
         };
 
         SyntaxNode {
@@ -395,8 +382,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             children: RefCell::new(vec![]),
             data: Syntax::QuoteBlock,
             location: Interval { start, end },
-            content_location: None,
-            post_blank,
+            content_location: (after_first < content_end)
+                .then_some(Interval { start: after_first, end: content_end }),
+            post_blank: post_blank(self.input, end, limit),
             affiliated,
         }
     }
@@ -408,17 +396,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         start: usize,
         affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        let after_first = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i + 1);
+        let Some((after_first, content_end, end)) =
+            find_block_bounds(self.input, start, limit, "SRC")
+        else {
+            return self.block_fallback(limit, start, "SRC");
+        };
 
-        let end = find_block_end(self.input, start, limit);
-
-        if end >= limit && after_first >= limit {
-            return self.block_fallback(limit, start);
-        }
-
-        let value = &self.input[start..end];
+        let value = &self.input[after_first..content_end];
 
         // Extract language from first line: "#+BEGIN_SRC python"
         let first_line_end = self.input[start..limit]
@@ -426,14 +410,6 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             .map_or(limit, |i| start + i);
         let first_line = &self.input[start..first_line_end];
         let language = first_line.split_whitespace().nth(1);
-
-        let post_blank = if end < limit {
-            let remaining = &self.input[end..limit];
-            let trimmed = remaining.trim_start();
-            (remaining.len() - trimmed.len()).min(2)
-        } else {
-            0
-        };
 
         SyntaxNode {
             parent: RefCell::new(None),
@@ -451,7 +427,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             })),
             location: Interval { start, end },
             content_location: None,
-            post_blank,
+            post_blank: post_blank(self.input, end, limit),
             affiliated,
         }
     }
@@ -463,22 +439,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         start: usize,
         affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        let after_first = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i + 1);
-
-        let end = find_block_end(self.input, start, limit);
-
-        if end >= limit && after_first >= limit {
-            return self.block_fallback(limit, start);
-        }
-
-        let post_blank = if end < limit {
-            let remaining = &self.input[end..limit];
-            let trimmed = remaining.trim_start();
-            (remaining.len() - trimmed.len()).min(2)
-        } else {
-            0
+        let Some((after_first, content_end, end)) =
+            find_block_bounds(self.input, start, limit, "VERSE")
+        else {
+            return self.block_fallback(limit, start, "VERSE");
         };
 
         SyntaxNode {
@@ -486,8 +450,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             children: RefCell::new(vec![]),
             data: Syntax::VerseBlock,
             location: Interval { start, end },
-            content_location: None,
-            post_blank,
+            content_location: (after_first < content_end)
+                .then_some(Interval { start: after_first, end: content_end }),
+            post_blank: post_blank(self.input, end, limit),
             affiliated,
         }
     }
@@ -499,43 +464,32 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         start: usize,
         affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        let after_first = self.input[start..limit]
+        // Extract block type from #+BEGIN_NAME before bounding the block.
+        let first_line_end = self.input[start..limit]
             .find('\n')
-            .map_or(limit, |i| start + i + 1);
+            .map_or(limit, |i| start + i);
+        let first_line = &self.input[start..first_line_end];
+        let type_s = REGEX_BLOCK_BEGIN
+            .captures(first_line)
+            .and_then(|c| c.get(1))
+            .map_or("special", |m| m.as_str());
 
-        let end = find_block_end(self.input, start, limit);
-
-        if end >= limit && after_first >= limit {
-            return self.block_fallback(limit, start);
-        }
-
-        let value = &self.input[start..end];
-
-        // Extract block type from #+BEGIN_NAME
-        let type_s = if let Some(caps) = REGEX_BLOCK_BEGIN.captures(value) {
-            caps.get(1).map_or("special", |m| m.as_str())
-        } else {
-            "special"
+        let Some((after_first, content_end, end)) =
+            find_block_bounds(self.input, start, limit, type_s)
+        else {
+            return self.block_fallback(limit, start, type_s);
         };
 
-        let post_blank = if end < limit {
-            let remaining = &self.input[end..limit];
-            let trimmed = remaining.trim_start();
-            (remaining.len() - trimmed.len()).min(2)
-        } else {
-            0
-        };
+        let raw_value = &self.input[after_first..content_end];
 
         SyntaxNode {
             parent: RefCell::new(None),
             children: RefCell::new(vec![]),
-            data: Syntax::SpecialBlock(Box::new(SpecialBlockData {
-                type_s,
-                raw_value: value,
-            })),
+            data: Syntax::SpecialBlock(Box::new(SpecialBlockData { type_s, raw_value })),
             location: Interval { start, end },
-            content_location: None,
-            post_blank,
+            content_location: (after_first < content_end)
+                .then_some(Interval { start: after_first, end: content_end }),
+            post_blank: post_blank(self.input, end, limit),
             affiliated,
         }
     }
@@ -547,36 +501,19 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         start: usize,
         affiliated: Option<AffiliatedData<'a>>,
     ) -> SyntaxNode<'a> {
-        // Dynamic blocks use #+BEGIN: / #+END: (no underscore after BEGIN).
-        let after_first = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i + 1);
-        let mut pos = after_first;
-        let end = loop {
-            if pos >= limit {
-                break limit;
-            }
-            let line_end = self.input[pos..limit]
-                .find('\n')
-                .map_or(limit, |i| pos + i + 1);
-            let trimmed = self.input[pos..line_end].trim();
-            let upper = trimmed.to_ascii_uppercase();
-            if upper.starts_with("#+END:") || upper.starts_with("#+END ") {
-                break line_end;
-            }
-            pos = line_end;
-        };
-
-        if end >= limit && after_first >= limit {
-            return self.block_fallback(limit, start);
-        }
-
-        let post_blank = if end < limit {
-            let remaining = &self.input[end..limit];
-            let trimmed = remaining.trim_start();
-            (remaining.len() - trimmed.len()).min(2)
-        } else {
-            0
+        let Some((after_first, content_end, end)) =
+            find_dynamic_block_bounds(self.input, start, limit)
+        else {
+            // Degenerate: BEGIN: is the last line; consume to limit as paragraph.
+            return SyntaxNode {
+                parent: RefCell::new(None),
+                children: RefCell::new(vec![]),
+                data: Syntax::Paragraph,
+                location: Interval { start, end: limit },
+                content_location: None,
+                post_blank: 0,
+                affiliated: None,
+            };
         };
 
         SyntaxNode {
@@ -588,8 +525,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 drawer_name: "",
             })),
             location: Interval { start, end },
-            content_location: None,
-            post_blank,
+            content_location: (after_first < content_end)
+                .then_some(Interval { start: after_first, end: content_end }),
+            post_blank: post_blank(self.input, end, limit),
             affiliated,
         }
     }

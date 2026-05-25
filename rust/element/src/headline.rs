@@ -103,6 +103,10 @@ pub struct HeadlineData<'a> {
     /// Parsed headline text, without the stars and the tags.
     pub title: &'a str,
 
+    /// Byte range of `title` within the original input, for secondary-string
+    /// object parsing.  `None` when the title is empty.
+    pub title_location: Option<Interval>,
+
     /// Headline's TODO keyword, if any.
     pub todo_keyword: Option<TodoKeyword>,
 }
@@ -174,6 +178,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             (None, after_stars)
         };
 
+        // Parse priority cookie [#A], [#B], etc.
+        let (priority, rest) = rest
+            .strip_prefix("[#")
+            .and_then(|s| s.split_once(']'))
+            .filter(|(cookie, _)| cookie.len() == 1 && cookie.chars().next().map_or(false, |c| c.is_ascii_alphabetic()))
+            .map(|(cookie, after)| (cookie.chars().next().unwrap() as usize, after.trim_start()))
+            .unwrap_or((0, rest));
+
         // Parse tags at end of line: look for `:tag1:tag2:` pattern.
         let rest_trimmed = rest.trim_end();
         let (raw_title, tags) = parse_headline_tags(rest_trimmed);
@@ -191,6 +203,16 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // Compute raw_value: everything between stars+space and line end.
         let raw_value = &self.input[after_stars_start..line_end];
 
+        // Compute the byte range of `title` within `self.input` via pointer
+        // arithmetic.  All intermediate string slices are derived from
+        // `self.input`, so the pointer is valid.  The empty literal produced
+        // for a COMMENT-only headline has `len == 0`, handled by `then`.
+        let title_location = (!title.is_empty()).then(|| {
+            let input_base = self.input.as_ptr() as usize;
+            let start = title.as_ptr() as usize - input_base;
+            Interval { start, end: start + title.len() }
+        });
+
         // Find end of headline subtree: next headline at same or higher
         // level, or end of buffer.
         let content_start = (line_end + 1).min(self.input.len());
@@ -205,7 +227,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     closed: None,
                     deadline: None,
                     level,
-                    priority: 0,
+                    priority,
                     raw_value,
                     scheduled: None,
                     tags,
@@ -230,12 +252,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             footnote_section_p: false,
             level,
             pre_blank: 0,
-            priority: 0,
+            priority,
             quotedp: false,
             raw_value,
             scheduled: None,
             tags,
             title,
+            title_location,
             todo_keyword,
         };
 

@@ -174,6 +174,18 @@ impl OracleNode {
     }
 }
 
+impl fmt::Display for OracleNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}", self.node_type)?;
+        let mut keys: Vec<_> = self.props.keys().collect();
+        keys.sort();
+        for k in keys {
+            write!(f, " {k} {:?}", self.props[k])?;
+        }
+        write!(f, ")")
+    }
+}
+
 fn from_value(v: &Value) -> Option<OracleNode> {
     let mut iter = v.list_iter()?;
 
@@ -204,10 +216,13 @@ fn from_value(v: &Value) -> Option<OracleNode> {
     Some(OracleNode { node_type, begin, end, props, children })
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 enum DiscrepancyKind {
+    #[error("{0}")]
     TypeMismatch(goof::Mismatch<TypeKey>),
+    #[error("missing in Rust at {0}")]
     MissingInRust(usize),
+    #[error("extra in Rust at {0}")]
     ExtraInRust(usize),
 }
 
@@ -218,6 +233,7 @@ struct Discrepancy {
     oracle_key: TypeKey,
     kind: DiscrepancyKind,
     snippet: Snippet,
+    oracle_props: String,
 }
 
 impl Discrepancy {
@@ -242,7 +258,7 @@ impl Discrepancy {
     #[test]
     fn {fn_name}() {{
         // Source: {}  path: {}
-        // {:?}
+        // {}  {}
         let input = {snippet:?};
         let count = get_type_count(input, SyntaxT::{syntax_t}, ParseGranularity::Element);
         assert!(count > 0, "expected at least one {syntax_t} node");
@@ -250,6 +266,7 @@ impl Discrepancy {
             self.file.display(),
             self.tree_path,
             self.kind,
+            self.oracle_props,
         );
     }
 }
@@ -277,6 +294,7 @@ fn compare(
             oracle_key: emacs_key,
             kind: DiscrepancyKind::TypeMismatch(mismatch),
             snippet: Snippet::new(input, begin, end),
+            oracle_props: oracle.to_string(),
         });
         return;
     }
@@ -313,6 +331,7 @@ fn compare_children(
                 oracle_key: key.0,
                 kind: DiscrepancyKind::MissingInRust(begin),
                 snippet: Snippet::new(input, begin, end),
+                oracle_props: oracle_node.to_string(),
             });
         }
     }
@@ -325,6 +344,7 @@ fn compare_children(
                 oracle_key: key.0,
                 kind: DiscrepancyKind::ExtraInRust(rust_node.location.start),
                 snippet: Snippet::new(input, rust_node.location.start, rust_node.location.end),
+                oracle_props: String::new(),
             });
         }
     }

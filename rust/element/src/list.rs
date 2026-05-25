@@ -187,7 +187,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Fallback: plain list parser (not yet fully implemented).
     pub fn plain_list_parser(
-        &self,
+        &'a self,
         limit: usize,
         start: usize,
         _affiliated: Option<AffiliatedData>,
@@ -226,6 +226,20 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         } else {
             limit
         };
+
+        // Recurse into item content at Element/Object granularity.
+        // Item is a greater element but its children are pre-built here,
+        // so the standard content_location recursion path never fires for them.
+        use crate::parser::{ParseGranularity, ParserMode};
+        if matches!(self.granularity, ParseGranularity::Element | ParseGranularity::Object) {
+            for item_rc in &children {
+                if let Some(loc) = item_rc.content_location {
+                    let item_children =
+                        self.parse_elements(loc.start, loc.end, ParserMode::Planning, None);
+                    item_rc.children.replace(item_children);
+                }
+            }
+        }
 
         let list_data = PlainListData {
             structure: structure.clone(),
@@ -268,6 +282,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let bullet = Cow::Owned(item.bullet.clone());
         let tag = item.tag.as_ref().map(|t| Cow::Owned(t.clone()));
 
+        // Content begins after the bullet and its trailing space/tab.
+        let content_start = item.position + item.indent + item.bullet.len() + 1;
+        let content_location = (content_start < end)
+            .then_some(Interval { start: content_start, end });
+
         let item_data = ItemData {
             bullet,
             checkbox: item.checkbox.clone(),
@@ -286,7 +305,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 start: item.position,
                 end,
             },
-            content_location: None,
+            content_location,
             post_blank: 0,
             affiliated: None,
         }
@@ -417,11 +436,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 };
                 let after = rest[end + 1..].trim_start();
                 if let Some(tag_pos) = after.find("::") {
-                    tag = Some(after[tag_pos + 2..].trim().to_string());
+                    tag = Some(after[..tag_pos].trim().to_string());
                 }
             }
         } else if let Some(tag_pos) = rest.find("::") {
-            tag = Some(rest[tag_pos + 2..].trim().to_string());
+            tag = Some(rest[..tag_pos].trim().to_string());
         }
 
         (bullet, counter, checkbox, tag)

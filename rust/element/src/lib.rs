@@ -41,5 +41,16 @@ mod paragraph;
 mod planning;
 mod table;
 
+/// Commonly needed types, re-exported for convenience.
+///
+/// Most element-parser modules need the same small set of imports.  Rather
+/// than repeating long `use crate::data::{…}` / `use crate::parser::{…}`
+/// lines everywhere, a single `use crate::prelude::*;` is enough.
+pub mod prelude {
+    pub use crate::affiliated::AffiliatedData;
+    pub use crate::data::{Interval, Syntax, SyntaxNode, SyntaxT};
+    pub use crate::parser::{ParseGranularity, Parser};
+}
+
 #[cfg(test)]
 mod parser_tests;

@@ -319,6 +319,12 @@ pub enum Syntax<'a> {
     PlainText(&'a str),
 }
 
+impl From<(usize, usize)> for Interval {
+    fn from((start, end): (usize, usize)) -> Self {
+        Interval { start, end }
+    }
+}
+
 impl SyntaxT {
     pub fn is_greater_element(self) -> bool {
         use SyntaxT::*;
@@ -961,10 +967,10 @@ impl<'a> TimestampData<'a> {
         let mut hour_start = None;
         let mut minute_start = None;
         let rest = parts[2].split_whitespace().collect::<Vec<_>>();
-        if rest.len() > 1 {
-            if let Some(time_part) = rest.get(1) {
-                // time_part may be "10:15" or "10:15-11:30"
-                let start_time = time_part.split('-').next().unwrap_or(time_part);
+        // Skip day-name tokens (e.g. "Sun"); find the first HH:MM token.
+        for token in rest.iter().skip(1) {
+            if token.contains(':') {
+                let start_time = token.split('-').next().unwrap_or(token);
                 let time_parts: Vec<&str> = start_time.split(':').collect();
                 if time_parts.len() >= 2 {
                     hour_start = time_parts[0].parse().ok();
@@ -973,6 +979,7 @@ impl<'a> TimestampData<'a> {
                         .parse()
                         .ok();
                 }
+                break;
             }
         }
 

@@ -118,6 +118,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             match syntax {
                 Headline => Some(ParserMode::Section),
                 InlineTask => Some(ParserMode::Planning),
+                Item => Some(ParserMode::Planning),
                 PlainList => Some(ParserMode::Item),
                 PropertyDrawer => Some(ParserMode::NodeProperty),
                 Section => Some(ParserMode::Planning),
@@ -161,7 +162,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// (defun org-element--parse-elements
     ///     (beg end mode structure granularity visible-only acc)
     /// TODO do not forget to fix child-parent and parent-child links on tree updates
-    fn parse_elements(
+    pub fn parse_elements(
         &'a self,
         beg: usize,
         end: usize,
@@ -182,6 +183,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let current_pos = self.cursor.borrow().pos();
             if current_pos >= end {
                 break;
+            }
+
+            // Skip blank lines between elements (they belong to post_blank, not new elements).
+            {
+                let line_end = self.input[current_pos..end]
+                    .find('\n')
+                    .map_or(end, |i| current_pos + i + 1);
+                if self.input[current_pos..line_end].trim().is_empty() {
+                    self.cursor.borrow_mut().set(line_end);
+                    continue;
+                }
             }
 
             // Find current element's type and parse it accordingly to its category.
@@ -241,13 +253,35 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     //    element (org-element-restriction type))))
                     if let ParseGranularity::Object = &self.granularity {
                         element.children.replace(self.parse_objects(
-                            content_location.start,
-                            content_location.end,
+                            content_location,
                             |that| SyntaxT::from(&element.data).can_contain(that),
                         ));
                     }
                 }
             }
+            // For headlines, also parse the title line as a secondary string of
+            // objects (e.g. *bold* in "* *bold* heading").  These are prepended
+            // to whatever section children were set above.
+            if self.granularity == ParseGranularity::Object {
+                let title_location = if let Syntax::Headline(ref data) = element.data {
+                    data.title_location
+                } else {
+                    None
+                };
+                if let Some(loc) = title_location {
+                    let title_objects = self.parse_objects(
+                        loc,
+                        |that| SyntaxT::Headline.can_contain(that),
+                    );
+                    if !title_objects.is_empty() {
+                        let mut ch = element.children.borrow_mut();
+                        let section_children: Vec<_> = ch.drain(..).collect();
+                        *ch = title_objects;
+                        ch.extend(section_children);
+                    }
+                }
+            }
+
             if let Some(m) = Parser::<Environment>::next_mode(SyntaxT::from(&element.data), false) {
                 mode = m
             }
@@ -273,8 +307,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     ///
     /// This function assumes cursor is always at the beginning of the
     /// element it has to parse."
-    fn current_element(
-        &self,
+    pub fn current_element(
+        &'a self,
         limit: usize,
         mode: ParserMode,
         structure: Option<Rc<ListStruct>>,
@@ -500,15 +534,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// (defun org-element--parse-objects (beg end acc restriction &optional parent)
     pub fn parse_objects(
         &self,
-        beg: usize,
-        end: usize,
+        interval: Interval,
         restriction: impl Fn(SyntaxT) -> bool,
     ) -> Vec<Rc<SyntaxNode<'a>>> {
         let mut children: Vec<Rc<SyntaxNode<'a>>> = Vec::new();
-        let mut pos = beg;
+        let mut pos = interval.start;
 
-        while pos < end {
-            let remaining = &self.input[pos..end];
+        while pos < interval.end {
+            let remaining = &self.input[pos..interval.end];
 
             // Try to parse each object type in order of precedence
             if let Some((node, consumed)) = self.try_parse_bold(remaining, pos) {
@@ -572,7 +605,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     children.push(node);
                 }
                 pos += consumed;
-            } else if let Some((node, consumed)) = self.try_parse_plain_text(remaining, pos, end) {
+            } else if let Some((node, consumed)) = self.try_parse_plain_text(remaining, pos, interval.end) {
                 children.push(node);
                 pos += consumed;
             } else {
@@ -807,28 +840,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let close = found_close?;
 
-        // Extract content between markers
-        let content_start = start + 1;
-        let content_end = start + close;
-        let content = &self.input[content_start..content_end];
+        let content_location = Interval { start: start + 1, end: start + close };
+        let content = &self.input[content_location.start..content_location.end];
+        let inner_children = self.parse_objects(content_location, |_| true);
 
-        // Parse inner objects recursively
-        let inner_children = self.parse_objects(content_start, content_end, |_| true);
-
-        // Create the node based on syntax type
         let node = match syntax {
             SyntaxT::Bold => SyntaxNode {
                 parent: RefCell::new(None),
                 children: RefCell::new(inner_children),
                 data: Syntax::Bold,
-                location: Interval {
-                    start,
-                    end: start + close + 1,
-                },
-                content_location: Some(Interval {
-                    start: content_start,
-                    end: content_end,
-                }),
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(content_location),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -836,14 +858,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 parent: RefCell::new(None),
                 children: RefCell::new(inner_children),
                 data: Syntax::Italic,
-                location: Interval {
-                    start,
-                    end: start + close + 1,
-                },
-                content_location: Some(Interval {
-                    start: content_start,
-                    end: content_end,
-                }),
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(content_location),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -851,14 +867,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 parent: RefCell::new(None),
                 children: RefCell::new(inner_children),
                 data: Syntax::Underline,
-                location: Interval {
-                    start,
-                    end: start + close + 1,
-                },
-                content_location: Some(Interval {
-                    start: content_start,
-                    end: content_end,
-                }),
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(content_location),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -866,14 +876,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 parent: RefCell::new(None),
                 children: RefCell::new(inner_children),
                 data: Syntax::StrikeThrough,
-                location: Interval {
-                    start,
-                    end: start + close + 1,
-                },
-                content_location: Some(Interval {
-                    start: content_start,
-                    end: content_end,
-                }),
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(content_location),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -881,14 +885,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 parent: RefCell::new(None),
                 children: RefCell::new(vec![]),
                 data: Syntax::Code(Box::new(CodeData { value: content })),
-                location: Interval {
-                    start,
-                    end: start + close + 1,
-                },
-                content_location: Some(Interval {
-                    start: content_start,
-                    end: content_end,
-                }),
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(content_location),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -896,14 +894,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 parent: RefCell::new(None),
                 children: RefCell::new(vec![]),
                 data: Syntax::Verbatim(Box::new(VerbatimData { value: content })),
-                location: Interval {
-                    start,
-                    end: start + close + 1,
-                },
-                content_location: Some(Interval {
-                    start: content_start,
-                    end: content_end,
-                }),
+                location: Interval { start, end: start + close + 1 },
+                content_location: Some(content_location),
                 post_blank: 0,
                 affiliated: None,
             },
@@ -959,32 +951,29 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
         let close = text.find(']')?;
         let inner = &text[4..close];
-        let (label, type_s): (Option<&'a str>, &'a str) = if let Some(colon_pos) = inner.find(':') {
-            let label_part = &inner[..colon_pos];
-            (
-                if label_part.is_empty() {
-                    None
-                } else {
-                    Some(label_part)
-                },
-                "inline",
-            )
-        } else {
-            (
-                if inner.is_empty() { None } else { Some(inner) },
-                "standard",
-            )
-        };
+
+        let colon_pos = inner.find(':');
+        let type_s = colon_pos.map_or("standard", |_| "inline");
+        let label = colon_pos.map_or_else(
+            || (!inner.is_empty()).then_some(inner),
+            |pos| (!inner[..pos].is_empty()).then_some(&inner[..pos]),
+        );
+        let definition_location = colon_pos.map(|pos| Interval {
+            start: start + 4 + pos + 1,
+            end: start + close,
+        });
+
+        let children = definition_location
+            .map(|loc| self.parse_objects(loc, |that| SyntaxT::FootnoteReference.can_contain(that)))
+            .unwrap_or_default();
+
         let consumed = close + 1;
         let node = SyntaxNode {
             parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
+            children: RefCell::new(children),
             data: Syntax::FootnoteReference(Box::new(FootnoteReferenceData { label, type_s })),
-            location: Interval {
-                start,
-                end: start + consumed,
-            },
-            content_location: None,
+            location: Interval { start, end: start + consumed },
+            content_location: definition_location,
             post_blank: 0,
             affiliated: None,
         };
@@ -1052,7 +1041,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         Some((Rc::new(node), consume))
     }
 
-    fn try_parse_timestamp<'b: 'a>(
+    pub fn try_parse_timestamp<'b: 'a>(
         &self,
         text: &'b str,
         start: usize,

@@ -93,7 +93,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         // Parse inline objects within the paragraph content
-        let children = self.parse_objects(start, end, |_| true);
+        let children = self.parse_objects(Interval { start, end }, |_| true);
 
         SyntaxNode {
             parent: RefCell::new(None),
