@@ -132,6 +132,13 @@ pub struct HeadlineData<'a> {
     /// object parsing.  `None` when the title is empty.
     pub title_location: Option<Interval>,
 
+    /// Inline objects parsed from the headline title at Object granularity.
+    /// Stored here rather than in `SyntaxNode::children` because the title is
+    /// a secondary string (Emacs `:title` property), not body content
+    /// (`org-element-contents`).  Body children are Sections and sub-Headlines
+    /// only.
+    pub title_objects: Vec<NodeId>,
+
     /// Headline's TODO keyword, if any.
     pub todo_keyword: Option<TodoKeyword>,
 }
@@ -291,6 +298,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             tags,
             title,
             title_location,
+            title_objects: Vec::new(),
             todo_keyword,
         };
 

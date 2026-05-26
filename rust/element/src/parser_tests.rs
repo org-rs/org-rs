@@ -371,6 +371,77 @@ mod headline {
             panic!("Expected Headline");
         }
     }
+
+    /// Headline title text is a secondary string in Emacs org-element and is
+    /// stored in the `:title` property, never in `org-element-contents`.
+    /// Therefore, parsed title objects (PlainText, Bold, Link, …) must NOT
+    /// appear as direct children of the Headline node.
+    ///
+    /// Headline children should only be Section and sub-Headline nodes.
+    mod title_objects_not_in_children {
+        use super::*;
+
+        fn headline_direct_child_types(input: &str) -> Vec<SyntaxT> {
+            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+            let (arena, root) = parser.parse_buffer();
+            // root → headline (first child)
+            let hl = *arena[root].children.first().expect("expected a headline");
+            assert_eq!(SyntaxT::from(&arena[hl].data), SyntaxT::Headline);
+            arena[hl].children.iter()
+                .map(|&id| SyntaxT::from(&arena[id].data))
+                .collect()
+        }
+
+        /// Plain-text title: `* foo bar` — no PlainText child of Headline.
+        #[test]
+        fn plain_text_title() {
+            let types = headline_direct_child_types("* foo bar\n");
+            assert!(
+                !types.contains(&SyntaxT::PlainText),
+                "PlainText must not be a direct child of Headline; got {types:?}"
+            );
+        }
+
+        /// Title with bold markup: `* foo *bold* bar` — no Bold or PlainText
+        /// child of Headline.
+        #[test]
+        fn title_with_markup() {
+            let types = headline_direct_child_types("* foo *bold* bar\n");
+            assert!(
+                !types.contains(&SyntaxT::PlainText) && !types.contains(&SyntaxT::Bold),
+                "Title markup must not be a direct child of Headline; got {types:?}"
+            );
+        }
+
+        /// Title with a link: `* See [[url][text]]` — no Link child of Headline.
+        #[test]
+        fn title_with_link() {
+            let types = headline_direct_child_types("* See [[https://example.com][text]]\n");
+            assert!(
+                !types.contains(&SyntaxT::Link),
+                "Link from title must not be a direct child of Headline; got {types:?}"
+            );
+        }
+
+        /// Headline with a body section: children should only be Section (and
+        /// optionally sub-Headlines), never inline objects.
+        #[test]
+        fn children_are_only_sections_and_headlines() {
+            let input = "* Title with *bold*\nsome body text\n** Sub\n";
+            let types = headline_direct_child_types(input);
+            let inline_types = [
+                SyntaxT::PlainText, SyntaxT::Bold, SyntaxT::Italic,
+                SyntaxT::Underline, SyntaxT::Code, SyntaxT::Verbatim,
+                SyntaxT::Link, SyntaxT::StrikeThrough,
+            ];
+            for t in inline_types {
+                assert!(
+                    !types.contains(&t),
+                    "{t:?} must not be a direct child of Headline; children: {types:?}"
+                );
+            }
+        }
+    }
 }
 
 mod table {
@@ -1836,12 +1907,17 @@ mod od1_compliance {
     #[test]
     fn bold_in_headline_title() {
         let input = "* *bold* heading\n";
-        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
-        assert!(
-            count >= 1,
-            "Expected bold object in headline title, found {}",
-            count
-        );
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let hl = *arena[root].children.first().expect("expected headline");
+        let crate::data::Syntax::Headline(ref data) = arena[hl].data else {
+            panic!("expected Headline");
+        };
+        let has_bold = data.title_objects.iter().any(|&id| {
+            SyntaxT::from(&arena[id].data) == SyntaxT::Bold
+        });
+        assert!(has_bold, "expected Bold in title_objects; got {:?}",
+            data.title_objects.iter().map(|&id| SyntaxT::from(&arena[id].data)).collect::<Vec<_>>());
     }
 
     #[test]
