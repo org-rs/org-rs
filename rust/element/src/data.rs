@@ -20,7 +20,6 @@ use crate::{
     affiliated::AffiliatedData,
     babel::BabelCallData,
     blocks::{DynamicBlockData, ExampleBlockData, ExportBlockData, SpecialBlockData, SrcBlockData},
-    data::Syntax::BabelCall,
     headline::{HeadlineData, InlineTaskData, NodePropertyData},
     keyword::KeywordData,
     latex::LatexEnvironmentData,
@@ -33,7 +32,6 @@ use memchr::memchr;
 use std::borrow::Cow;
 use std::num::NonZeroUsize;
 
-use regex::Regex;
 use strum_macros::EnumDiscriminants;
 
 pub type NodeId = usize;
@@ -96,21 +94,25 @@ pub struct SyntaxNodeBuilder<'a> {
 }
 
 impl<'a> SyntaxNodeBuilder<'a> {
+    #[inline]
     pub fn content(mut self, loc: impl Into<Interval>) -> Self {
         self.content_location = Some(loc.into());
         self
     }
 
+    #[inline]
     pub fn post_blank(mut self, n: usize) -> Self {
         self.post_blank = n;
         self
     }
 
+    #[inline]
     pub fn affiliated(mut self, aff: Option<AffiliatedData<'a>>) -> Self {
         self.affiliated = aff;
         self
     }
 
+    #[inline]
     pub fn build(self) -> SyntaxNode<'a> {
         SyntaxNode {
             parent: None,
@@ -127,6 +129,7 @@ impl<'a> SyntaxNodeBuilder<'a> {
 impl<'a> SyntaxNode<'a> {
     /// Begin constructing a [`SyntaxNode`].  Returns a [`SyntaxNodeBuilder`]
     /// pre-loaded with the two required fields; call `.build()` to finish.
+    #[inline]
     pub fn new(data: Syntax<'a>, location: impl Into<Interval>) -> SyntaxNodeBuilder<'a> {
         SyntaxNodeBuilder {
             data,
@@ -139,6 +142,7 @@ impl<'a> SyntaxNode<'a> {
 
     /// Creates a `SyntaxNode` corosponding to a raw string used as an
     /// element in elisp.
+    #[inline]
     pub fn create_raw_at(content: &'a str, interval: Interval) -> SyntaxNode<'a> {
         SyntaxNode {
             parent: None,
@@ -155,6 +159,7 @@ impl<'a> SyntaxNode<'a> {
     ///
     /// Used for element parsers that are not yet implemented, so that parsing
     /// can continue past the unrecognised content without panicking.
+    #[inline]
     pub fn fallback(input: &str, start: usize, limit: usize) -> SyntaxNode<'a> {
         let end = memchr(b'\n', input[start..limit].as_bytes())
             .map_or(limit, |i| (start + i + 1).min(limit));
@@ -169,6 +174,7 @@ impl<'a> SyntaxNode<'a> {
         }
     }
 
+    #[inline]
     pub fn create_root() -> SyntaxNode<'a> {
         SyntaxNode {
             parent: None,
@@ -190,11 +196,13 @@ pub struct NodeArena<'a> {
 }
 
 impl<'a> NodeArena<'a> {
+    #[inline]
     pub fn new() -> Self {
         NodeArena { nodes: Vec::new() }
     }
 
     /// Allocate a leaf node (no children, no parent).
+    #[inline]
     pub fn alloc(&mut self, mut node: SyntaxNode<'a>) -> NodeId {
         node.parent = None;
         node.children = Vec::new();
@@ -204,6 +212,7 @@ impl<'a> NodeArena<'a> {
     }
 
     /// Allocate a node with the given children, setting each child's parent.
+    #[inline]
     pub fn alloc_with_children(
         &mut self,
         mut node: SyntaxNode<'a>,
@@ -220,6 +229,7 @@ impl<'a> NodeArena<'a> {
     }
 
     /// Replace the children of `parent`, updating parent back-pointers.
+    #[inline]
     pub fn set_children(&mut self, parent: NodeId, children: Vec<NodeId>) {
         for &child in &children {
             self.nodes[child].parent = NonZeroUsize::new(parent + 1);
@@ -227,11 +237,13 @@ impl<'a> NodeArena<'a> {
         self.nodes[parent].children = children;
     }
 
+    #[inline]
     pub fn get(&self, id: NodeId) -> &SyntaxNode<'a> {
         &self.nodes[id]
     }
 
     /// Create a pre-order iterator over the subtree rooted at `root`.
+    #[inline]
     pub fn nodes(&'a self, root: NodeId) -> Nodes<'a> {
         Nodes {
             arena: self,
@@ -242,6 +254,7 @@ impl<'a> NodeArena<'a> {
 }
 
 impl Default for NodeArena<'_> {
+    #[inline]
     fn default() -> Self {
         NodeArena::new()
     }
@@ -249,6 +262,7 @@ impl Default for NodeArena<'_> {
 
 impl<'a> std::ops::Index<NodeId> for NodeArena<'a> {
     type Output = SyntaxNode<'a>;
+    #[inline]
     fn index(&self, id: NodeId) -> &Self::Output {
         &self.nodes[id]
     }
@@ -264,6 +278,7 @@ pub struct Nodes<'a> {
 impl<'a> Iterator for Nodes<'a> {
     type Item = &'a SyntaxNode<'a>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.stack.is_empty() {
             return None;
@@ -487,12 +502,14 @@ pub enum Syntax<'a> {
 }
 
 impl From<(usize, usize)> for Interval {
+    #[inline]
     fn from((start, end): (usize, usize)) -> Self {
         Interval { start, end }
     }
 }
 
 impl SyntaxT {
+    #[inline]
     pub fn is_greater_element(self) -> bool {
         use SyntaxT::*;
         match self {
@@ -563,6 +580,7 @@ impl SyntaxT {
     /// This alist also applies to secondary string.  For example, an
     /// `headline' type element doesn't directly contain objects, but
     /// still has an entry since one of its properties (`:title') does.")
+    #[inline]
     pub fn can_contain(self, that: SyntaxT) -> bool {
         /// (standard-set (remq 'table-cell org-element-all-objects))
         fn is_from_standard_set(that: SyntaxT) -> bool {
@@ -662,22 +680,24 @@ pub enum StringOrObject<'a> {
 }
 
 impl<'a> core::fmt::Debug for StringOrObject<'a> {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             StringOrObject::Raw(raw) => write!(f, "Raw: {:?}", raw),
-            StringOrObject::Parsed(p) => unimplemented!(),
+            StringOrObject::Parsed(_p) => unimplemented!(),
         }
     }
 }
 
 impl<'a> PartialEq for StringOrObject<'a> {
+    #[inline]
     fn eq(&self, other: &StringOrObject) -> bool {
         match self {
             StringOrObject::Raw(raw) => match other {
                 StringOrObject::Parsed(..) => false,
                 StringOrObject::Raw(rhs) => raw.eq(rhs),
             },
-            StringOrObject::Parsed(p) => unimplemented!(),
+            StringOrObject::Parsed(_p) => unimplemented!(),
         }
     }
 }
@@ -695,6 +715,7 @@ pub struct ClockData<'a> {
 }
 
 impl<'a> ClockData<'a> {
+    #[inline]
     pub fn new(raw: &'a str) -> Box<Self> {
         Box::new(Self { duration: "", status: ClockStatus::Running, raw })
     }
@@ -759,6 +780,7 @@ pub struct EntityData<'a> {
 }
 
 impl<'a> EntityData<'a> {
+    #[inline]
     pub fn new(name: &'a str) -> Option<Self> {
         // Common entity names and their properties
         // This is a basic mapping - full implementation would need all org entities
@@ -916,6 +938,7 @@ pub struct LinkData<'a> {
 }
 
 impl<'a> LinkData<'a> {
+    #[inline]
     pub fn new_plain(raw: &'a str) -> Self {
         let link_type = if raw.starts_with("https://")
             || raw.starts_with("http://")
@@ -935,6 +958,7 @@ impl<'a> LinkData<'a> {
         }
     }
 
+    #[inline]
     pub fn new(raw: &'a str) -> Self {
         // Strip outer [[brackets]] for protocol detection
         let inner = raw
@@ -1089,6 +1113,7 @@ pub struct TimestampData<'a> {
 }
 
 impl<'a> TimestampData<'a> {
+    #[inline]
     pub fn new(raw: &'a str) -> Option<Self> {
         let raw = raw.trim();
         if raw.len() < 9 {
@@ -1218,6 +1243,7 @@ pub enum TimeUnit {
 
 
 
+#[cfg(test)]
 mod test {
 
     use super::*;

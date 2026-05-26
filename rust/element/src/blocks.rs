@@ -254,11 +254,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Parse a center block element.
+    #[inline]
     pub fn center_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         self.parse_content_block(element_span, "CENTER", Syntax::CenterBlock)
     }
 
     /// Parse a comment block element.
+    #[inline]
     pub fn comment_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "COMMENT") else {
@@ -272,6 +274,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Parse an example block element.
+    #[inline]
     pub fn example_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "EXAMPLE") else {
@@ -299,6 +302,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Parse an export block element.
+    #[inline]
     pub fn export_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "EXPORT") else {
@@ -317,6 +321,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Parse a quote block element.
+    #[inline]
     pub fn quote_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "QUOTE") else {
@@ -330,6 +335,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Parse a src block element.
+    #[inline]
     pub fn src_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "SRC") else {
@@ -358,6 +364,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Parse a verse block element.
+    #[inline]
     pub fn verse_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "VERSE") else {
@@ -371,6 +378,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Parse a special block element.
+    #[inline]
     pub fn special_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let first_line_end = memchr(b'\n', self.input[start..limit].as_bytes()).map_or(limit, |i| start + i);
@@ -393,6 +401,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Fallback: dynamic block parser (not yet fully implemented).
+    #[inline]
     pub fn dynamic_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let Some(bounds) = find_dynamic_block_bounds(self.input, start, limit) else {

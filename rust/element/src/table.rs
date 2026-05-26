@@ -36,22 +36,26 @@ pub struct Row(pub usize);
 pub struct Col(pub usize);
 
 impl fmt::Display for Row {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "@{}", self.0)
     }
 }
 
 impl fmt::Display for Col {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "${}", self.0)
     }
 }
 
 impl From<usize> for Row {
+    #[inline]
     fn from(n: usize) -> Self { Row(n) }
 }
 
 impl From<usize> for Col {
+    #[inline]
     fn from(n: usize) -> Self { Col(n) }
 }
 
@@ -90,6 +94,7 @@ pub enum TableRowType {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+    #[inline]
     pub fn table_row_parser(&mut self) -> NodeId {
         let start = self.cursor.pos();
         let limit = self.input.len();
@@ -106,6 +111,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         self.arena.alloc(SyntaxNode::new(Syntax::TableRow(row_type), (start, end)).build())
     }
 
+    #[inline]
     pub fn table_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let span = element_span.span;
         let (end, children) = {

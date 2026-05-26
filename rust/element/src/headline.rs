@@ -145,6 +145,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Extracts the level (star count), optional TODO/DONE keyword,
     /// title text, and tags.  The headline node spans from the `*` line
     /// to the next headline at the same or higher level, or buffer end.
+    #[inline]
     pub fn headline_parser(&mut self) -> NodeId {
         let begin = {
             self.cursor.goto_line_begin();
@@ -281,18 +282,21 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Fallback: inline task parser (not yet implemented).
+    #[inline]
     pub fn inlinetask_parser(&mut self, limit: usize, _raw_secondary_p: bool) -> NodeId {
         let start = self.cursor.pos();
         self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 
     /// Fallback: property drawer parser (not yet implemented).
+    #[inline]
     pub fn property_drawer_parser(&mut self, limit: usize) -> NodeId {
         let start = self.cursor.pos();
         self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 
     /// Fallback: node property parser (not yet implemented).
+    #[inline]
     pub fn node_property_parser(&mut self, limit: usize) -> NodeId {
         let start = self.cursor.pos();
         self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))

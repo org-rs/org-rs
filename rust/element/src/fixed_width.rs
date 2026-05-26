@@ -12,8 +12,3 @@
 //
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
-
-use crate::affiliated::AffiliatedData;
-use crate::data::{NodeId, SyntaxNode};
-use crate::parser::Parser;
-use regex::Regex;

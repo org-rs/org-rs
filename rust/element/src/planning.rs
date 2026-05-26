@@ -28,6 +28,7 @@ lazy_static! {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+    #[inline]
     pub fn planning_parser(&mut self, limit: usize) -> NodeId {
         let start = self.cursor.pos();
         let input_slice = &self.input[start..limit];
@@ -76,6 +77,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         )
     }
 
+    #[inline]
     pub fn parse_planning_timestamp(
         &mut self,
         line: &'a str,
@@ -104,6 +106,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// deviation from Elisp. Elisp uses `org-parse-time-string` which is more
     /// lenient and accepts various date formats. We use strict regex validation
     /// to catch invalid dates like Feb 29 in non-leap years.
+    #[inline]
     pub fn clock_line_parser(&mut self, limit: usize) -> NodeId {
         let start = self.cursor.pos();
         let input_slice = &self.input[start..limit];
@@ -213,6 +216,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Uses `start` for begin position
     /// - Value is the full sexp string
     /// - Stores affiliated data in SyntaxNode
+    #[inline]
     pub fn diary_sexp_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let input_slice = &self.input[start..limit];
