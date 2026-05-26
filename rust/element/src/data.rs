@@ -1268,7 +1268,7 @@ mod test {
 
         assert_eq!(results.len(), NUM_CHILDREN + 1);
         assert!(matches!(results[0].data, Syntax::OrgData));
-        for (idx, &child) in children.iter().enumerate() {
+        for (idx, _child) in children.iter().enumerate() {
             let result_node = results[idx + 1];
             assert_eq!(result_node.parent, NonZeroUsize::new(parent + 1), "Parent mismatch at idx {}", idx);
             assert!(matches!(result_node.data, Syntax::OrgData));

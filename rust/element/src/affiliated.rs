@@ -370,7 +370,7 @@ mod test {
         text.push_str("\n");
         text.push_str(r"#+caPtion[GIT]: org-rs");
 
-        let mut cursor = Cursor::new(text.as_str(), 0);
+        let cursor = Cursor::new(text.as_str(), 0);
         let maybe_affiliated = cursor.capturing_at(&*REGEX_AFFILIATED);
 
         assert!(maybe_affiliated.is_some());
