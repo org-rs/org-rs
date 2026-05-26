@@ -68,7 +68,7 @@ use crate::affiliated::ElementSpan;
 use crate::cursor::CachedRegex;
 use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
-use memchr::memchr;
+use memchr::{memchr, memmem};
 use regex::Regex;
 
 lazy_static! {
@@ -185,6 +185,54 @@ pub enum CheckBox {
     Trans,
 }
 
+/// For a description list item (`- TAG :: content`), find the byte offset
+/// within `input[from..limit]` at which the description content begins —
+/// right after the last ` :: ` (or ` ::\t` / ` ::` at end of line) separator.
+///
+/// Emacs org-element uses a greedy tag match, so the LAST ` :: ` on the
+/// first line is the real separator.  Returns `None` when no separator is
+/// found (item has a tag stored in the struct but no ` :: ` in the text,
+/// which should not happen for well-formed org but is handled defensively).
+#[inline]
+fn desc_content_start(input: &str, from: usize, limit: usize) -> Option<usize> {
+    let bytes = input.as_bytes();
+    // Only search on the first line of the item.
+    let line_end = memchr(b'\n', &bytes[from..limit]).map_or(limit, |nl| from + nl);
+    // rfind the last " :: " / " ::\t" / " ::<eol>" separator on that line.
+    let line = &bytes[from..line_end];
+    // Walk occurrences of "::" from right to left.
+    let mut best: Option<usize> = None;
+    for sep in memmem::find_iter(line, b"::") {
+        // Require at least one space/tab immediately before "::".
+        if sep == 0 || (line[sep - 1] != b' ' && line[sep - 1] != b'\t') {
+            continue;
+        }
+        let after = sep + 2;
+        let ok = if after >= line.len() {
+            // "::" at end of line — content starts on the next line.
+            true
+        } else {
+            line[after] == b' ' || line[after] == b'\t'
+        };
+        if ok {
+            best = Some(sep);
+        }
+    }
+    best.map(|sep| {
+        let after = from + sep + 2; // byte just past "::"
+        // Skip one mandatory space/tab (already verified above), plus any extras.
+        let mut pos = after;
+        while pos < limit && (bytes[pos] == b' ' || bytes[pos] == b'\t') {
+            pos += 1;
+        }
+        // If "::" was at end of line, skip past the newline.
+        if pos < limit && bytes[pos] == b'\n' {
+            pos += 1;
+        }
+        pos
+    })
+}
+
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Fallback: item parser (not yet fully implemented).
     #[inline]
@@ -289,7 +337,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let tag = item.tag;
 
         // Content begins after the bullet and its trailing space/tab.
-        let content_start = item.position + item.indent + item.bullet.len() + 1;
+        let after_bullet = item.position + item.indent + item.bullet.len() + 1;
+
+        // For description items the paragraph content starts after the " :: "
+        // separator, not at the tag.  Emacs org-element places :contents-begin
+        // there, so the paragraph :begin must match.
+        let content_start = if tag.is_some() {
+            desc_content_start(self.input, after_bullet, end).unwrap_or(after_bullet)
+        } else {
+            after_bullet
+        };
+
         let content_location = (content_start < end)
             .then_some(Interval { start: content_start, end });
 
