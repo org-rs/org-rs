@@ -2265,3 +2265,58 @@ mod subscript_superscript {
     }
 }
 
+mod post_blank {
+    use super::*;
+
+    fn plain_text_starts(input: &str) -> Vec<usize> {
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let mut starts = Vec::new();
+        collect_plain_text_starts(&arena, root, &mut starts);
+        starts
+    }
+
+    fn collect_plain_text_starts(arena: &crate::data::NodeArena, id: NodeId, out: &mut Vec<usize>) {
+        if matches!(arena[id].data, Syntax::PlainText(_)) {
+            out.push(arena[id].location.start);
+        }
+        for &child in &arena[id].children {
+            collect_plain_text_starts(arena, child, out);
+        }
+    }
+
+    #[test]
+    fn plain_text_after_bold_starts_after_space() {
+        // "text *bold* word\n"
+        //  0    5    10 11 12
+        //               ^  ^-- 'w': Emacs plain_text begin
+        //               ' ': current Rust plain_text begin (wrong)
+        let starts = plain_text_starts("text *bold* word\n");
+        assert!(starts.contains(&12),
+            "expected plain_text at 12 ('w'), got starts: {:?}", starts);
+        assert!(!starts.contains(&11),
+            "plain_text must not start at 11 (the post-blank space), got starts: {:?}", starts);
+    }
+
+    #[test]
+    fn plain_text_after_code_starts_after_space() {
+        // "see ~foo~ bar\n"
+        //  0   4   8 9 10
+        //              ^-- 'b': Emacs plain_text begin
+        let starts = plain_text_starts("see ~foo~ bar\n");
+        assert!(starts.contains(&10),
+            "expected plain_text at 10 ('b'), got starts: {:?}", starts);
+        assert!(!starts.contains(&9),
+            "plain_text must not start at 9 (post-blank space), got starts: {:?}", starts);
+    }
+
+    #[test]
+    fn no_space_after_bold_unaffected() {
+        // "a *bold*.\n" — post-char is '.', not a space; no post_blank to skip
+        //  0 2      89
+        //           ^-- '.': plain_text starts immediately after bold
+        let starts = plain_text_starts("a *bold*.\n");
+        assert!(starts.contains(&8),
+            "expected plain_text at 8 ('.'), got starts: {:?}", starts);
+    }
+}
