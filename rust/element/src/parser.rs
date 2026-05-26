@@ -518,30 +518,76 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut children: Vec<NodeId> = Vec::new();
         let mut pos = interval.start;
 
-        let parsers: &[(SyntaxT, fn(&mut Parser<'a, Environment>, &'a str, usize) -> Option<(NodeId, usize)>)] = &[
-            (SyntaxT::Bold,              Self::try_parse_bold),
-            (SyntaxT::Italic,            Self::try_parse_italic),
-            (SyntaxT::Code,              Self::try_parse_code),
-            (SyntaxT::Verbatim,          Self::try_parse_verbatim),
-            (SyntaxT::Underline,         Self::try_parse_underline),
-            (SyntaxT::StrikeThrough,     Self::try_parse_strikethrough),
-            (SyntaxT::FootnoteReference, Self::try_parse_footnote_reference),
-            (SyntaxT::Timestamp,         Self::try_parse_timestamp),
-            (SyntaxT::Entity,            Self::try_parse_entity),
-            (SyntaxT::Link,              Self::try_parse_link),
-            (SyntaxT::Target,            Self::try_parse_target),
-            (SyntaxT::Link,              Self::try_parse_plain_link),
-        ];
-
         while pos < interval.end {
             let remaining = &self.input[pos..interval.end];
 
-            let consumed = parsers.iter().find_map(|&(ty, parse)| {
-                parse(self, remaining, pos).map(|(node, c)| {
-                    if restriction(ty) { children.push(node); }
-                    c
-                })
-            });
+            let consumed = {
+                let bytes = remaining.as_bytes();
+                if bytes.is_empty() {
+                    None
+                } else {
+                    match bytes[0] {
+                        b'*' => self.try_parse_bold(remaining, pos).map(|(n, c)| {
+                            if restriction(SyntaxT::Bold) { children.push(n); }
+                            c
+                        }),
+                        b'/' => self.try_parse_italic(remaining, pos).map(|(n, c)| {
+                            if restriction(SyntaxT::Italic) { children.push(n); }
+                            c
+                        }),
+                        b'~' => self.try_parse_code(remaining, pos).map(|(n, c)| {
+                            if restriction(SyntaxT::Code) { children.push(n); }
+                            c
+                        }),
+                        b'=' => self.try_parse_verbatim(remaining, pos).map(|(n, c)| {
+                            if restriction(SyntaxT::Verbatim) { children.push(n); }
+                            c
+                        }),
+                        b'_' => self.try_parse_underline(remaining, pos).map(|(n, c)| {
+                            if restriction(SyntaxT::Underline) { children.push(n); }
+                            c
+                        }),
+                        b'+' => self.try_parse_strikethrough(remaining, pos).map(|(n, c)| {
+                            if restriction(SyntaxT::StrikeThrough) { children.push(n); }
+                            c
+                        }),
+                        b'[' => {
+                            let mut result = None;
+                            if let Some((n, c)) = self.try_parse_footnote_reference(remaining, pos) {
+                                if restriction(SyntaxT::FootnoteReference) { children.push(n); }
+                                result = Some(c);
+                            } else if let Some((n, c)) = self.try_parse_timestamp(remaining, pos) {
+                                if restriction(SyntaxT::Timestamp) { children.push(n); }
+                                result = Some(c);
+                            } else if let Some((n, c)) = self.try_parse_link(remaining, pos) {
+                                if restriction(SyntaxT::Link) { children.push(n); }
+                                result = Some(c);
+                            }
+                            result
+                        }
+                        b'\\' => self.try_parse_entity(remaining, pos).map(|(n, c)| {
+                            if restriction(SyntaxT::Entity) { children.push(n); }
+                            c
+                        }),
+                        b'<' => {
+                            let mut result = None;
+                            if let Some((n, c)) = self.try_parse_timestamp(remaining, pos) {
+                                if restriction(SyntaxT::Timestamp) { children.push(n); }
+                                result = Some(c);
+                            } else if let Some((n, c)) = self.try_parse_target(remaining, pos) {
+                                if restriction(SyntaxT::Target) { children.push(n); }
+                                result = Some(c);
+                            }
+                            result
+                        }
+                        b'h' | b'f' | b'm' => self.try_parse_plain_link(remaining, pos).map(|(n, c)| {
+                            if restriction(SyntaxT::Link) { children.push(n); }
+                            c
+                        }),
+                        _ => None,
+                    }
+                }
+            };
 
             if let Some(c) = consumed {
                 pos += c;
