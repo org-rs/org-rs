@@ -161,15 +161,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             if let Some(end_bracket) = trimmed[start..].find(']') {
                 let ts = &trimmed[start + 1..start + end_bracket];
 
-                let parts: Vec<&str> = ts.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    if let Some(date_part) = parts.get(0) {
-                        let date_parts: Vec<&str> = date_part.split('-').collect();
-                        if date_parts.len() == 3 {
+                let mut parts = ts.split_whitespace();
+                if let Some(date_part) = parts.next() {
+                    if parts.next().is_some() {
+                        let mut date_parts = date_part.split('-');
+                        if let (Some(year_s), Some(month_s), Some(day_s)) =
+                            (date_parts.next(), date_parts.next(), date_parts.next())
+                        {
                             if let (Ok(year), Ok(month), Ok(day)) = (
-                                date_parts[0].parse::<u32>(),
-                                date_parts[1].parse::<u32>(),
-                                date_parts[2].parse::<u32>(),
+                                year_s.parse::<u32>(),
+                                month_s.parse::<u32>(),
+                                day_s.parse::<u32>(),
                             ) {
                                 if month > 12 || day > 31 || year < 1970 || year > 2100 {
                                     return false;
