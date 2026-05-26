@@ -258,7 +258,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             type_s: list_type,
         };
 
-        self.arena.alloc_with_children(SyntaxNode::new(Syntax::PlainList(Box::new(list_data)), (span.start, end))
+        self.arena.alloc_with_children(SyntaxNode::new(Syntax::PlainList(list_data), (span.start, end))
             .affiliated(element_span.affiliated)
             .build(), children)
     }
