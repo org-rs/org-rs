@@ -701,12 +701,14 @@ impl<'a> ClockData<'a> {
 }
 
 #[derive(Debug)]
+#[repr(u8)]
 pub enum ClockStatus {
     Running,
     Closed,
 }
 
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum LineNumberingMode {
     New,
     Continued,
@@ -880,6 +882,7 @@ pub struct InlineSrcBlockData<'a> {
 }
 
 #[derive(Debug)]
+#[repr(u8)]
 pub enum LinkFormat {
     Plain,
     Angle,
@@ -958,6 +961,7 @@ impl<'a> LinkData<'a> {
 }
 
 #[derive(Debug)]
+#[repr(u8)]
 pub enum LinkType {
     /// Line in some source code,
     Coderef,
@@ -1178,12 +1182,14 @@ impl<'a> TimestampData<'a> {
 }
 
 #[derive(Debug, Clone)]
+#[repr(u8)]
 pub enum WarningType {
     All,
     First,
 }
 
 #[derive(Debug, Clone)]
+#[repr(u8)]
 pub enum TimestampType {
     Active,
     ActiveRange,
@@ -1193,6 +1199,7 @@ pub enum TimestampType {
 }
 
 #[derive(Debug, Clone)]
+#[repr(u8)]
 pub enum RepeaterType {
     CatchUp,
     Restart,
@@ -1200,6 +1207,7 @@ pub enum RepeaterType {
 }
 
 #[derive(Debug, Clone)]
+#[repr(u8)]
 pub enum TimeUnit {
     Year,
     Month,

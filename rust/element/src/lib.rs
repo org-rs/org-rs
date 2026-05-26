@@ -14,9 +14,9 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #![warn(clippy::all)]
+#![warn(clippy::missing_inline_in_public_items)]
 // This should be eventually turned off, but for now this helps reduce the noise
 #![allow(dead_code)]
-#![allow(warnings)]
 #[macro_use]
 extern crate lazy_static;
 extern crate memchr;

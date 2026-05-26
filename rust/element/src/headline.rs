@@ -133,6 +133,7 @@ pub struct NodePropertyData<'a> {
 pub struct Tag<'a>(pub &'a str);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[repr(u8)]
 pub enum TodoKeyword {
     TODO,
     DONE,
