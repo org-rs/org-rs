@@ -21,8 +21,8 @@ use crate::affiliated::ElementSpan;
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
 use crate::data::{
-    EntityData, FootnoteReferenceData, Interval, LinkData, NodeArena, NodeId, Syntax, SyntaxNode,
-    SyntaxT, TimestampData,
+    Brackets, EntityData, FootnoteReferenceData, Interval, LinkData, NodeArena, NodeId, ScriptFlags,
+    ScriptKind, Syntax, SyntaxNode, SyntaxT, TimestampData,
 };
 
 use crate::blocks::{REGEX_BLOCK_BEGIN, REGEX_DYNAMIC_BLOCK};
@@ -129,12 +129,13 @@ fn is_post_char(b: u8) -> bool {
 #[inline]
 fn scan_plain_text_end(bytes: &[u8]) -> usize {
     let p1 = memchr(b'[', bytes);
-    let mut p2 = memchr3(b'*', b'/', b'_', bytes);
+    let mut p2 = memchr2(b'*', b'/', bytes);
     let mut p3 = memchr3(b'+', b'=', b'~', bytes);
     let mut p4 = memchr3(b'h', b'f', b'm', bytes);
+    let mut p5 = memchr2(b'_', b'^', bytes);
 
     loop {
-        let i = match [p1, p2, p3, p4].iter().copied().flatten().min() {
+        let i = match [p1, p2, p3, p4, p5].iter().copied().flatten().min() {
             None => return bytes.len(),
             Some(pos) => pos,
         };
@@ -143,10 +144,13 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
         if b == b'[' {
             return i;
         }
-        if matches!(b, b'*' | b'/' | b'_' | b'+' | b'=' | b'~')
+        if matches!(b, b'*' | b'/' | b'+' | b'=' | b'~')
             && i > 0
             && is_pre_char(bytes[i - 1])
         {
+            return i;
+        }
+        if matches!(b, b'_' | b'^') && i > 0 {
             return i;
         }
         if matches!(b, b'h' | b'f' | b'm')
@@ -163,8 +167,9 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
         let rest = &bytes[next..];
         match b {
             b'[' => unreachable!(),
-            b'*' | b'/' | b'_' => p2 = memchr3(b'*', b'/', b'_', rest).map(|r| next + r),
+            b'*' | b'/' => p2 = memchr2(b'*', b'/', rest).map(|r| next + r),
             b'+' | b'=' | b'~' => p3 = memchr3(b'+', b'=', b'~', rest).map(|r| next + r),
+            b'_' | b'^' => p5 = memchr2(b'_', b'^', rest).map(|r| next + r),
             _ => p4 = memchr3(b'h', b'f', b'm', rest).map(|r| next + r),
         }
     }
@@ -635,8 +640,19 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                             if restriction(SyntaxT::Verbatim) { children.push(n); }
                             c
                         }),
-                        b'_' => self.try_parse_underline(remaining, pos).map(|(n, c)| {
-                            if restriction(SyntaxT::Underline) { children.push(n); }
+                        b'_' => {
+                            if let Some((n, c)) = self.try_parse_script(remaining, pos, ScriptKind::Sub) {
+                                if restriction(SyntaxT::Script) { children.push(n); }
+                                Some(c)
+                            } else {
+                                self.try_parse_underline(remaining, pos).map(|(n, c)| {
+                                    if restriction(SyntaxT::Underline) { children.push(n); }
+                                    c
+                                })
+                            }
+                        }
+                        b'^' => self.try_parse_script(remaining, pos, ScriptKind::Sup).map(|(n, c)| {
+                            if restriction(SyntaxT::Script) { children.push(n); }
                             c
                         }),
                         b'+' => self.try_parse_strikethrough(remaining, pos).map(|(n, c)| {
@@ -716,6 +732,38 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     fn try_parse_verbatim(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         self.parse_emphasis_marker(text, start, b'=', SyntaxT::Verbatim)
+    }
+
+    fn try_parse_script(&mut self, text: &'a str, start: usize, kind: ScriptKind) -> Option<(NodeId, usize)> {
+        let _ = start.checked_sub(1)
+            .and_then(|i| self.input.as_bytes().get(i))
+            .filter(|&&b| !matches!(b, b' ' | b'\t' | b'\n'))?;
+
+        let bytes = text.as_bytes();
+
+        let (brackets, consumed) = match bytes.get(1)? {
+            b'{' => {
+                let rest = bytes.get(2..)?;
+                let close = memchr(b'}', rest)
+                    .filter(|&c| !rest[..c].iter().any(|&b| b == b'{' || b == b'\n'))?;
+                (Brackets::Bracketed, 2 + close + 1)
+            }
+            b'*' => (Brackets::Bare, 2),
+            &b if b.is_ascii_alphanumeric() => {
+                let len = bytes[1..].iter()
+                    .take_while(|&&b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'+' | b'.' | b','))
+                    .count();
+                (Brackets::Bare, 1 + len)
+            }
+            _ => return None,
+        };
+
+        let flags = ScriptFlags::new(kind, brackets);
+        let node = self.arena.alloc_with_children(
+            SyntaxNode::new(Syntax::Script(flags), (start, start + consumed)).build(),
+            vec![],
+        );
+        Some((node, consumed))
     }
 
     fn try_parse_link(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
