@@ -175,34 +175,31 @@ impl<'a> Cursor<'a> {
     /// Skip over space, tabs and newline characters
     /// Cursor position is set before next non-whitespace char
     pub fn skip_whitespace(&mut self) -> usize {
-        while let Some(c) = self.get_next_char() {
-            if !(c.is_whitespace()) {
-                self.get_prev_char();
-                break;
+        let bytes = self.data.as_bytes();
+        while self.pos < bytes.len() {
+            match bytes[self.pos] {
+                b' ' | b'\t' | b'\n' | b'\r' => self.pos += 1,
+                _ => break,
             }
         }
-        self.pos()
+        self.pos
     }
 
     /// Skip over space, tabs and newline characters, going backwards
     /// Cursor position is set before the previous non-whitespace char
     pub fn skip_whitespace_backwards(&mut self) -> usize {
-        // If cursor is not past-end and the current char is non-whitespace, don't move.
-        if self.pos < self.data.len() {
-            if self.data[self.pos..]
-                .chars()
-                .next()
-                .map_or(false, |c| !c.is_whitespace())
-            {
-                return self.pos();
-            }
+        let bytes = self.data.as_bytes();
+        // Don't move if current position is a non-whitespace byte.
+        if self.pos < bytes.len() && !matches!(bytes[self.pos], b' ' | b'\t' | b'\n' | b'\r') {
+            return self.pos;
         }
-        while let Some(c) = self.get_prev_char() {
-            if !c.is_whitespace() {
+        while self.pos > 0 {
+            self.pos -= 1;
+            if !matches!(bytes[self.pos], b' ' | b'\t' | b'\n' | b'\r') {
                 break;
             }
         }
-        self.pos()
+        self.pos
     }
 
     /// Moves cursor to the beginning of the current line.

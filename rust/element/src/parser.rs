@@ -255,13 +255,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                         |that| SyntaxT::Headline.can_contain(that),
                     );
                     if !title_objects.is_empty() {
-                        let existing: Vec<NodeId> = {
+                        let combined: Vec<NodeId> = {
                             let node = self.arena.get(element);
-                            node.children.clone()
+                            title_objects.into_iter()
+                                .chain(node.children.iter().copied())
+                                .collect()
                         };
-                        let combined: Vec<NodeId> = title_objects.into_iter()
-                            .chain(existing.into_iter())
-                            .collect();
                         self.arena.set_children(element, combined);
                     }
                 }
