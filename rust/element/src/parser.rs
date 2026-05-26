@@ -352,98 +352,155 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 return self.paragraph_parser(ElementSpan::new((p, limit)).build());
             }
 
-            if looking_at!(REGEX_CLOCK_LINE, self).is_some() {
-                return self.clock_line_parser(limit);
+            // --- First-byte dispatch ---
+            let cur = self.cursor.pos();
+            let b = self.input.as_bytes().get(cur).copied();
+            if b.is_none() || b == Some(b'\n') {
+                return self.paragraph_parser(ElementSpan::new((cur, limit)).build());
             }
 
-            if self.cursor.on_headline() {
+            // Quick dispatches for bytes that uniquely identify an element type.
+            // These are simple: one regex match → return.
+            if b == Some(b'\\') {
+                let span = ElementSpan::new((cur, limit)).build();
+                return if looking_at!(REGEX_LATEX_BEGIN_ENVIRIONMENT, self).is_some() {
+                    self.latex_environment_parser(span)
+                } else {
+                    self.paragraph_parser(span)
+                };
+            }
+            if b == Some(b'%') {
+                let span = ElementSpan::new((cur, limit)).build();
+                return if looking_at!(REGEX_DIARY_SEXP, self).is_some() {
+                    self.diary_sexp_parser(span)
+                } else {
+                    self.paragraph_parser(span)
+                };
+            }
+            if b == Some(b'[') {
+                let span = ElementSpan::new((cur, limit)).build();
+                return if looking_at!(REGEX_FOOTNOTE_DEFINITION, self).is_some() {
+                    self.footnote_definition_parser(span)
+                } else {
+                    self.paragraph_parser(span)
+                };
+            }
+            if b == Some(b'*') && self.cursor.on_headline() {
                 return self.inlinetask_parser(limit, raw_secondary_p);
             }
 
-            let element_span = self.collect_affiliated_keywords(limit);
+            // Non-unique / multi-regex bytes: first collect the element span,
+            // then check candidate element types.
+            let span = if b == Some(b'#') {
+                self.collect_affiliated_keywords(limit)
+            } else {
+                ElementSpan::new((cur, limit)).build()
+            };
 
-            if element_span.affiliated.is_some() && self.cursor.pos() >= limit {
-                self.cursor.set(element_span.span.start);
-                return self.keyword_parser(ElementSpan::new((element_span.span.start, limit)).build());
+            // If affiliated keywords were consumed and we're past the limit,
+            // they're orphaned → standalone keyword.
+            if span.affiliated.is_some() && self.cursor.pos() >= limit {
+                self.cursor.set(span.span.start);
+                return self.keyword_parser(
+                    ElementSpan::new((span.span.start, limit)).build(),
+                );
             }
 
-            if looking_at!(REGEX_LATEX_BEGIN_ENVIRIONMENT, self).is_some() {
-                return self.latex_environment_parser(element_span);
-            }
+            // Re-check the byte at the current cursor position
+            // (may have changed after collect_affiliated_keywords).
+            let cur2 = self.cursor.pos();
+            let b2 = self.input.as_bytes().get(cur2).copied();
 
-            if looking_at!(REGEX_DRAWER, self).is_some() {
-                return self.drawer_parser(element_span);
-            }
-
-            if looking_at!(REGEX_FIXED_WIDTH, self).is_some() {
-                return self.fixed_width_parser(element_span);
-            }
-
-            let hashtag_end = looking_at!(REGEX_STARTS_WITH_HASHTAG, self).map(|m| m.end());
-            if let Some(end) = hashtag_end {
-                self.cursor.set(pos + end);
-                if looking_at!(REGEX_COLON_OR_EOL, self).is_some() {
-                    self.cursor.goto_line_begin();
-                    return self.comment_parser(element_span);
+            // For lines with leading whitespace, find the first
+            // non-whitespace byte for dispatch.
+            let content_byte = match b2 {
+                Some(b' ' | b'\t') => {
+                    let rest = &self.input.as_bytes()[cur2..];
+                    rest.iter().position(|&c| c != b' ' && c != b'\t')
+                        .and_then(|i| rest.get(i).copied())
                 }
+                other => other,
+            };
 
-                let block_name = capturing_at!(REGEX_BLOCK_BEGIN, self)
-                    .and_then(|cap| cap.get(1).map(|m| m.as_str().to_ascii_uppercase()));
-                if let Some(name) = block_name {
-                    self.cursor.goto_line_begin();
-                    return match name.as_ref() {
-                        "CENTER" => self.center_block_parser(element_span),
-                        "COMMENT" => self.comment_block_parser(element_span),
-                        "EXAMPLE" => self.example_block_parser(element_span),
-                        "EXPORT" => self.export_block_parser(element_span),
-                        "QUOTE" => self.quote_block_parser(element_span),
-                        "SRC" => self.src_block_parser(element_span),
-                        "VERSE" => self.verse_block_parser(element_span),
-                        _ => self.special_block_parser(element_span),
-                    };
+            match content_byte {
+                // Hashtag group: comments, blocks, babel, dynamic, keyword
+                Some(b'#') => {
+                    let hashtag_end =
+                        looking_at!(REGEX_STARTS_WITH_HASHTAG, self).map(|m| m.end());
+                    if let Some(end) = hashtag_end {
+                        self.cursor.set(cur2 + end);
+                        if looking_at!(REGEX_COLON_OR_EOL, self).is_some() {
+                            self.cursor.goto_line_begin();
+                            return self.comment_parser(span);
+                        }
+                        let block_name = capturing_at!(REGEX_BLOCK_BEGIN, self)
+                            .and_then(|cap| cap.get(1).map(|m| m.as_str().to_ascii_uppercase()));
+                        if let Some(name) = block_name {
+                            self.cursor.goto_line_begin();
+                            return match name.as_ref() {
+                                "CENTER" => self.center_block_parser(span),
+                                "COMMENT" => self.comment_block_parser(span),
+                                "EXAMPLE" => self.example_block_parser(span),
+                                "EXPORT" => self.export_block_parser(span),
+                                "QUOTE" => self.quote_block_parser(span),
+                                "SRC" => self.src_block_parser(span),
+                                "VERSE" => self.verse_block_parser(span),
+                                _ => self.special_block_parser(span),
+                            };
+                        }
+                        if looking_at!(REGEX_BABEL_CALL, self).is_some() {
+                            self.cursor.goto_line_begin();
+                            return self.babel_call_parser(span);
+                        }
+                        if looking_at!(REGEX_DYNAMIC_BLOCK, self).is_some() {
+                            self.cursor.goto_line_begin();
+                            return self.dynamic_block_parser(span);
+                        }
+                        if looking_at!(REGEX_KEYWORD, self).is_some() {
+                            self.cursor.goto_line_begin();
+                            return self.keyword_parser(span);
+                        }
+                        self.cursor.goto_line_begin();
+                        return self.paragraph_parser(span);
+                    }
                 }
-
-                if looking_at!(REGEX_BABEL_CALL, self).is_some() {
-                    self.cursor.goto_line_begin();
-                    return self.babel_call_parser(element_span);
+                // Drawer / fixed-width
+                Some(b':') => {
+                    if looking_at!(REGEX_DRAWER, self).is_some() {
+                        return self.drawer_parser(span);
+                    }
+                    if looking_at!(REGEX_FIXED_WIDTH, self).is_some() {
+                        return self.fixed_width_parser(span);
+                    }
                 }
-
-                if looking_at!(REGEX_DYNAMIC_BLOCK, self).is_some() {
-                    self.cursor.goto_line_begin();
-                    return self.dynamic_block_parser(element_span);
+                // Table
+                Some(b'|') => {
+                    if looking_at!(REGEX_TABLE_BORDER, self).is_some() {
+                        return self.table_parser(span);
+                    }
                 }
-
-                if looking_at!(REGEX_KEYWORD, self).is_some() {
-                    self.cursor.goto_line_begin();
-                    return self.keyword_parser(element_span);
+                // Horizontal rule
+                Some(b'-') => {
+                    if looking_at!(REGEX_HORIZONTAL_RULE, self).is_some() {
+                        return self.horizontal_rule_parser(span);
+                    }
                 }
-
-                self.cursor.goto_line_begin();
-                return self.paragraph_parser(element_span);
+                // Clock (with leading whitespace allowed)
+                Some(b'C') => {
+                    if looking_at!(REGEX_CLOCK_LINE, self).is_some() {
+                        return self.clock_line_parser(limit);
+                    }
+                }
+                _ => {}
             }
 
-            if looking_at!(REGEX_FOOTNOTE_DEFINITION, self).is_some() {
-                return self.footnote_definition_parser(element_span);
-            }
-
-            if looking_at!(REGEX_HORIZONTAL_RULE, self).is_some() {
-                return self.horizontal_rule_parser(element_span);
-            }
-
-            if looking_at!(REGEX_DIARY_SEXP, self).is_some() {
-                return self.diary_sexp_parser(element_span);
-            }
-
-            if looking_at!(REGEX_TABLE_BORDER, self).is_some() {
-                return self.table_parser(element_span);
-            }
-
+            // Item (handles leading whitespace via its own regex)
             if looking_at!(REGEX_ITEM, self).is_some() {
                 let s = structure.unwrap_or(self.list_struct(limit));
-                return self.plain_list_parser(element_span, s.clone());
+                return self.plain_list_parser(span, s.clone());
             }
 
-            return self.paragraph_parser(element_span);
+            return self.paragraph_parser(span);
         };
 
         let current_element = get_current_element();
