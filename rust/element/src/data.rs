@@ -1099,15 +1099,19 @@ impl<'a> TimestampData<'a> {
         // - [2023-12-31] (inactive)
 
         // Find year, month, day
-        let parts: Vec<&str> = raw.split('-').collect();
-        if parts.len() < 3 {
-            return None;
-        }
+        let mut dash_parts = raw.split('-');
+        let year_str = dash_parts.next()?;
+        let month_str = dash_parts.next()?;
+        let day_rest = dash_parts.next()?;
+        let end_part = dash_parts.next();
 
-        let year_str = parts[0].trim_start_matches('<').trim_start_matches('[');
-        let year_start: usize = year_str.parse().ok()?;
-        let month_start: usize = parts[1].parse().ok()?;
-        let day_str = parts[2].split_whitespace().next().unwrap_or("1");
+        let year_start: usize = year_str
+            .trim_start_matches('<')
+            .trim_start_matches('[')
+            .parse()
+            .ok()?;
+        let month_start: usize = month_str.parse().ok()?;
+        let day_str = day_rest.split_whitespace().next().unwrap_or("1");
         let day_start: usize = day_str
             .trim_end_matches('>')
             .trim_end_matches(']')
@@ -1117,15 +1121,14 @@ impl<'a> TimestampData<'a> {
         // Try to parse time if present
         let mut hour_start = None;
         let mut minute_start = None;
-        let rest = parts[2].split_whitespace().collect::<Vec<_>>();
         // Skip day-name tokens (e.g. "Sun"); find the first HH:MM token.
-        for token in rest.iter().skip(1) {
+        for token in day_rest.split_whitespace().skip(1) {
             if token.contains(':') {
                 let start_time = token.split('-').next().unwrap_or(token);
-                let time_parts: Vec<&str> = start_time.split(':').collect();
-                if time_parts.len() >= 2 {
-                    hour_start = time_parts[0].parse().ok();
-                    minute_start = time_parts[1]
+                let mut time_iter = start_time.split(':');
+                if let (Some(h), Some(m)) = (time_iter.next(), time_iter.next()) {
+                    hour_start = h.parse().ok();
+                    minute_start = m
                         .trim_end_matches(|c: char| c == '>' || c == ']')
                         .parse()
                         .ok();
@@ -1134,12 +1137,12 @@ impl<'a> TimestampData<'a> {
             }
         }
 
-        // Check for end time in a time range: parts[3] = "11:30>" when input is "10:15-11:30"
-        let (hour_end, minute_end) = if parts.len() >= 4 {
-            let end_part = parts[3].trim_end_matches(|c: char| c == '>' || c == ']');
-            let ep: Vec<&str> = end_part.split(':').collect();
-            if ep.len() >= 2 {
-                (ep[0].parse().ok(), ep[1].parse().ok())
+        // Check for end time in a time range: end_part = "11:30>" when input is "10:15-11:30"
+        let (hour_end, minute_end) = if let Some(ep) = end_part {
+            let end_trimmed = ep.trim_end_matches(|c: char| c == '>' || c == ']');
+            let mut ep_iter = end_trimmed.split(':');
+            if let (Some(h), Some(m)) = (ep_iter.next(), ep_iter.next()) {
+                (h.parse().ok(), m.parse().ok())
             } else {
                 (hour_start, minute_start)
             }
