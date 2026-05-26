@@ -50,7 +50,7 @@ mod table;
 /// There are no name conflicts among the re-exported items: every public
 /// type in the crate has a unique name.
 pub mod prelude {
-    pub use crate::data::{Interval, Nodes, Syntax, SyntaxNode, SyntaxNodeBuilder, SyntaxT};
+    pub use crate::data::{Interval, NodeArena, Nodes, Syntax, SyntaxNode, SyntaxNodeBuilder, SyntaxT};
     pub use crate::data::{
         ClockData, ClockStatus, EntityData,
         ExportSnippetData, FootnoteReferenceData, InlineBabelCallData,

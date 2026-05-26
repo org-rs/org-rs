@@ -14,7 +14,7 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::affiliated::ElementSpan;
-use crate::data::{Interval, Syntax, SyntaxNode};
+use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use memchr::memrchr;
 use regex::Regex;
@@ -38,7 +38,7 @@ pub struct LatexEnvironmentData<'a> {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    pub fn latex_environment_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+    pub fn latex_environment_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let input_slice = &self.input[start..limit];
 
@@ -78,7 +78,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 }
 
                 if !found {
-                    return SyntaxNode::fallback(self.input, start, limit);
+                    return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
                 }
 
                 let post_blank = (end_pos < limit).then(|| {
@@ -91,16 +91,18 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 let value = &self.input[start..end_pos];
                 let env_data = LatexEnvironmentData { begin: start, end: end_pos, post_blank, value };
 
-                return SyntaxNode::new(
-                    Syntax::LatexEnvironment(Box::new(env_data)),
-                    (start, end_pos),
-                )
-                .post_blank(post_blank)
-                .affiliated(affiliated)
-                .build();
+                return self.arena.alloc(
+                    SyntaxNode::new(
+                        Syntax::LatexEnvironment(Box::new(env_data)),
+                        (start, end_pos),
+                    )
+                    .post_blank(post_blank)
+                    .affiliated(affiliated)
+                    .build()
+                );
             }
         }
 
-        SyntaxNode::fallback(self.input, start, limit)
+        self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 }

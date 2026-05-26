@@ -1,0 +1,165 @@
+#+TITLE: Benchmark Org File
+#+AUTHOR: org-rs
+#+OPTIONS: toc:nil num:nil
+
+* Section 1
+This is a paragraph with some *bold* text, /italic/ text, ~code~, =verbatim=,
+and +strikethrough+ text.  There's also an [[https://example.com][inline link]] and a
+[[https://example.com][https://example.com/plain]] link.
+
+A second paragraph containing a footnote[fn:1] and a timestamp <2024-01-15 Mon>.
+
+** Subsection 1.1
+*** Subsubsection 1.1.1
+Some deeply nested content with multiple headlines.
+
+** Subsection 1.2
+- List item one
+- List item two
+  - Nested unordered item
+  - Another nested item
+    1. Ordered sub-item
+    2. Another ordered sub-item
+- List item three with *bold* markup
+
+* Section 2
+#+BEGIN_SRC rust
+fn hello() -> &'static str {
+    "world"
+}
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+This is an
+example block
+#+END_EXAMPLE
+
+#+BEGIN_QUOTE
+A quoted section
+with multiple lines
+of quoted text.
+#+END_QUOTE
+
+#+BEGIN_CENTER
+This text is centered.
+#+END_CENTER
+
+* Section 3
+| Name    | Age | City       |
+|---------+-----+------------|
+| Alice   | 30  | New York   |
+| Bob     | 25  | London     |
+| Charlie | 35  | Tokyo      |
+| Diana   | 28  | Paris      |
+
+* Section 4
+:PROPERTIES:
+:ID:       my-custom-id
+:END:
+
+Some paragraph text.
+
+** Subsection 4.1
+:PROPERTIES:
+:header-args: :tangle yes
+:END:
+
+Clock: CLOCK: [2024-01-15 Mon 10:00]--[2024-01-15 Mon 12:00] => 2:00
+
+*** Inline task
+Some text with \alpha \beta entities and a [[*target][radio link]].
+
+A target <<<my-target>>> somewhere in the text.
+
+* Section 5 :tag1:tag2:tag3:
+#+BEGIN_SRC python :results output
+print("hello from python")
+for i in range(10):
+    print(i)
+#+END_SRC
+
+#+CALL: my-babel-call(arg1=1, arg2="two")
+
+#+KEYWORD: some value
+
+- [ ] Unchecked todo item
+- [X] Checked done item
+- [-] Intermediate item
+
+* Section 6 :with:many:tags:here:and:there:more:
+Some text with a footnote definition.
+
+[fn:1] This is the footnote definition text.
+It can span multiple lines
+and include *markup*.
+
+A line with a planning line:
+SCHEDULED: <2024-01-20 Sat> DEADLINE: <2024-01-25 Thu>
+
+* Section 7
+#+BEGIN_SRC yaml
+key: value
+list:
+  - item1
+  - item2
+  nested:
+    deep: value
+    deeper:
+      - a
+      - b
+      - c
+#+END_SRC
+
+* Section 8
+#+BEGIN_SRC org
+,* Nested org content inside a src block
+,Some more content
+#+END_SRC
+
+* Section 9
+A paragraph with a /lot/ of *different* markup ~elements~ to =test= how
+the +parser+ handles [fn:2] various [[https://inline.link][inline]] constructs \alpha \beta \gamma.
+
+[fn:2] Another footnote for testing.
+
+A timeline of events:
+<2024-01-01 Mon> - New year
+<2024-06-15 Sat> - Mid year
+<2024-12-31 Tue> - New year's eve
+
+Some active timestamps: <2024-03-20 Wed 14:00-15:00>
+And inactive ones: [2024-03-20 Wed]
+Diary sexps: %%(org-calendar-holiday)
+
+* Section 10 :deeply:
+** Nested :nested:
+*** Three :levels:
+**** Deep :deep:
+***** Very :very:
+****** Extremely :deep:
+Some content at the deepest level.
+
+#+BEGIN_VERSE
+A verse block
+with multiple
+lines of verse
+#+END_VERSE
+
+* Multiple paragraphs in one section
+
+This is the second paragraph in this section.
+
+And this is the third paragraph.
+It has more text to parse and process.
+Even more text here to make the paragraph longer.
+And still more text, because long paragraphs are common in org files.
+
+#+BEGIN_SRC elisp
+(defun hello-world ()
+  (message "hello, world"))
+;; Another line of elisp
+(defun factorial (n)
+  (if (<= n 1)
+      1
+    (* n (factorial (1- n)))))
+#+END_SRC

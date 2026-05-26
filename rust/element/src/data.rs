@@ -30,14 +30,13 @@ use crate::{
 };
 use memchr::memchr;
 
-use std::{
-    borrow::Cow,
-    cell::{Cell, RefCell},
-    rc::{Rc, Weak},
-};
+use std::borrow::Cow;
+use std::num::NonZeroUsize;
 
 use regex::Regex;
 use strum_macros::EnumDiscriminants;
+
+pub type NodeId = usize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Interval {
@@ -50,15 +49,12 @@ pub struct Interval {
 /// Should be bound to the underlying rope's lifetime
 #[derive(Debug)]
 pub struct SyntaxNode<'a> {
-    /// Parent node.
-    pub parent: RefCell<Option<Weak<SyntaxNode<'a>>>>,
-    /// Child nodes of this node.
-    // TODO: revisit whether Rc is the right choice here.  The tree is
-    // essentially single-owner; Rc + Weak parent back-pointers was chosen to
-    // allow the Nodes iterator to clone references and to form Weak parent
-    // links without cycles, but Box children with raw/weak parent pointers
-    // (or an arena) may be simpler and cheaper.
-    pub children: RefCell<Vec<Rc<SyntaxNode<'a>>>>,
+    /// Parent node index (base-1) in the arena, or `None` for the root.
+    /// Stores `p + 1` so that `NonZeroUsize`'s niche optimisation fires,
+    /// making `Option<NonZeroUsize>` a single word.
+    pub parent: Option<NonZeroUsize>,
+    /// Child node indices in the arena.
+    pub children: Vec<NodeId>,
 
     pub data: Syntax<'a>,
 
@@ -97,7 +93,6 @@ pub struct SyntaxNodeBuilder<'a> {
     content_location: Option<Interval>,
     post_blank: usize,
     affiliated: Option<AffiliatedData<'a>>,
-    children: Vec<Rc<SyntaxNode<'a>>>,
 }
 
 impl<'a> SyntaxNodeBuilder<'a> {
@@ -116,15 +111,10 @@ impl<'a> SyntaxNodeBuilder<'a> {
         self
     }
 
-    pub fn children(mut self, ch: Vec<Rc<SyntaxNode<'a>>>) -> Self {
-        self.children = ch;
-        self
-    }
-
     pub fn build(self) -> SyntaxNode<'a> {
         SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(self.children),
+            parent: None,
+            children: Vec::new(),
             data: self.data,
             location: self.location,
             content_location: self.content_location,
@@ -144,46 +134,21 @@ impl<'a> SyntaxNode<'a> {
             content_location: None,
             post_blank: 0,
             affiliated: None,
-            children: vec![],
         }
-    }
-
-    pub fn create_root() -> SyntaxNode<'a> {
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::OrgData,
-            location: Interval { start: 0, end: 0 },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
-        }
-    }
-
-    /// Creates an iterator over the node and its direct and indirect
-    /// children, in pre-order.
-    pub fn nodes(self: &Rc<SyntaxNode<'a>>) -> Nodes<'a> {
-        Nodes::new(self.clone())
     }
 
     /// Creates a `SyntaxNode` corosponding to a raw string used as an
     /// element in elisp.
     pub fn create_raw_at(content: &'a str, interval: Interval) -> SyntaxNode<'a> {
         SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(Vec::new()),
+            parent: None,
+            children: Vec::new(),
             data: Syntax::PlainText(content),
             location: interval,
             content_location: None,
             post_blank: 0,
             affiliated: None,
         }
-    }
-
-    /// Appends a child to the node, setting the child's parent correctly.
-    pub fn append_child(self: &Rc<SyntaxNode<'a>>, child: Rc<SyntaxNode<'a>>) {
-        *child.parent.borrow_mut() = Some(Rc::downgrade(&self));
-        self.children.borrow_mut().push(child);
     }
 
     /// Create a fallback paragraph node spanning to the end of the current line.
@@ -194,14 +159,138 @@ impl<'a> SyntaxNode<'a> {
         let end = memchr(b'\n', input[start..limit].as_bytes())
             .map_or(limit, |i| (start + i + 1).min(limit));
         SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
+            parent: None,
+            children: Vec::new(),
             data: Syntax::Paragraph,
             location: Interval { start, end },
             content_location: None,
             post_blank: 0,
             affiliated: None,
         }
+    }
+
+    pub fn create_root() -> SyntaxNode<'a> {
+        SyntaxNode {
+            parent: None,
+            children: Vec::new(),
+            data: Syntax::OrgData,
+            location: Interval { start: 0, end: 0 },
+            content_location: None,
+            post_blank: 0,
+            affiliated: None,
+        }
+    }
+}
+
+/// An arena that owns all [`SyntaxNode`] values.  Nodes are addressed
+/// by [`NodeId`] (a `usize` index) instead of `Rc` pointers.
+#[derive(Debug)]
+pub struct NodeArena<'a> {
+    pub(crate) nodes: Vec<SyntaxNode<'a>>,
+}
+
+impl<'a> NodeArena<'a> {
+    pub fn new() -> Self {
+        NodeArena { nodes: Vec::new() }
+    }
+
+    /// Allocate a leaf node (no children, no parent).
+    pub fn alloc(&mut self, mut node: SyntaxNode<'a>) -> NodeId {
+        node.parent = None;
+        node.children = Vec::new();
+        let id = self.nodes.len();
+        self.nodes.push(node);
+        id
+    }
+
+    /// Allocate a node with the given children, setting each child's parent.
+    pub fn alloc_with_children(
+        &mut self,
+        mut node: SyntaxNode<'a>,
+        children: Vec<NodeId>,
+    ) -> NodeId {
+        let id = self.nodes.len();
+        for &child in &children {
+            self.nodes[child].parent = NonZeroUsize::new(id + 1);
+        }
+        node.parent = None;
+        node.children = children;
+        self.nodes.push(node);
+        id
+    }
+
+    /// Replace the children of `parent`, updating parent back-pointers.
+    pub fn set_children(&mut self, parent: NodeId, children: Vec<NodeId>) {
+        for &child in &children {
+            self.nodes[child].parent = NonZeroUsize::new(parent + 1);
+        }
+        self.nodes[parent].children = children;
+    }
+
+    pub fn get(&self, id: NodeId) -> &SyntaxNode<'a> {
+        &self.nodes[id]
+    }
+
+    /// Create a pre-order iterator over the subtree rooted at `root`.
+    pub fn nodes(&'a self, root: NodeId) -> Nodes<'a> {
+        Nodes {
+            arena: self,
+            stack: vec![0],
+            current: root,
+        }
+    }
+}
+
+impl Default for NodeArena<'_> {
+    fn default() -> Self {
+        NodeArena::new()
+    }
+}
+
+impl<'a> std::ops::Index<NodeId> for NodeArena<'a> {
+    type Output = SyntaxNode<'a>;
+    fn index(&self, id: NodeId) -> &Self::Output {
+        &self.nodes[id]
+    }
+}
+
+/// A pre-order traversal of [`SyntaxNode`] values inside a [`NodeArena`].
+pub struct Nodes<'a> {
+    arena: &'a NodeArena<'a>,
+    stack: Vec<usize>,
+    current: NodeId,
+}
+
+impl<'a> Iterator for Nodes<'a> {
+    type Item = &'a SyntaxNode<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.stack.is_empty() {
+            return None;
+        }
+
+        let saved = self.current;
+
+        loop {
+            let n = self.arena.nodes[self.current].children.len();
+            let exhausted = self.stack.last().map_or(true, |&idx| idx >= n);
+            if !exhausted {
+                break;
+            }
+            self.stack.pop();
+            if self.stack.is_empty() {
+                return Some(&self.arena.nodes[saved]);
+            }
+            self.current = self.arena.nodes[self.current].parent?.get() - 1;
+        }
+
+        let last = self.stack.len() - 1;
+        let child = self.arena.nodes[self.current].children[self.stack[last]];
+        self.stack[last] += 1;
+        self.stack.push(0);
+        self.current = child;
+
+        Some(&self.arena.nodes[saved])
     }
 }
 
@@ -926,7 +1015,7 @@ pub struct SuperscriptData {
     use_brackets_p: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TimestampData<'a> {
     /// Day part from timestamp end.
     /// If no ending date is defined, it defaults to start day part (integer).
@@ -1085,13 +1174,13 @@ impl<'a> TimestampData<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WarningType {
     All,
     First,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TimestampType {
     Active,
     ActiveRange,
@@ -1100,14 +1189,14 @@ pub enum TimestampType {
     InactiveRange,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RepeaterType {
     CatchUp,
     Restart,
     Cumulate,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TimeUnit {
     Year,
     Month,
@@ -1116,63 +1205,9 @@ pub enum TimeUnit {
     Hour,
 }
 
-/// A pre-order traversal of a [`SyntaxNode`].
-pub struct Nodes<'a> {
-    index_stack: Vec<usize>,
-    current_node: Rc<SyntaxNode<'a>>,
-}
 
-impl<'a> Nodes<'a> {
-    fn new(handle: Rc<SyntaxNode<'a>>) -> Nodes<'a> {
-        Nodes {
-            index_stack: vec![0],
-            current_node: handle,
-        }
-    }
-}
-
-impl<'a> Iterator for Nodes<'a> {
-    type Item = Rc<SyntaxNode<'a>>;
-
-    fn next(&mut self) -> Option<Rc<SyntaxNode<'a>>> {
-        let node = self.current_node.clone();
-
-        if self.index_stack.is_empty() {
-            return None;
-        }
-
-        while self.current_node.children.borrow().len() <= *self.index_stack.last().unwrap() {
-            self.index_stack.pop();
-            if self.index_stack.is_empty() {
-                return Some(node);
-            }
-            let next = self
-                .current_node
-                .parent
-                .borrow()
-                .as_ref()
-                .expect("An iterated parse tree was mutated while an iterator was alive.")
-                .upgrade()
-                .expect(
-                    "An iterated parse tree had its parents deallocated while an iterator is alive",
-                )
-                .clone();
-            self.current_node = next;
-        }
-
-        let top_idx_idx = self.index_stack.len() - 1;
-        let next = self.current_node.children.borrow()[self.index_stack[top_idx_idx]].clone();
-        self.index_stack[top_idx_idx] += 1;
-        self.index_stack.push(0);
-        self.current_node = next;
-
-        Some(node)
-    }
-}
 
 mod test {
-
-    use std::rc::Rc;
 
     use super::*;
 
@@ -1204,59 +1239,50 @@ mod test {
 
     #[test]
     fn nodes_iter_with_a_single_element_returns_that_element() {
-        let node = Rc::new(SyntaxNode::create_root());
-        let out_nodes = node.clone().nodes().collect::<Vec<_>>();
-        assert_eq!(out_nodes.len(), 1);
-        assert!(Rc::ptr_eq(&out_nodes[0], &node));
+        let mut arena = NodeArena::new();
+        let root = arena.alloc(SyntaxNode::create_root());
+        let results: Vec<&SyntaxNode> = arena.nodes(root).collect();
+        assert_eq!(results.len(), 1);
     }
 
     #[test]
     fn nodes_iter_with_several_children_return_all() {
-        let parent = Rc::new(SyntaxNode::create_root());
+        let mut arena = NodeArena::new();
+        let parent = arena.alloc(SyntaxNode::create_root());
         const NUM_CHILDREN: usize = 4;
-        let children = std::iter::repeat(())
-            .take(NUM_CHILDREN)
-            .map(|_| Rc::new(SyntaxNode::create_root()))
-            .collect::<Vec<_>>();
-        for child in &children {
-            parent.append_child(child.clone());
-        }
+        let children: Vec<NodeId> = (0..NUM_CHILDREN)
+            .map(|_| arena.alloc(SyntaxNode::create_root()))
+            .collect();
+        arena.set_children(parent, children.clone());
 
-        let results = parent.nodes().collect::<Vec<_>>();
-        dbg!(&results);
+        let results: Vec<&SyntaxNode> = arena.nodes(parent).collect();
 
         assert_eq!(results.len(), NUM_CHILDREN + 1);
-        assert!(Rc::ptr_eq(&parent, &results[0]));
-
-        for (idx, child) in children.iter().enumerate() {
-            assert!(
-                Rc::ptr_eq(&child, &results[idx + 1]),
-                "Pointer did not match (idx = {})",
-                idx + 1
-            );
+        assert!(matches!(results[0].data, Syntax::OrgData));
+        for (idx, &child) in children.iter().enumerate() {
+            let result_node = results[idx + 1];
+            assert_eq!(result_node.parent, NonZeroUsize::new(parent + 1), "Parent mismatch at idx {}", idx);
+            assert!(matches!(result_node.data, Syntax::OrgData));
         }
     }
 
     #[test]
     fn nodes_iter_with_several_layers_return_all() {
+        let mut arena = NodeArena::new();
         const LEVELS: usize = 4;
-        let nodes = std::iter::repeat(())
-            .take(LEVELS)
-            .map(|_| Rc::new(SyntaxNode::create_root()))
-            .collect::<Vec<_>>();
-        for (idx, node) in nodes.iter().enumerate() {
-            if idx == 0 {
-                continue;
-            }
-            nodes[idx - 1].append_child(node.clone());
+        let mut ids: Vec<NodeId> = Vec::new();
+        for _ in 0..LEVELS {
+            ids.push(arena.alloc(SyntaxNode::create_root()));
+        }
+        for i in 1..LEVELS {
+            arena.set_children(ids[i - 1], vec![ids[i]]);
         }
 
-        let results = nodes[0].nodes().collect::<Vec<_>>();
+        let results: Vec<&SyntaxNode> = arena.nodes(ids[0]).collect();
 
-        assert_eq!(results.len(), nodes.len());
-
-        for (result, input) in results.iter().zip(nodes.iter()) {
-            assert!(Rc::ptr_eq(result, input));
+        assert_eq!(results.len(), LEVELS);
+        for node in results.iter() {
+            assert!(matches!(node.data, Syntax::OrgData));
         }
     }
 }

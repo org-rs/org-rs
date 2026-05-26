@@ -18,25 +18,25 @@
 //! This module contains tests for unimplemented or incomplete features
 //! based on the Emacs test-org-element.el test suite.
 
-use crate::data::{Syntax, SyntaxNode, SyntaxT};
+use crate::data::{NodeArena, NodeId, Syntax, SyntaxT};
 use crate::environment::DefaultEnvironment;
 use crate::parser::{ParseGranularity, Parser};
 
-fn count_type(tree: &SyntaxNode, typ: SyntaxT) -> usize {
+fn count_type(arena: &NodeArena, id: NodeId, typ: SyntaxT) -> usize {
     let mut count = 0;
-    if SyntaxT::from(&tree.data) == typ {
+    if SyntaxT::from(&arena[id].data) == typ {
         count += 1;
     }
-    for child in tree.children.borrow().iter() {
-        count += count_type(child, typ);
+    for &child in &arena[id].children {
+        count += count_type(arena, child, typ);
     }
     count
 }
 
 fn get_type_count(input: &str, typ: SyntaxT, granularity: ParseGranularity) -> usize {
-    let parser = Parser::new(input, granularity, DefaultEnvironment);
-    let tree = parser.parse_buffer();
-    count_type(&tree, typ)
+    let mut parser = Parser::new(input, granularity, DefaultEnvironment);
+    let (arena, root) = parser.parse_buffer();
+    count_type(&arena, root, typ)
 }
 
 mod plain_list {
@@ -163,24 +163,24 @@ mod item {
     #[test]
     fn item_with_counter_set() {
         let input = "1. [@3] item\n2. next\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
 
-        let root_children = tree.children.borrow();
+        let root_children = &arena[root].children;
         let section = root_children.first().expect("Expected section");
-        let section_children = section.children.borrow();
+        let section_children = &arena[*section].children;
         let list_node = section_children.first().expect("Expected plain list");
-        let list_children = list_node.children.borrow();
+        let list_children = &arena[*list_node].children;
         let first_item = list_children.first().expect("Expected first item");
 
-        if let Syntax::Item(data) = &first_item.data {
+        if let Syntax::Item(data) = &arena[*first_item].data {
             assert_eq!(
                 data.counter, 3,
                 "Item counter should be 3 from [@3], got {}",
                 data.counter
             );
         } else {
-            panic!("Expected Item, got: {:?}", first_item.data);
+            panic!("Expected Item, got: {:?}", arena[*first_item].data);
         }
     }
 }
@@ -247,20 +247,20 @@ mod headline {
     #[test]
     fn headline_with_tab_after_stars() {
         let input = "*\tOne\n**\tSub\n*\tTwo\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root_children = tree.children.borrow();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_children = &arena[root].children;
         let h1 = root_children.first().expect("Expected first headline");
-        if let Syntax::Headline(_) = &h1.data {
-            let h1_end = h1.location.end;
+        if let Syntax::Headline(_) = &arena[*h1].data {
+            let h1_end = arena[*h1].location.end;
             let h2 = root_children.get(1).expect("Expected second headline");
-            if let Syntax::Headline(_) = &h2.data {
+            if let Syntax::Headline(_) = &arena[*h2].data {
                 assert!(
-                    h1_end <= h2.location.start,
+                    h1_end <= arena[*h2].location.start,
                     "First headline end ({}) should not overlap second headline start ({}): \
                      headlines with tab should form proper subtree boundaries",
                     h1_end,
-                    h2.location.start
+                    arena[*h2].location.start
                 );
             }
         }
@@ -269,11 +269,11 @@ mod headline {
     #[test]
     fn headline_with_unicode_tags() {
         let input = "* title :café:标签:\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root_children = tree.children.borrow();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_children = &arena[root].children;
         let h = root_children.first().expect("Expected headline");
-        if let Syntax::Headline(data) = &h.data {
+        if let Syntax::Headline(data) = &arena[*h].data {
             let tag_strs: Vec<&str> = data.tags.iter().map(|t| t.0).collect();
             assert!(
                 tag_strs.contains(&"café"),
@@ -293,11 +293,11 @@ mod headline {
     #[test]
     fn headline_comment_not_in_title() {
         let input = "* COMMENT stuff\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root_children = tree.children.borrow();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_children = &arena[root].children;
         let h = root_children.first().expect("Expected headline");
-        if let Syntax::Headline(data) = &h.data {
+        if let Syntax::Headline(data) = &arena[*h].data {
             assert!(
                 !data.title.starts_with("COMMENT"),
                 "Title should not include COMMENT keyword, got: {:?}",
@@ -368,26 +368,26 @@ mod table {
     #[test]
     fn table_hline_detection() {
         let input = "| h1 | h2 |\n|---|\n| c1 | c2 |\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
 
-        let root_children = tree.children.borrow();
+        let root_children = &arena[root].children;
         let section = root_children.first().expect("Expected section");
-        let section_children = section.children.borrow();
+        let section_children = &arena[*section].children;
         let table = section_children.first().expect("Expected table");
-        let table_children = table.children.borrow();
+        let table_children = &arena[*table].children;
 
         let rule_row = table_children
             .get(1)
             .expect("Expected second table row (hline)");
-        if let Syntax::TableRow(row_type) = &rule_row.data {
+        if let Syntax::TableRow(row_type) = &arena[*rule_row].data {
             assert!(
                 matches!(row_type, crate::table::TableRowType::Rule),
                 "Expected hline row to be Rule, got {:?}",
                 row_type
             );
         } else {
-            panic!("Expected TableRow, got: {:?}", rule_row.data);
+            panic!("Expected TableRow, got: {:?}", arena[*rule_row].data);
         }
     }
 
@@ -494,37 +494,37 @@ mod blocks {
     #[test]
     fn export_block_type() {
         let input = "#+BEGIN_EXPORT html\n<div>HTML</div>\n#+END_EXPORT\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
 
-        let root_children = tree.children.borrow();
+        let root_children = &arena[root].children;
         let section = root_children.first().expect("Expected section");
-        let section_children = section.children.borrow();
+        let section_children = &arena[*section].children;
         let block = section_children.first().expect("Expected export block");
 
-        if let Syntax::ExportBlock(data) = &block.data {
+        if let Syntax::ExportBlock(data) = &arena[*block].data {
             assert_eq!(
                 data.type_s, "html",
                 "Expected export type_s 'html', got {:?}",
                 data.type_s
             );
         } else {
-            panic!("Expected ExportBlock, got: {:?}", block.data);
+            panic!("Expected ExportBlock, got: {:?}", arena[*block].data);
         }
     }
 
     #[test]
     fn src_block_language() {
         let input = "#+BEGIN_SRC python\nprint('hello')\n#+END_SRC\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
 
-        let root_children = tree.children.borrow();
+        let root_children = &arena[root].children;
         let section = root_children.first().expect("Expected section");
-        let section_children = section.children.borrow();
+        let section_children = &arena[*section].children;
         let block = section_children.first().expect("Expected src block");
 
-        if let Syntax::SrcBlock(data) = &block.data {
+        if let Syntax::SrcBlock(data) = &arena[*block].data {
             assert_eq!(
                 data.language,
                 Some("python"),
@@ -532,18 +532,18 @@ mod blocks {
                 data.language
             );
         } else {
-            panic!("Expected SrcBlock, got: {:?}", block.data);
+            panic!("Expected SrcBlock, got: {:?}", arena[*block].data);
         }
     }
 
     #[test]
     fn block_end_edge_cases() {
-        let parser = Parser::new(
+        let mut parser = Parser::new(
             "#+BEGIN_CENTER\ncenter\n#+end_center \n",
             ParseGranularity::Element,
             DefaultEnvironment,
         );
-        let tree = parser.parse_buffer();
+        let (arena, root) = parser.parse_buffer();
         let count = get_type_count(
             "#+BEGIN_CENTER\ncenter\n#+end_center \n",
             SyntaxT::CenterBlock,
@@ -834,8 +834,8 @@ mod footnote_definition {
     #[test]
     fn content_location() {
         let input = "[fn:1] This is footnote content\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
 
         let count = get_type_count(
             input,
@@ -844,15 +844,15 @@ mod footnote_definition {
         );
         assert_eq!(count, 1, "Expected 1 footnote definition");
 
-        let root_children = tree.children.borrow();
+        let root_children = &arena[root].children;
         let section = root_children.first().expect("Expected at least one child");
-        let section_children = section.children.borrow();
+        let section_children = &arena[*section].children;
         let fn_node = section_children
             .first()
             .expect("Expected footnote in section");
 
-        if let Syntax::FootnoteDefinition(_) = &fn_node.data {
-            let content_loc = fn_node
+        if let Syntax::FootnoteDefinition(_) = &arena[*fn_node].data {
+            let content_loc = &arena[*fn_node]
                 .content_location
                 .expect("Footnote definition should have content_location");
 
@@ -864,15 +864,15 @@ mod footnote_definition {
             let content = &input[content_loc.start..content_loc.end];
             assert_eq!(content, "This is footnote content", "content should match");
         } else {
-            panic!("Expected FootnoteDefinition, got: {:?}", fn_node.data);
+            panic!("Expected FootnoteDefinition, got: {:?}", arena[*fn_node].data);
         }
     }
 
     #[test]
     fn with_label() {
         let input = "[fn:my-label] Some content\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
 
         let count = get_type_count(
             input,
@@ -881,14 +881,14 @@ mod footnote_definition {
         );
         assert_eq!(count, 1, "Expected 1 footnote definition");
 
-        let root_children = tree.children.borrow();
+        let root_children = &arena[root].children;
         let section = root_children.first().expect("Expected at least one child");
-        let section_children = section.children.borrow();
+        let section_children = &arena[*section].children;
         let fn_node = section_children
             .first()
             .expect("Expected footnote in section");
 
-        if let Syntax::FootnoteDefinition(data) = &fn_node.data {
+        if let Syntax::FootnoteDefinition(data) = &arena[*fn_node].data {
             assert_eq!(data.label, "my-label", "Label should be extracted");
             assert_eq!(data.value, "Some content", "Value should be raw text");
         } else {
@@ -935,15 +935,15 @@ mod fixed_width {
     #[test]
     fn multiline_value_strips_colons() {
         let input = ": Line 1\n: Line 2\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
 
-        let root_children = tree.children.borrow();
+        let root_children = &arena[root].children;
         let section = root_children.first().expect("Expected section");
-        let section_children = section.children.borrow();
+        let section_children = &arena[*section].children;
         let fw_node = section_children.first().expect("Expected fixed-width node");
 
-        if let Syntax::FixedWidth(value) = &fw_node.data {
+        if let Syntax::FixedWidth(value) = &arena[*fw_node].data {
             assert!(
                 !value.contains(':'),
                 "Fixed-width value should not contain colons, got: {:?}",
@@ -960,7 +960,7 @@ mod fixed_width {
                 value
             );
         } else {
-            panic!("Expected FixedWidth, got: {:?}", fw_node.data);
+            panic!("Expected FixedWidth, got: {:?}", arena[*fw_node].data);
         }
     }
 
@@ -1079,12 +1079,12 @@ mod keyword {
 
     #[test]
     fn keyword_edge_cases() {
-        let parser = Parser::new(
+        let mut parser = Parser::new(
             "#+KEY: val\n#+EMPTY:\n#+COLONS: a::b::c\n#+UNICODE: café 标签\n",
             ParseGranularity::Element,
             DefaultEnvironment,
         );
-        let tree = parser.parse_buffer();
+        let (arena, root) = parser.parse_buffer();
         let count = get_type_count(
             "#+KEY: val\n#+EMPTY:\n#+COLONS: a::b::c\n#+UNICODE: café 标签\n",
             SyntaxT::Keyword,
@@ -1150,14 +1150,14 @@ mod inlinetask {
     #[test]
     fn fifteen_stars_is_not_headline() {
         let input = "*************** Inlinetask\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root_children = tree.children.borrow();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_children = &arena[root].children;
         let first = root_children.first().expect("Expected first child");
         assert!(
-            !matches!(first.data, Syntax::Headline(_)),
+            !matches!(arena[*first].data, Syntax::Headline(_)),
             "15+ stars should NOT be a Headline, got: {:?}",
-            first.data
+            arena[*first].data
         );
     }
 }
@@ -1281,17 +1281,17 @@ mod object_parsing {
     #[test]
     fn timestamp_with_time_range() {
         let input = "<2023-12-01 10:15-11:30>\n";
-        let parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
-        let tree = parser.parse_buffer();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
 
-        let root_children = tree.children.borrow();
+        let root_children = &arena[root].children;
         let section = root_children.first().expect("Expected section");
-        let section_children = section.children.borrow();
+        let section_children = &arena[*section].children;
         let para = section_children.first().expect("Expected paragraph");
-        let para_children = para.children.borrow();
+        let para_children = &arena[*para].children;
         let ts_node = para_children.first().expect("Expected timestamp");
 
-        if let Syntax::Timestamp(data) = &ts_node.data {
+        if let Syntax::Timestamp(data) = &arena[*ts_node].data {
             assert_eq!(
                 data.hour_end,
                 Some(11),
@@ -1305,7 +1305,7 @@ mod object_parsing {
                 data.minute_end
             );
         } else {
-            panic!("Expected Timestamp, got: {:?}", ts_node.data);
+            panic!("Expected Timestamp, got: {:?}", arena[*ts_node].data);
         }
     }
 
@@ -1313,22 +1313,22 @@ mod object_parsing {
     fn link_type_with_brackets() {
         use crate::data::LinkType;
         let input = "[[https://example.com]]\n";
-        let parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root_children = tree.children.borrow();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_children = &arena[root].children;
         let section = root_children.first().expect("Expected section");
-        let section_children = section.children.borrow();
+        let section_children = &arena[*section].children;
         let para = section_children.first().expect("Expected paragraph");
-        let para_children = para.children.borrow();
+        let para_children = &arena[*para].children;
         let link_node = para_children.first().expect("Expected link");
-        if let Syntax::Link(data) = &link_node.data {
+        if let Syntax::Link(data) = &arena[*link_node].data {
             assert!(
                 matches!(data.link_type, LinkType::File),
                 "Expected LinkType::File for https link, got {:?}",
                 data.link_type
             );
         } else {
-            panic!("Expected Link, got: {:?}", link_node.data);
+            panic!("Expected Link, got: {:?}", arena[*link_node].data);
         }
     }
 }
@@ -1466,20 +1466,20 @@ mod od1_compliance {
     fn description_list_type() {
         use crate::list::ListKind;
         let input = "- term :: description text\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root = tree.children.borrow();
-        let section = root.first().expect("section node");
-        let section_ch = section.children.borrow();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_children = &arena[root].children;
+        let section = root_children.first().expect("section node");
+        let section_ch = &arena[*section].children;
         let list = section_ch.first().expect("list node");
-        if let Syntax::PlainList(data) = &list.data {
+        if let Syntax::PlainList(data) = &arena[*list].data {
             assert!(
                 matches!(data.type_s, ListKind::Descriptive),
                 "Expected Descriptive list type, got {:?}",
                 data.type_s
             );
         } else {
-            panic!("Expected PlainList, got {:?}", list.data);
+            panic!("Expected PlainList, got {:?}", arena[*list].data);
         }
     }
 
@@ -1519,13 +1519,13 @@ mod od1_compliance {
     #[test]
     fn src_block_with_language() {
         let input = "#+BEGIN_SRC python\nprint('hello')\n#+END_SRC\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root = tree.children.borrow();
-        let section = root.first().expect("section");
-        let section_ch = section.children.borrow();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_children = &arena[root].children;
+        let section = root_children.first().expect("section");
+        let section_ch = &arena[*section].children;
         let block = section_ch.first().expect("src block");
-        if let Syntax::SrcBlock(data) = &block.data {
+        if let Syntax::SrcBlock(data) = &arena[*block].data {
             assert_eq!(
                 data.language,
                 Some("python"),
@@ -1533,7 +1533,7 @@ mod od1_compliance {
                 data.language
             );
         } else {
-            panic!("Expected SrcBlock, got {:?}", block.data);
+            panic!("Expected SrcBlock, got {:?}", arena[*block].data);
         }
     }
 
@@ -1613,13 +1613,13 @@ mod od1_compliance {
     #[test]
     fn description_list_tag_is_term() {
         let input = "- term :: description text\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root = tree.children.borrow();
-        let section = root.first().expect("section");
-        let section_ch = section.children.borrow();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_children = &arena[root].children;
+        let section = root_children.first().expect("section");
+        let section_ch = &arena[*section].children;
         let list = section_ch.first().expect("list");
-        if let Syntax::PlainList(data) = &list.data {
+        if let Syntax::PlainList(data) = &arena[*list].data {
             let tag = &data.structure.items[0].tag;
             assert_eq!(
                 tag.as_deref(),
@@ -1701,11 +1701,11 @@ mod od1_compliance {
     #[test]
     fn headline_priority_extracted() {
         let input = "* [#A] important task\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root = tree.children.borrow();
-        let headline = root.first().expect("headline");
-        if let Syntax::Headline(data) = &headline.data {
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_children = &arena[root].children;
+        let headline = root_children.first().expect("headline");
+        if let Syntax::Headline(data) = &arena[*headline].data {
             assert!(
                 data.priority > 0,
                 "Expected non-zero priority from [#A], got {}",
@@ -1717,7 +1717,7 @@ mod od1_compliance {
                 data.title
             );
         } else {
-            panic!("Expected Headline, got {:?}", headline.data);
+            panic!("Expected Headline, got {:?}", arena[*headline].data);
         }
     }
 
@@ -1727,12 +1727,13 @@ mod od1_compliance {
         // With the bug, the quote closes early and "more" / "#+END_QUOTE"
         // become stray section-level paragraphs.
         let input = "#+BEGIN_QUOTE\n#+END_SRC\nmore\n#+END_QUOTE\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root = tree.children.borrow();
-        let section = root.first().expect("section");
-        let para_count = section.children.borrow().iter()
-            .filter(|n| matches!(n.data, Syntax::Paragraph))
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_children = &arena[root].children;
+        let section = root_children.first().expect("section");
+        let para_count = arena[*section].children
+            .iter()
+            .filter(|&&n| matches!(arena[n].data, Syntax::Paragraph))
             .count();
         assert_eq!(
             para_count, 0,
@@ -1791,18 +1792,18 @@ mod od1_compliance {
     #[test]
     fn timestamp_with_dayname_and_time() {
         let input = "<2023-12-31 Sun 10:30>\n";
-        let parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root = tree.children.borrow();
-        let section = root.first().expect("section");
-        let section_ch = section.children.borrow();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_children = &arena[root].children;
+        let section = root_children.first().expect("section");
+        let section_ch = &arena[*section].children;
         let para = section_ch.first().expect("para");
-        let para_ch = para.children.borrow();
+        let para_ch = &arena[*para].children;
         let ts = para_ch
             .iter()
-            .find(|n| matches!(n.data, Syntax::Timestamp(_)))
+            .find(|&&n| matches!(arena[n].data, Syntax::Timestamp(_)))
             .expect("timestamp");
-        if let Syntax::Timestamp(data) = &ts.data {
+        if let Syntax::Timestamp(data) = &arena[*ts].data {
             assert_eq!(
                 data.hour_start,
                 Some(10),
@@ -1837,21 +1838,21 @@ mod od1_compliance {
         // `starts_with('<') && ends_with('>')` guard fails and deadline is
         // silently set to None even though it was explicitly present.
         let input = "* Head\nDEADLINE: <2023-12-31> CLOSED: [2024-01-01]\ncontent\n";
-        let parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
-        let tree = parser.parse_buffer();
-        let root_ch = tree.children.borrow();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let root_ch = &arena[root].children;
         let headline = root_ch.first().expect("headline");
-        let hl_ch = headline.children.borrow();
+        let hl_ch = &arena[*headline].children;
         let section = hl_ch
             .iter()
-            .find(|n| matches!(n.data, Syntax::Section))
+            .find(|&&n| matches!(arena[n].data, Syntax::Section))
             .expect("section");
-        let sec_ch = section.children.borrow();
+        let sec_ch = &arena[*section].children;
         let planning = sec_ch
             .iter()
-            .find(|n| matches!(n.data, Syntax::Planning(_)))
+            .find(|&&n| matches!(arena[n].data, Syntax::Planning(_)))
             .expect("planning node");
-        if let Syntax::Planning(p) = &planning.data {
+        if let Syntax::Planning(p) = &arena[*planning].data {
             assert!(
                 p.deadline.is_some(),
                 "DEADLINE should be parsed even when CLOSED follows on the same line"

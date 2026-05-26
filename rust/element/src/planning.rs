@@ -14,7 +14,7 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::affiliated::ElementSpan;
-use crate::data::{Interval, Syntax, SyntaxNode};
+use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::markup::REGEX_DIARY_SEXP;
 use crate::parser::Parser;
 use lazy_static::lazy_static;
@@ -28,8 +28,8 @@ lazy_static! {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    pub fn planning_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        let start = self.cursor.borrow().pos();
+    pub fn planning_parser(&mut self, limit: usize) -> NodeId {
+        let start = self.cursor.pos();
         let input_slice = &self.input[start..limit];
 
         let nl_offset = memchr(b'\n', input_slice.as_bytes());
@@ -52,7 +52,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         if deadline.is_none() && scheduled.is_none() && closed.is_none() {
-            return SyntaxNode::fallback(self.input, start, limit);
+            return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
         }
 
         let post_blank = if end < limit {
@@ -69,21 +69,23 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             scheduled,
         };
 
-        SyntaxNode::new(Syntax::Planning(Box::new(planning_data)), (start, end))
-            .post_blank(post_blank)
-            .build()
+        self.arena.alloc(
+            SyntaxNode::new(Syntax::Planning(Box::new(planning_data)), (start, end))
+                .post_blank(post_blank)
+                .build()
+        )
     }
 
     pub fn parse_planning_timestamp(
-        &self,
+        &mut self,
         line: &'a str,
         keyword: &str,
     ) -> Option<crate::data::TimestampData<'a>> {
         let keyword_pos = line.find(keyword)?;
         let after_keyword = line[keyword_pos + keyword.len()..].trim_start();
-        let (node, _) = self.try_parse_timestamp(after_keyword, 0)?;
-        match std::rc::Rc::try_unwrap(node).ok()?.data {
-            crate::data::Syntax::Timestamp(ts) => Some(*ts),
+        let (node_id, _) = self.try_parse_timestamp(after_keyword, 0)?;
+        match &self.arena.get(node_id).data {
+            crate::data::Syntax::Timestamp(ts) => Some(ts.as_ref().clone()),
             _ => None,
         }
     }
@@ -102,8 +104,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// deviation from Elisp. Elisp uses `org-parse-time-string` which is more
     /// lenient and accepts various date formats. We use strict regex validation
     /// to catch invalid dates like Feb 29 in non-leap years.
-    pub fn clock_line_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        let start = self.cursor.borrow().pos();
+    pub fn clock_line_parser(&mut self, limit: usize) -> NodeId {
+        let start = self.cursor.pos();
         let input_slice = &self.input[start..limit];
 
         let line_end = memchr(b'\n', input_slice.as_bytes()).map_or(limit, |i| start + i);
@@ -114,7 +116,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // Elisp uses org-parse-time-string which is more lenient.
         // We use strict validation to match our test expectations.
         if !Self::is_valid_clock_timestamp(value) {
-            return SyntaxNode::fallback(self.input, start, limit);
+            return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
         }
 
         let end = line_end;
@@ -127,16 +129,18 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             0
         };
 
-        SyntaxNode::new(
-            Syntax::Clock(Box::new(crate::data::ClockData {
-                duration: "",
-                status: crate::data::ClockStatus::Running,
-                raw: value,
-            })),
-            (start, end),
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::Clock(Box::new(crate::data::ClockData {
+                    duration: "",
+                    status: crate::data::ClockStatus::Running,
+                    raw: value,
+                })),
+                (start, end),
+            )
+            .post_blank(post_blank)
+            .build()
         )
-        .post_blank(post_blank)
-        .build()
     }
 
     /// Validate clock timestamp format and check for invalid dates.
@@ -207,18 +211,18 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Uses `start` for begin position
     /// - Value is the full sexp string
     /// - Stores affiliated data in SyntaxNode
-    pub fn diary_sexp_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+    pub fn diary_sexp_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let input_slice = &self.input[start..limit];
 
         let caps = match REGEX_DIARY_SEXP.captures(input_slice) {
             Some(c) => c,
-            None => return SyntaxNode::fallback(self.input, start, limit),
+            None => return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit)),
         };
 
         let value = match caps.get(1) {
             Some(m) => m.as_str(),
-            None => return SyntaxNode::fallback(self.input, start, limit),
+            None => return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit)),
         };
 
         let line_end = memchr(b'\n', self.input[start..limit].as_bytes())
@@ -234,9 +238,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             0
         };
 
-        SyntaxNode::new(Syntax::DiarySexp(value), (start, end))
-            .post_blank(post_blank)
-            .affiliated(affiliated)
-            .build()
+        self.arena.alloc(
+            SyntaxNode::new(Syntax::DiarySexp(value), (start, end))
+                .post_blank(post_blank)
+                .affiliated(affiliated)
+                .build()
+        )
     }
 }

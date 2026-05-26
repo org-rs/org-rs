@@ -62,15 +62,16 @@
 //!     (item))))
 //!
 
+use std::rc::Rc;
+
 use crate::affiliated::ElementSpan;
-use crate::data::{Interval, Syntax, SyntaxNode};
+use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use memchr::memchr;
 use regex::Regex;
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::cell::RefCell;
-use std::rc::Rc;
 
 lazy_static! {
 
@@ -178,24 +179,24 @@ pub enum CheckBox {
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Fallback: item parser (not yet fully implemented).
     pub fn item_parser(
-        &self,
+        &mut self,
         _structure: Option<Rc<ListStruct>>,
         _raw_secondary_p: bool,
-    ) -> SyntaxNode<'a> {
-        let start = self.cursor.borrow().pos();
-        SyntaxNode::fallback(self.input, start, self.input.len())
+    ) -> NodeId {
+        let start = self.cursor.pos();
+        self.arena.alloc(SyntaxNode::fallback(self.input, start, self.input.len()))
     }
 
     /// Fallback: plain list parser (not yet fully implemented).
     pub fn plain_list_parser(
-        &'a self,
+        &mut self,
         element_span: ElementSpan<'a>,
         structure: Rc<ListStruct>,
-    ) -> SyntaxNode<'a> {
+    ) -> NodeId {
         let span = element_span.span;
         let items = &structure.items;
         if items.is_empty() {
-            return SyntaxNode::fallback(self.input, span.start, span.end);
+            return self.arena.alloc(SyntaxNode::fallback(self.input, span.start, span.end));
         }
 
         let first_indent = items[0].indent;
@@ -217,12 +218,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             };
 
             let item_node = self.item_parser_internal(item, end_pos);
-            children.push(Rc::new(item_node));
+            children.push(item_node);
             i += 1;
         }
 
         let end = if let Some(last) = children.last() {
-            last.location.end
+            self.arena[*last].location.end
         } else {
             span.end
         };
@@ -232,11 +233,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // so the standard content_location recursion path never fires for them.
         use crate::parser::{ParseGranularity, ParserMode};
         if matches!(self.granularity, ParseGranularity::Element | ParseGranularity::Object) {
-            for item_rc in &children {
-                if let Some(loc) = item_rc.content_location {
+            for &item_rc in &children {
+                if let Some(loc) = self.arena[item_rc].content_location {
                     let item_children =
                         self.parse_elements(loc, ParserMode::Planning, None);
-                    item_rc.children.replace(item_children);
+                    self.arena.set_children(item_rc, item_children);
                 }
             }
         }
@@ -246,10 +247,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             type_s: list_type,
         };
 
-        SyntaxNode::new(Syntax::PlainList(Box::new(list_data)), (span.start, end))
-            .children(children)
+        self.arena.alloc_with_children(SyntaxNode::new(Syntax::PlainList(Box::new(list_data)), (span.start, end))
             .affiliated(element_span.affiliated)
-            .build()
+            .build(), children)
     }
 
     fn get_list_type(items: &[ListItem]) -> ListKind {
@@ -273,7 +273,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         ListKind::Unordered
     }
 
-    fn item_parser_internal(&self, item: &ListItem, end: usize) -> SyntaxNode<'a> {
+    fn item_parser_internal(&mut self, item: &ListItem, end: usize) -> NodeId {
         let bullet = Cow::Owned(item.bullet.clone());
         let tag = item.tag.as_ref().map(|t| Cow::Owned(t.clone()));
 
@@ -292,9 +292,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             structure: ListStruct::new(),
         };
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
+        self.arena.alloc(SyntaxNode {
+            parent: None,
+            children: Vec::new(),
             data: Syntax::Item(Box::new(item_data)),
             location: Interval {
                 start: item.position,
@@ -303,14 +303,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             content_location,
             post_blank: 0,
             affiliated: None,
-        }
+        })
     }
 
     /// Scan input for list items at current indentation level
     /// This matches Elisp's org-element--list-struct
     pub fn list_struct(&self, limit: usize) -> Rc<ListStruct> {
         let mut items = Vec::new();
-        let mut pos = self.cursor.borrow().pos();
+        let mut pos = self.cursor.pos();
         let input = self.input;
 
         while pos < limit {

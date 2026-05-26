@@ -15,6 +15,14 @@ strum_macros = "0.28"
 lexpr = "0.2"
 goof = "0.3"
 
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "parse"
+path = "benches/parse.rs"
+harness = false
+
 [[bin]]
 name = "corpus-check"
 path = "src/bin/corpus_check.rs"

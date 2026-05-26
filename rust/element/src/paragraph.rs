@@ -14,7 +14,7 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::affiliated::ElementSpan;
-use crate::data::{Interval, Syntax, SyntaxNode};
+use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::list::REGEX_ITEM;
 use crate::markup::REGEX_HORIZONTAL_RULE;
 use crate::parser::Parser;
@@ -26,7 +26,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// A paragraph extends from the current position to the first blank
     /// line or to the start of the next element-level construct
     /// (headline, keyword, block, etc.), whichever comes first.
-    pub fn paragraph_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+    pub fn paragraph_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let bytes = self.input.as_bytes();
         let mut end = start;
@@ -87,11 +87,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let children = self.parse_objects((start, end), |_| true);
 
-        SyntaxNode::new(Syntax::Paragraph, (start, end))
-            .content((start, end))
-            .affiliated(affiliated)
-            .children(children)
-            .build()
+        self.arena.alloc_with_children(
+            SyntaxNode::new(Syntax::Paragraph, (start, end))
+                .content((start, end))
+                .affiliated(affiliated)
+                .build(),
+            children,
+        )
     }
 
     /// Parse a section bounded by `limit`.
@@ -99,10 +101,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// A section is a container that spans from the current cursor position
     /// to `limit`.  It is the body content under a headline (or the text
     /// before the first headline in the document).
-    pub fn section_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        let begin = self.cursor.borrow().pos();
-        SyntaxNode::new(Syntax::Section, (begin, limit))
-            .content((begin, limit))
-            .build()
+    pub fn section_parser(&mut self, limit: usize) -> NodeId {
+        let begin = self.cursor.pos();
+        self.arena.alloc(
+            SyntaxNode::new(Syntax::Section, (begin, limit))
+                .content((begin, limit))
+                .build(),
+        )
     }
 }

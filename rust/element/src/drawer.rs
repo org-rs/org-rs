@@ -13,10 +13,8 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::rc::Rc;
-
 use crate::affiliated::ElementSpan;
-use crate::data::{Interval, Syntax, SyntaxNode};
+use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use lazy_static::lazy_static;
 use memchr::memchr;
@@ -34,7 +32,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     ///
     /// Format: `:NAME:\n...content...\n:END:`
     /// Case insensitive (matches :NAME: and :END:)
-    pub fn drawer_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+    pub fn drawer_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let input_slice = &self.input[start..limit];
 
@@ -42,7 +40,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let name = caps.get(1).map_or("", |m| m.as_str());
 
             if name.eq_ignore_ascii_case("END") {
-                return SyntaxNode::fallback(self.input, start, limit);
+                return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
             }
 
             let mut search_pos = start;
@@ -76,7 +74,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             }
 
             if !found_end {
-                return SyntaxNode::fallback(self.input, start, limit);
+                return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
             }
 
             let post_blank = (end < limit).then(|| {
@@ -98,17 +96,19 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 Syntax::Drawer(name)
             };
 
-            return SyntaxNode::new(data, (start, end))
-                .post_blank(post_blank)
-                .affiliated(affiliated)
-                .children(children)
-                .build();
+            return self.arena.alloc_with_children(
+                SyntaxNode::new(data, (start, end))
+                    .post_blank(post_blank)
+                    .affiliated(affiliated)
+                    .build(),
+                children,
+            );
         }
 
-        SyntaxNode::fallback(self.input, start, limit)
+        self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 
-    fn parse_property_drawer_contents(&self, start: usize, end: usize) -> Vec<Rc<SyntaxNode<'a>>> {
+    fn parse_property_drawer_contents(&mut self, start: usize, end: usize) -> Vec<NodeId> {
         let mut children = Vec::new();
         let input = self.input;
 
@@ -141,7 +141,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 let prop_start = first_line_end + pos;
                 let prop_end = if line_end < content.len() { line_end + 1 } else { line_end };
                 let node_data = crate::headline::NodePropertyData { key, value };
-                children.push(Rc::new(
+                children.push(self.arena.alloc(
                     SyntaxNode::new(
                         Syntax::NodeProperty(Box::new(node_data)),
                         (prop_start, prop_end),
