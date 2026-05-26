@@ -393,7 +393,7 @@ pub enum Syntax<'a> {
     Paragraph,
 
     /// Greater element
-    PlainList(Box<PlainListData<'a>>),
+    PlainList(PlainListData<'a>),
 
     /// Element
     Planning(Box<PlanningData<'a>>),
@@ -467,10 +467,10 @@ pub enum Syntax<'a> {
     Macro(Box<MacroData<'a>>),
 
     /// Recursive object.
-    RadioTarget(Box<RadioTargetData<'a>>),
+    RadioTarget(RadioTargetData<'a>),
 
     /// Object
-    StatisticsCookie(Box<StatisticsCookieData<'a>>),
+    StatisticsCookie(StatisticsCookieData<'a>),
 
     /// Recursive object.
     StrikeThrough,
@@ -1387,3 +1387,4 @@ mod test {
         }
     }
 }
+
