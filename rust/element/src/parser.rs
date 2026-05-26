@@ -319,8 +319,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
             {
                 let maybe_headline_offset = self.cursor.line_beginning_position(Some(0));
-                let maybe_star = self.cursor.char_after(maybe_headline_offset);
-                let is_prev_line_headline = Some('*') == maybe_star;
+                let is_prev_line_headline =
+                    self.input.as_bytes().get(maybe_headline_offset) == Some(&b'*');
                 let is_match_planning = self.cursor.looking_at(&*REGEX_PLANNING_LINE).is_some();
 
                 if mode == Planning && is_prev_line_headline && is_match_planning {
@@ -331,8 +331,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             {
                 let delta = if mode == Planning { 0 } else { -1 };
                 let maybe_headline_offset = self.cursor.line_beginning_position(Some(delta));
-                let maybe_star = self.cursor.char_after(maybe_headline_offset);
-                let is_prev_line_headline = Some('*') == maybe_star;
+                let is_prev_line_headline =
+                    self.input.as_bytes().get(maybe_headline_offset) == Some(&b'*');
 
                 if (mode == Planning || mode == PropertyDrawer)
                     && is_prev_line_headline
@@ -934,12 +934,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         //   p2: b'*' b'/' b'_' — emphasis markers A (stops if pre-char precedes)
         //   p3: b'+' b'=' b'~' — emphasis markers B (stops if pre-char precedes)
         //   p4: b'h' b'f' b'm' — URL first-byte    (stops if pre-char + protocol)
-        let mut p1 = memchr(b'[', bytes);
+        let p1 = memchr(b'[', bytes);
         let mut p2 = memchr3(b'*', b'/', b'_', bytes);
         let mut p3 = memchr3(b'+', b'=', b'~', bytes);
         let mut p4 = memchr3(b'h', b'f', b'm', bytes);
 
-        let mut consume = 0usize;
+        let mut consume;
 
         loop {
             let ps = [p1, p2, p3, p4];
