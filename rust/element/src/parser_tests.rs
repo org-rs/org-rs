@@ -1733,6 +1733,60 @@ mod od1_compliance {
         );
     }
 
+    /// In Emacs org-element a bracket link's description is stored in
+    /// `org-element-contents`, so it must be parsed into child nodes.
+    ///
+    /// Corner cases:
+    /// - plain text description → `PlainText` child
+    /// - no description         → no children
+    /// - description with bold  → `Bold` child (not just `PlainText`)
+    mod link_description_as_children {
+        use super::*;
+
+        fn link_children(input: &str) -> Vec<SyntaxT> {
+            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+            let (arena, root) = parser.parse_buffer();
+            // Walk to the Link node
+            fn find_link<'a>(arena: &'a crate::data::NodeArena<'a>, id: NodeId) -> Option<NodeId> {
+                if SyntaxT::from(&arena[id].data) == SyntaxT::Link { return Some(id); }
+                for &child in &arena[id].children { if let Some(l) = find_link(arena, child) { return Some(l); } }
+                None
+            }
+            let link = find_link(&arena, root).expect("no Link found");
+            arena[link].children.iter().map(|&id| SyntaxT::from(&arena[id].data)).collect()
+        }
+
+        /// Plain-text description becomes a `PlainText` child of the link.
+        #[test]
+        fn plain_description_is_child() {
+            let children = link_children("[[https://example.com][OpenPGP]]\n");
+            assert!(
+                children.contains(&SyntaxT::PlainText),
+                "expected PlainText child for link description; got {children:?}"
+            );
+        }
+
+        /// A link without a description has no children.
+        #[test]
+        fn no_description_no_children() {
+            let children = link_children("[[https://example.com]]\n");
+            assert!(
+                children.is_empty(),
+                "link without description should have no children; got {children:?}"
+            );
+        }
+
+        /// A description containing bold markup yields a `Bold` child.
+        #[test]
+        fn bold_description_is_child() {
+            let children = link_children("[[https://example.com][*bold*]]\n");
+            assert!(
+                children.contains(&SyntaxT::Bold),
+                "expected Bold child for bold link description; got {children:?}"
+            );
+        }
+    }
+
     #[test]
     fn table_rows_including_hline() {
         let input = "| Name | Age |\n|------+-----|\n| Alice | 30 |\n";
