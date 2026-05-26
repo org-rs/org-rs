@@ -25,9 +25,7 @@ use crate::data::{
     SyntaxT, TimestampData,
 };
 
-use crate::blocks::{
-    REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL, REGEX_DYNAMIC_BLOCK, REGEX_STARTS_WITH_HASHTAG,
-};
+use crate::blocks::{REGEX_BLOCK_BEGIN, REGEX_DYNAMIC_BLOCK};
 use crate::drawer::REGEX_DRAWER;
 use crate::headline::{
     REGEX_CLOCK_LINE, REGEX_PLANNING_LINE, REGEX_PROPERTY_DRAWER,
@@ -36,7 +34,6 @@ use crate::keyword::*;
 use crate::latex::REGEX_LATEX_BEGIN_ENVIRIONMENT;
 use crate::list::*;
 use crate::markup::REGEX_DIARY_SEXP;
-use crate::markup::REGEX_FIXED_WIDTH;
 use crate::markup::REGEX_FOOTNOTE_DEFINITION;
 use crate::markup::REGEX_HORIZONTAL_RULE;
 use crate::table::REGEX_TABLE_BORDER;
@@ -425,52 +422,70 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             match content_byte {
                 // Hashtag group: comments, blocks, babel, dynamic, keyword
                 Some(b'#') => {
-                    let hashtag_end =
-                        looking_at!(REGEX_STARTS_WITH_HASHTAG, self).map(|m| m.end());
-                    if let Some(end) = hashtag_end {
-                        self.cursor.set(cur2 + end);
-                        if looking_at!(REGEX_COLON_OR_EOL, self).is_some() {
-                            self.cursor.goto_line_begin();
-                            return self.comment_parser(span);
-                        }
-                        let block_name = capturing_at!(REGEX_BLOCK_BEGIN, self)
-                            .and_then(|cap| cap.get(1).map(|m| m.as_str().to_ascii_uppercase()));
-                        if let Some(name) = block_name {
-                            self.cursor.goto_line_begin();
-                            return match name.as_ref() {
-                                "CENTER" => self.center_block_parser(span),
-                                "COMMENT" => self.comment_block_parser(span),
-                                "EXAMPLE" => self.example_block_parser(span),
-                                "EXPORT" => self.export_block_parser(span),
-                                "QUOTE" => self.quote_block_parser(span),
-                                "SRC" => self.src_block_parser(span),
-                                "VERSE" => self.verse_block_parser(span),
-                                _ => self.special_block_parser(span),
-                            };
-                        }
-                        if looking_at!(REGEX_BABEL_CALL, self).is_some() {
-                            self.cursor.goto_line_begin();
-                            return self.babel_call_parser(span);
-                        }
-                        if looking_at!(REGEX_DYNAMIC_BLOCK, self).is_some() {
-                            self.cursor.goto_line_begin();
-                            return self.dynamic_block_parser(span);
-                        }
-                        if looking_at!(REGEX_KEYWORD, self).is_some() {
-                            self.cursor.goto_line_begin();
-                            return self.keyword_parser(span);
-                        }
+                    // content_byte == b'#' guarantees a '#' exists after optional
+                    // leading whitespace at cur2.  Find it with a byte scan instead
+                    // of running the regex engine.
+                    let bytes = &self.input.as_bytes()[cur2..];
+                    let hash_i = bytes
+                        .iter()
+                        .position(|&b| b != b' ' && b != b'\t')
+                        .unwrap_or(0);
+                    let end = hash_i + 1; // one past '#'
+                    self.cursor.set(cur2 + end);
+                    // COLON_OR_EOL: byte after '#' is ' ', '\n', or end-of-input.
+                    if matches!(
+                        self.input.as_bytes().get(cur2 + end),
+                        None | Some(b' ' | b'\n')
+                    ) {
                         self.cursor.goto_line_begin();
-                        return self.paragraph_parser(span);
+                        return self.comment_parser(span);
                     }
+                    let block_name = capturing_at!(REGEX_BLOCK_BEGIN, self)
+                        .and_then(|cap| cap.get(1).map(|m| m.as_str().to_ascii_uppercase()));
+                    if let Some(name) = block_name {
+                        self.cursor.goto_line_begin();
+                        return match name.as_ref() {
+                            "CENTER" => self.center_block_parser(span),
+                            "COMMENT" => self.comment_block_parser(span),
+                            "EXAMPLE" => self.example_block_parser(span),
+                            "EXPORT" => self.export_block_parser(span),
+                            "QUOTE" => self.quote_block_parser(span),
+                            "SRC" => self.src_block_parser(span),
+                            "VERSE" => self.verse_block_parser(span),
+                            _ => self.special_block_parser(span),
+                        };
+                    }
+                    if looking_at!(REGEX_BABEL_CALL, self).is_some() {
+                        self.cursor.goto_line_begin();
+                        return self.babel_call_parser(span);
+                    }
+                    if looking_at!(REGEX_DYNAMIC_BLOCK, self).is_some() {
+                        self.cursor.goto_line_begin();
+                        return self.dynamic_block_parser(span);
+                    }
+                    if looking_at!(REGEX_KEYWORD, self).is_some() {
+                        self.cursor.goto_line_begin();
+                        return self.keyword_parser(span);
+                    }
+                    self.cursor.goto_line_begin();
+                    return self.paragraph_parser(span);
                 }
                 // Drawer / fixed-width
                 Some(b':') => {
                     if looking_at!(REGEX_DRAWER, self).is_some() {
                         return self.drawer_parser(span);
                     }
-                    if looking_at!(REGEX_FIXED_WIDTH, self).is_some() {
-                        return self.fixed_width_parser(span);
+                    // Fixed-width: `[ \t]*:( |$)` — content_byte is ':' so the colon
+                    // position is already known; just test the byte that follows it.
+                    {
+                        let bytes = &self.input.as_bytes()[cur2..];
+                        let colon_i = bytes
+                            .iter()
+                            .position(|&b| b != b' ' && b != b'\t')
+                            .unwrap_or(0);
+                        if matches!(bytes.get(colon_i + 1), None | Some(b' ' | b'\n')) {
+                            return self.fixed_width_parser(span);
+                        }
                     }
                 }
                 // Table

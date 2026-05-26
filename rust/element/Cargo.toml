@@ -23,6 +23,11 @@ name = "parse"
 path = "benches/parse.rs"
 harness = false
 
+[[bench]]
+name = "pattern"
+path = "benches/pattern.rs"
+harness = false
+
 [[bin]]
 name = "corpus-check"
 path = "src/bin/corpus_check.rs"

@@ -19,7 +19,7 @@
 use memchr::{memchr, memrchr};
 use regex::{Captures, Match, Regex};
 
-use crate::headline::{REGEX_HEADLINE_MULTILINE, REGEX_HEADLINE_SHORT};
+use crate::headline::REGEX_HEADLINE_MULTILINE;
 
 lazy_static! {
     pub static ref REGEX_EMPTY_LINE: CachedRegex =
@@ -447,14 +447,22 @@ impl<'a> Cursor<'a> {
     }
 
     /// Return true if cursor is on a headline.
-    /// corresponds to `org-at-heading-p`
+    /// Corresponds to `org-at-heading-p`.
+    ///
+    /// Implemented as a direct byte check: find the start of the current line
+    /// (using `memrchr` if not already at BOL), count leading `*` bytes, then
+    /// verify the next byte is a space or tab.  No regex, no cursor mutation.
     #[inline]
-    pub fn on_headline(&mut self) -> bool {
-        let pos = self.pos();
-        self.goto_line_begin();
-        let result = self.looking_at(&*REGEX_HEADLINE_SHORT).is_some();
-        self.set(pos);
-        result
+    pub fn on_headline(&self) -> bool {
+        let bytes = self.data.as_bytes();
+        let line_start = if self.is_bol() {
+            self.pos
+        } else {
+            memrchr(b'\n', &bytes[..self.pos]).map_or(0, |i| i + 1)
+        };
+        let tail = &bytes[line_start..];
+        let n = tail.iter().take_while(|&&b| b == b'*').count();
+        n > 0 && tail.get(n).map_or(false, |&b| b == b' ' || b == b'\t')
     }
 
     #[inline]
