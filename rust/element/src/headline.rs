@@ -61,22 +61,46 @@ lazy_static! {
     pub static ref REGEX_CLOCK_LINE: Regex = Regex::new(r"(?i)^[ \t]*clock:").unwrap();
 }
 
+/// Packed bitflags for [`HeadlineData`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HeadlineFlags(u8);
+
+impl HeadlineFlags {
+    const ARCHIVEDP: u8         = 0b0001;
+    const COMMENTEDP: u8        = 0b0010;
+    const FOOTNOTE_SECTION_P: u8 = 0b0100;
+    const QUOTEDP: u8           = 0b1000;
+
+    #[inline]
+    pub fn new(archivedp: bool, commentedp: bool, footnote_section_p: bool, quotedp: bool) -> Self {
+        let mut f = 0;
+        if archivedp         { f |= Self::ARCHIVEDP; }
+        if commentedp        { f |= Self::COMMENTEDP; }
+        if footnote_section_p { f |= Self::FOOTNOTE_SECTION_P; }
+        if quotedp           { f |= Self::QUOTEDP; }
+        HeadlineFlags(f)
+    }
+
+    #[inline]
+    pub fn archivedp(self)         -> bool { self.0 & Self::ARCHIVEDP != 0 }
+    #[inline]
+    pub fn commentedp(self)        -> bool { self.0 & Self::COMMENTEDP != 0 }
+    #[inline]
+    pub fn footnote_section_p(self) -> bool { self.0 & Self::FOOTNOTE_SECTION_P != 0 }
+    #[inline]
+    pub fn quotedp(self)           -> bool { self.0 & Self::QUOTEDP != 0 }
+}
+
 #[derive(Debug)]
 pub struct HeadlineData<'a> {
-    /// Non-nil if the headline has an archive tag.
-    pub archivedp: bool,
+    /// Packed flags.
+    flags: HeadlineFlags,
 
     /// Headline's CLOSED reference, if any.
     pub closed: Option<TimestampData<'a>>,
 
-    /// Non-nil if the headline has a comment keyword.
-    pub commentedp: bool,
-
     /// Headline's DEADLINE reference, if any.
     pub deadline: Option<TimestampData<'a>>,
-
-    /// Non-nil if the headline is a footnote section.
-    pub footnote_section_p: bool,
 
     /// Reduced level of the headline (number of stars).
     pub level: usize,
@@ -86,9 +110,6 @@ pub struct HeadlineData<'a> {
 
     /// Headline's priority, as a character.
     pub priority: usize,
-
-    /// Non-nil if the headline contains a quote keyword.
-    pub quotedp: bool,
 
     /// Raw headline text, without the stars and the tags.
     pub raw_value: &'a str,
@@ -108,6 +129,17 @@ pub struct HeadlineData<'a> {
 
     /// Headline's TODO keyword, if any.
     pub todo_keyword: Option<TodoKeyword>,
+}
+
+impl<'a> HeadlineData<'a> {
+    #[inline]
+    pub fn archivedp(&self) -> bool { self.flags.archivedp() }
+    #[inline]
+    pub fn commentedp(&self) -> bool { self.flags.commentedp() }
+    #[inline]
+    pub fn footnote_section_p(&self) -> bool { self.flags.footnote_section_p() }
+    #[inline]
+    pub fn quotedp(&self) -> bool { self.flags.quotedp() }
 }
 
 #[derive(Debug)]
@@ -238,15 +270,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         let data = HeadlineData {
-            archivedp: tags.iter().any(|t| t.0 == "ARCHIVE"),
+            flags: HeadlineFlags::new(
+                tags.iter().any(|t| t.0 == "ARCHIVE"),
+                commentedp,
+                false, // footnote_section_p
+                false, // quotedp
+            ),
             closed: None,
-            commentedp,
             deadline: None,
-            footnote_section_p: false,
             level,
             pre_blank: 0,
             priority,
-            quotedp: false,
             raw_value,
             scheduled: None,
             tags,

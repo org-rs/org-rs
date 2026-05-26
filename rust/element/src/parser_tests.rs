@@ -1323,9 +1323,9 @@ mod object_parsing {
         let link_node = para_children.first().expect("Expected link");
         if let Syntax::Link(data) = &arena[*link_node].data {
             assert!(
-                matches!(data.link_type, LinkType::File),
+                matches!(data.link_type(), LinkType::File),
                 "Expected LinkType::File for https link, got {:?}",
-                data.link_type
+                data.link_type()
             );
         } else {
             panic!("Expected Link, got: {:?}", arena[*link_node].data);
