@@ -129,6 +129,7 @@ impl<'a> ElementSpanBuilder<'a> {
 
 impl<'a> ElementSpan<'a> {
     #[inline]
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(span: impl Into<Interval>) -> ElementSpanBuilder<'a> {
         ElementSpanBuilder { span: span.into(), affiliated: None }
     }
@@ -210,13 +211,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Original algorithm does not take into account granularity, and it is probably a bug.
     ///
     /// - It is unclear what should be the type of the field that stores the
-    /// object since it can contain many objects.
+    ///   object since it can contain many objects.
     ///
     /// - It is unclear who should be the "parent" of these objects.  parse-objects function says
-    /// that: "Eventually, if both ACC and PARENT are nil, the common parent is the list of
-    /// objects itself." - It is hard to encode this into a type system, since in all other
-    /// cases, apart from affiliated keywords, objects parents are nodes of syntax trees
-    /// (ACC or PARENT)
+    ///   that: "Eventually, if both ACC and PARENT are nil, the common parent is the list of
+    ///   objects itself." - It is hard to encode this into a type system, since in all other
+    ///   cases, apart from affiliated keywords, objects parents are nodes of syntax trees
+    ///   (ACC or PARENT)
     #[inline]
     pub fn collect_affiliated_keywords(&mut self, limit: usize) -> ElementSpan<'a> {
         if !self.cursor.is_bol() {
@@ -252,10 +253,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
             let value = Cow::from(self.input[value_begin..value_end].trim());
 
-            let secondary_value = match captures.name("SECONDARY") {
-                None => None,
-                Some(sec) => Some(Cow::from(sec.as_str().trim())),
-            };
+            let secondary_value = captures.name("SECONDARY").map(|sec| Cow::from(sec.as_str().trim()));
 
             match matched.0 {
                 "CAPTION" => output.caption.push(DualVal {
@@ -265,7 +263,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
                 "RESULTS" => {
                     output.results = Some(DualVal {
-                        value: value,
+                        value,
                         secondary: secondary_value,
                     })
                 }
@@ -295,7 +293,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return ElementSpan::new((origin, limit)).build();
         }
 
-        return ElementSpan::new((origin, limit)).affiliated(Some(output)).build();
+        ElementSpan::new((origin, limit)).affiliated(Some(output)).build()
     }
 }
 

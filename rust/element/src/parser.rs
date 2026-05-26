@@ -179,7 +179,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             }
 
             {
-                let line_end = memchr(b'\n', self.input[current_pos..span.end].as_bytes())
+                let line_end = memchr(b'\n', &self.input.as_bytes()[current_pos..span.end])
                     .map_or(span.end, |i| current_pos + i + 1);
                 if self.input[current_pos..line_end].trim().is_empty() {
                     self.cursor.set(line_end);
@@ -187,10 +187,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 }
             }
 
-            let list_struct = match &structure {
-                None => None,
-                Some(rc) => Some(rc.clone()),
-            };
+            let list_struct = structure.as_ref().map(|rc| rc.clone());
             let element = self.current_element(span.end, mode, list_struct);
 
             let element_end;
@@ -327,7 +324,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 let maybe_headline_offset = self.cursor.line_beginning_position(Some(0));
                 let maybe_star = self.cursor.char_after(maybe_headline_offset);
                 let is_prev_line_headline = Some('*') == maybe_star;
-                let is_match_planning = self.cursor.looking_at(&*REGEX_PLANNING_LINE).is_some();
+                let is_match_planning = self.cursor.looking_at(&REGEX_PLANNING_LINE).is_some();
 
                 if mode == Planning && is_prev_line_headline && is_match_planning {
                     return self.planning_parser(limit);
@@ -340,7 +337,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 let maybe_star = self.cursor.char_after(maybe_headline_offset);
                 let is_prev_line_headline = Some('*') == maybe_star;
                 let is_match_property_drawer =
-                    self.cursor.looking_at(&*REGEX_PROPERTY_DRAWER).is_some();
+                    self.cursor.looking_at(&REGEX_PROPERTY_DRAWER).is_some();
 
                 if (mode == Planning || mode == PropertyDrawer)
                     && is_prev_line_headline
@@ -477,18 +474,21 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     }
                 }
                 // Table
+                #[allow(clippy::collapsible_match)]
                 Some(b'|') => {
                     if looking_at!(REGEX_TABLE_BORDER, self).is_some() {
                         return self.table_parser(span);
                     }
                 }
                 // Horizontal rule
+                #[allow(clippy::collapsible_match)]
                 Some(b'-') => {
                     if looking_at!(REGEX_HORIZONTAL_RULE, self).is_some() {
                         return self.horizontal_rule_parser(span);
                     }
                 }
                 // Clock (with leading whitespace allowed)
+                #[allow(clippy::collapsible_match)]
                 Some(b'C') => {
                     if looking_at!(REGEX_CLOCK_LINE, self).is_some() {
                         return self.clock_line_parser(limit);
@@ -503,7 +503,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 return self.plain_list_parser(span, s.clone());
             }
 
-            return self.paragraph_parser(span);
+            self.paragraph_parser(span)
         };
 
         let current_element = get_current_element();

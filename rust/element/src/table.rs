@@ -99,7 +99,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let start = self.cursor.pos();
         let limit = self.input.len();
 
-        let end = memchr(b'\n', self.input[start..limit].as_bytes())
+        let end = memchr(b'\n', &self.input.as_bytes()[start..limit])
             .map_or(limit, |i| (start + i + 1).min(limit));
 
         let row_type = if REGEX_TABLE_RULE.is_match(&self.input[start..end]) {
@@ -119,7 +119,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let mut rows: Vec<NodeId> = Vec::new();
             loop {
                 if current >= span.end { break; }
-                let line_end = memchr(b'\n', self.input[current..span.end].as_bytes())
+                let line_end = memchr(b'\n', &self.input.as_bytes()[current..span.end])
                     .map_or(span.end, |i| current + i + 1);
                 let line = &self.input[current..line_end];
                 if line.trim().is_empty() || !REGEX_TABLE_BORDER.is_match(line) { break; }
@@ -138,11 +138,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             .lines()
             .find_map(|line| REGEX_TBLFM.captures(line).map(|c| c.get(1).map_or("", |m| m.as_str().trim())));
 
-        let post_blank = (end < span.end).then(|| {
+        let post_blank = if end < span.end {
             let remaining = &self.input[end..span.end];
             remaining.len() - remaining.trim_start().len()
-        })
-        .unwrap_or(0);
+        } else {
+            0
+        };
 
         match formula {
             None => {

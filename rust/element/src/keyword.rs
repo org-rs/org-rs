@@ -40,13 +40,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     #[inline]
     pub fn keyword_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated: _ } = element_span;
-        let line_end = memchr(b'\n', self.input[start..limit].as_bytes())
+        let line_end = memchr(b'\n', &self.input.as_bytes()[start..limit])
             .map_or(limit, |i| start + i + 1);
 
         let line = &self.input[start..line_end].trim_end();
 
         let stripped = line.trim_start();
-        let after_hash = if stripped.starts_with("#+") { &stripped[2..] } else { stripped };
+        let after_hash = stripped.strip_prefix("#+").unwrap_or(stripped);
 
         let (key, value) = match after_hash.find(':') {
             Some(i) => (&after_hash[..i], after_hash.get(i + 1..).unwrap_or("").trim_start()),
