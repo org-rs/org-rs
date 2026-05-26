@@ -1,6 +1,6 @@
 use goof::Error;
 use lexpr::Value;
-use org_element::data::{NodeArena, NodeId, Syntax, SyntaxT};
+use org_element::data::{NodeArena, NodeId, ScriptKind, Syntax, SyntaxT};
 use org_element::environment::DefaultEnvironment;
 use org_element::parser::{ParseGranularity, Parser};
 use std::cell::RefCell;
@@ -60,7 +60,16 @@ fn intern_type(raw: &str) -> TypeKey {
     INTERNER.with(|i| i.borrow_mut().intern(raw))
 }
 
+/// Map Emacs org-element type names to a canonical form before normalisation.
+/// Where Emacs uses finer-grained names than Rust (e.g. subscript/superscript),
+/// the Rust side is responsible for emitting the Emacs-compatible name — so
+/// Emacs names pass through unchanged here.
+fn canonical_type(s: &str) -> &str {
+    s
+}
+
 fn normalize_type(s: &str) -> String {
+    let s = canonical_type(s);
     let without_hyphens = s.replace('-', "_");
     let mut result = String::new();
     let mut after_sep = false;
@@ -289,7 +298,15 @@ impl Discrepancy {
 }
 
 fn rust_type_key(syntax: &Syntax) -> TypeKey {
-    intern_type(&format!("{:?}", SyntaxT::from(syntax)))
+    // For types where Emacs uses a finer-grained name than Rust's single
+    // variant, emit the Emacs-compatible name so both sides share the same key.
+    match syntax {
+        Syntax::Script(flags) => intern_type(match flags.kind() {
+            ScriptKind::Sub => "subscript",
+            ScriptKind::Sup => "superscript",
+        }),
+        _ => intern_type(&format!("{:?}", SyntaxT::from(syntax))),
+    }
 }
 
 fn compare(
