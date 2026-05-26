@@ -163,6 +163,7 @@ pub struct PlainListData<'a> {
 }
 
 #[derive(Debug)]
+#[repr(u8)]
 pub enum ListKind {
     Descriptive,
     Ordered,
@@ -170,6 +171,7 @@ pub enum ListKind {
 }
 
 #[derive(Debug, Clone)]
+#[repr(u8)]
 pub enum CheckBox {
     On,
     Off,

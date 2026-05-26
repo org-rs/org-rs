@@ -83,6 +83,7 @@ pub struct SpreadsheetCellData<'a> {
 }
 
 #[derive(Debug)]
+#[repr(u8)]
 pub enum TableRowType {
     Standard,
     Rule,

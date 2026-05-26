@@ -45,6 +45,7 @@ use crate::table::{REGEX_TABLE_BORDER, REGEX_TABLE_PRE_BORDER, REGEX_TABLE_RULE}
 
 /// determines the depth of the recursion.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
 pub enum ParseGranularity {
     /// Only parse headlines.
     Headline,
@@ -62,6 +63,7 @@ pub enum ParseGranularity {
 ///
 /// @ngortheone - it looks like these are states of parser's finite automata
 #[derive(Copy, Clone, PartialEq)]
+#[repr(u8)]
 pub enum ParserMode {
     FirstSection,
     Section,
