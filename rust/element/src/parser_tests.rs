@@ -94,7 +94,7 @@ mod plain_list {
     fn list_empty() {
         let input = "- \n";
         let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert!(count >= 0, "Plain list count: {}", count);
+        assert!(count > 0, "Plain list count: {}", count);
     }
 
     #[test]
@@ -127,16 +127,16 @@ mod item {
 
     #[test]
     fn item_with_bullet() {
-        let input = "* some text\n";
+        let input = "+ some text\n";
         let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert!(count >= 0, "Item count: {}", count);
+        assert!(count > 0, "Item count: {}", count);
     }
 
     #[test]
     fn item_with_tag() {
         let input = "- tag :: content\n";
         let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert!(count >= 0, "Item count: {}", count);
+        assert!(count > 0, "Item count: {}", count);
     }
 
     #[test]
@@ -543,7 +543,7 @@ mod blocks {
             ParseGranularity::Element,
             DefaultEnvironment,
         );
-        let (arena, root) = parser.parse_buffer();
+        let (_arena, _root) = parser.parse_buffer();
         let count = get_type_count(
             "#+BEGIN_CENTER\ncenter\n#+end_center \n",
             SyntaxT::CenterBlock,
@@ -1084,7 +1084,7 @@ mod keyword {
             ParseGranularity::Element,
             DefaultEnvironment,
         );
-        let (arena, root) = parser.parse_buffer();
+        let (_arena, _root) = parser.parse_buffer();
         let count = get_type_count(
             "#+KEY: val\n#+EMPTY:\n#+COLONS: a::b::c\n#+UNICODE: café 标签\n",
             SyntaxT::Keyword,
