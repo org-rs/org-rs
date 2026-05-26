@@ -18,19 +18,64 @@ use crate::cursor::CachedRegex;
 use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use lazy_static::lazy_static;
-use memchr::memchr;
+use memchr::{memchr, memrchr, memmem};
 use regex::Regex;
 
 lazy_static! {
-    /// Matches first or last line of a drawer
-    /// Group 1 contains drawer's name or "END"
-    /// Note: (?m) enables multiline mode so ^ matches line start
+    /// Matches first or last line of a drawer.
+    /// Group 1 contains the drawer's name or `END`.
     pub static ref REGEX_DRAWER: CachedRegex =
         CachedRegex::new(Regex::new(r"(?im)^[ \t]*:((?:\w|[-_])+):[ \t]*$").unwrap());
 }
 
-/// Check whether `line` (a single line, without trailing newline) is
-/// a drawer-end line — i.e. `:END:` with optional surrounding whitespace.
+/// Locate the byte position past the `:END:` line within `bytes[start..limit]`
+/// using a single SIMD substring scan, verifying that only ASCII whitespace
+/// surrounds the marker on its line.
+///
+/// Returns `Some(end)` where `end` is the position of the first byte of the
+/// line following `:END:`, or `limit` if `:END:` ends at the region boundary.
+/// Returns `None` if no valid uppercase `:END:` line is found.
+#[inline]
+fn find_end_memmem(bytes: &[u8], start: usize, limit: usize) -> Option<usize> {
+    for off in memmem::find_iter(&bytes[start..limit], b":END:") {
+        let pos = start + off;
+        let line_start = memrchr(b'\n', &bytes[start..pos])
+            .map_or(start, |i| start + i + 1);
+        if !bytes[line_start..pos].iter().all(|&b| b == b' ' || b == b'\t') {
+            continue;
+        }
+        let after = pos + 5;
+        let line_end = memchr(b'\n', &bytes[after..limit])
+            .map_or(limit, |i| after + i);
+        if !bytes[after..line_end].iter().all(|&b| b == b' ' || b == b'\t') {
+            continue;
+        }
+        return Some(if line_end < limit { line_end + 1 } else { line_end });
+    }
+    None
+}
+
+/// Fallback `:END:` search used only when the SIMD fast path found no uppercase
+/// match.  Walks line-by-line with a case-insensitive comparison to handle
+/// exotic casing such as `:end:` or `:End:`.
+#[cold]
+fn find_end_linewise(input: &str, start: usize, limit: usize) -> Option<usize> {
+    let bytes = input.as_bytes();
+    let mut pos = start;
+    while pos < limit {
+        let line_end = memchr(b'\n', &bytes[pos..limit]).map_or(limit, |i| pos + i);
+        let line = &input[pos..line_end];
+        if is_end_line(line) {
+            return Some(if line_end < limit { line_end + 1 } else { line_end });
+        }
+        pos = if line_end < limit { line_end + 1 } else { limit };
+    }
+    None
+}
+
+/// Returns `true` when `line` (a single line without its trailing newline) is
+/// a drawer-end marker: `:END:` with optional surrounding ASCII whitespace,
+/// case-insensitive.
 #[inline]
 fn is_end_line(line: &str) -> bool {
     let trimmed = line.trim();
@@ -58,23 +103,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
             }
 
-            let mut search_pos = start;
-            let mut end = limit;
-            let mut found_end = false;
+            let bytes = self.input.as_bytes();
+            let end_pos = find_end_memmem(bytes, start, limit)
+                .or_else(|| find_end_linewise(self.input, start, limit));
 
-            while search_pos < limit {
-                let line_end = memchr(b'\n', &self.input.as_bytes()[search_pos..limit])
-                    .map_or(limit, |i| search_pos + i);
-                let line = &self.input[search_pos..line_end];
-
-                if is_end_line(line) {
-                    end = if line_end < limit { line_end + 1 } else { line_end };
-                    found_end = true;
-                    break;
-                }
-
-                search_pos = if line_end < limit { line_end + 1 } else { limit };
-            }
+            let (end, found_end) = match end_pos {
+                Some(e) => (e, true),
+                None => (limit, false),
+            };
 
             if !found_end {
                 return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));

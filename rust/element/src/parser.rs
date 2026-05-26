@@ -89,6 +89,87 @@ macro_rules! capturing_at {
     };
 }
 
+/// Returns `true` when `b` is an Org-mode pre-character: a byte that may
+/// immediately precede an emphasis marker or plain-link protocol to open a
+/// markup span.
+#[inline]
+fn is_pre_char(b: u8) -> bool {
+    matches!(b, b' ' | b'\t' | b'\n' | b'(' | b'{' | b'\'' | b'"' | b'-')
+}
+
+/// Returns `true` when `b` is an Org-mode post-character: a byte that may
+/// immediately follow a closing emphasis marker or the end of a plain link.
+#[inline]
+fn is_post_char(b: u8) -> bool {
+    matches!(
+        b,
+        b' ' | b'\t' | b'\n' | b'.' | b',' | b'!' | b'?' | b';' | b':'
+            | b'\'' | b')' | b'}' | b'\\' | b'[' | b'-'
+    )
+}
+
+/// Scan `bytes` for the first position that ends a plain-text run, returning
+/// the number of bytes that belong to the run.
+///
+/// Four independent SIMD cursors track the next candidate byte for each
+/// mutually-exclusive character group.  When a candidate fails its contextual
+/// check only that group's cursor is advanced; the other three retain their
+/// previously found positions, eliminating the rescanning that a single shared
+/// offset would cause.
+///
+/// Groups and their stop conditions:
+/// - `[` — always a stop (link / footnote / timestamp opener)
+/// - `*` `/` `_` — stop when preceded by a pre-char
+/// - `+` `=` `~` — stop when preceded by a pre-char
+/// - `h` `f` `m` — stop when preceded by a pre-char and followed by a
+///   recognised URL protocol prefix
+///
+/// Returns zero when no plain-text bytes are available at the start of
+/// `bytes`.
+#[inline]
+fn scan_plain_text_end(bytes: &[u8]) -> usize {
+    let p1 = memchr(b'[', bytes);
+    let mut p2 = memchr3(b'*', b'/', b'_', bytes);
+    let mut p3 = memchr3(b'+', b'=', b'~', bytes);
+    let mut p4 = memchr3(b'h', b'f', b'm', bytes);
+
+    loop {
+        let i = match [p1, p2, p3, p4].iter().copied().flatten().min() {
+            None => return bytes.len(),
+            Some(pos) => pos,
+        };
+        let b = bytes[i];
+
+        if b == b'[' {
+            return i;
+        }
+        if matches!(b, b'*' | b'/' | b'_' | b'+' | b'=' | b'~')
+            && i > 0
+            && is_pre_char(bytes[i - 1])
+        {
+            return i;
+        }
+        if matches!(b, b'h' | b'f' | b'm')
+            && (i == 0 || is_pre_char(bytes[i - 1]))
+            && (bytes[i..].starts_with(b"https://")
+                || bytes[i..].starts_with(b"http://")
+                || bytes[i..].starts_with(b"ftp://")
+                || bytes[i..].starts_with(b"mailto:"))
+        {
+            return i;
+        }
+
+        let next = i + 1;
+        let rest = &bytes[next..];
+        match b {
+            b'[' => unreachable!(),
+            b'*' | b'/' | b'_' => p2 = memchr3(b'*', b'/', b'_', rest).map(|r| next + r),
+            b'+' | b'=' | b'~' => p3 = memchr3(b'+', b'=', b'~', rest).map(|r| next + r),
+            _ => p4 = memchr3(b'h', b'f', b'm', rest).map(|r| next + r),
+        }
+    }
+}
+
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     #[inline]
     pub fn new(
@@ -625,30 +706,6 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         children
     }
 
-    fn is_pre_char(b: u8) -> bool {
-        matches!(b, b' ' | b'\t' | b'\n' | b'(' | b'{' | b'\'' | b'"' | b'-')
-    }
-
-    fn is_post_char(b: u8) -> bool {
-        matches!(
-            b,
-            b' ' | b'\t'
-                | b'\n'
-                | b'.'
-                | b','
-                | b'!'
-                | b'?'
-                | b';'
-                | b':'
-                | b'\''
-                | b')'
-                | b'}'
-                | b'\\'
-                | b'['
-                | b'-'
-        )
-    }
-
     fn try_parse_bold(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         self.parse_emphasis_marker(text, start, b'*', SyntaxT::Bold)
     }
@@ -689,7 +746,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     if i + 1 < bytes.len() && bytes[i + 1] == b']' {
                         let after = i + 2;
                         let valid_post =
-                            after >= bytes.len() || Self::is_post_char(bytes[after]);
+                            after >= bytes.len() || is_post_char(bytes[after]);
                         if valid_post {
                             found_close = Some(after);
                             break;
@@ -735,7 +792,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     if i + 1 < bytes.len() && bytes[i + 1] == b'>' {
                         let after = i + 2;
                         let valid_post =
-                            after >= bytes.len() || Self::is_post_char(bytes[after]);
+                            after >= bytes.len() || is_post_char(bytes[after]);
                         if valid_post {
                             found_close = Some(after);
                             break;
@@ -808,7 +865,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                         let prev = bytes[i - 1];
                         if prev != b' ' && prev != b'\t' && prev != b'\n' {
                             let valid_post =
-                                i + 1 >= text.len() || Self::is_post_char(bytes[i + 1]);
+                                i + 1 >= text.len() || is_post_char(bytes[i + 1]);
                             if valid_post {
                                 found_close = Some(i);
                                 break;
@@ -908,96 +965,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     fn try_parse_plain_text(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
-        if text.is_empty() {
-            return None;
-        }
-
-        let bytes = text.as_bytes();
-
-        // Four independent SIMD cursors, one per character group.
-        //
-        // Design rationale — eliminating overscan
-        // ----------------------------------------
-        // A naïve single-scan approach re-runs all four memchr calls from
-        // the same offset every time a candidate fails its contextual check
-        // (pre-char guard, URL-prefix test).  That re-scans three groups that
-        // haven't moved, wasting work proportional to false-candidate density.
-        //
-        // With four independent absolute-position cursors we advance only the
-        // cursor whose candidate failed; the other three retain the positions
-        // they already found.  A typical Org-mode paragraph contains very few
-        // stop characters relative to its length, so each cursor advances a
-        // handful of times at most regardless of text length.
-        //
-        // Group assignment (mutually exclusive — each byte belongs to ≤ 1 group):
-        //   p1: b'['           — links, footnotes, timestamps (always stops)
-        //   p2: b'*' b'/' b'_' — emphasis markers A (stops if pre-char precedes)
-        //   p3: b'+' b'=' b'~' — emphasis markers B (stops if pre-char precedes)
-        //   p4: b'h' b'f' b'm' — URL first-byte    (stops if pre-char + protocol)
-        let p1 = memchr(b'[', bytes);
-        let mut p2 = memchr3(b'*', b'/', b'_', bytes);
-        let mut p3 = memchr3(b'+', b'=', b'~', bytes);
-        let mut p4 = memchr3(b'h', b'f', b'm', bytes);
-
-        let mut consume;
-
-        loop {
-            let ps = [p1, p2, p3, p4];
-            let i = match ps.iter().copied().flatten().min() {
-                None => {
-                    consume = bytes.len();
-                    break;
-                }
-                Some(pos) => pos,
-            };
-
-            let b = bytes[i];
-
-            if b == b'[' {
-                consume = i;
-                break;
-            }
-
-            if matches!(b, b'*' | b'/' | b'_' | b'+' | b'=' | b'~') && i > 0 {
-                if Self::is_pre_char(bytes[i - 1]) {
-                    consume = i;
-                    break;
-                }
-            }
-
-            if matches!(b, b'h' | b'f' | b'm') && (i == 0 || Self::is_pre_char(bytes[i - 1])) {
-                let url_rem = &bytes[i..];
-                if url_rem.starts_with(b"https://")
-                    || url_rem.starts_with(b"http://")
-                    || url_rem.starts_with(b"ftp://")
-                    || url_rem.starts_with(b"mailto:")
-                {
-                    consume = i;
-                    break;
-                }
-            }
-
-            // Candidate did not trigger a stop; include this byte and advance
-            // only the cursor whose group owns this byte value.
-            consume = i + 1;
-            let rest = &bytes[consume..];
-            match b {
-                b'[' => unreachable!(),
-                b'*' | b'/' | b'_' => p2 = memchr3(b'*', b'/', b'_', rest).map(|r| consume + r),
-                b'+' | b'=' | b'~' => p3 = memchr3(b'+', b'=', b'~', rest).map(|r| consume + r),
-                _ => p4 = memchr3(b'h', b'f', b'm', rest).map(|r| consume + r),
-            }
-        }
-
+        let consume = scan_plain_text_end(text.as_bytes());
         if consume == 0 {
             return None;
         }
-
-        let content = &text[..consume];
         let node = self.arena.alloc(
-            SyntaxNode::new(Syntax::PlainText(content), (start, start + consume)).build(),
+            SyntaxNode::new(Syntax::PlainText(&text[..consume]), (start, start + consume)).build(),
         );
-
         Some((node, consume))
     }
 
@@ -1020,7 +994,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             match memchr(closing, &bytes[search_pos..]) {
                 Some(offset) => {
                     let i = search_pos + offset;
-                    if i + 1 >= text.len() || Self::is_post_char(bytes[i + 1]) {
+                    if i + 1 >= text.len() || is_post_char(bytes[i + 1]) {
                         found_close = Some(i);
                         break;
                     }
