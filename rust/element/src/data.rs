@@ -200,6 +200,33 @@ impl<'a> NodeArena<'a> {
         NodeArena { nodes: Vec::new() }
     }
 
+    /// Create an arena pre-sized to hold `capacity` nodes.
+    ///
+    /// # When to use
+    ///
+    /// Pre-sizing the arena only pays off when two conditions hold simultaneously:
+    ///
+    /// 1. **The allocation fits within the CPU's L2 cache.**  `SyntaxNode` is
+    ///    large (~88 B+), so `capacity` above roughly `L2_bytes / 88` causes
+    ///    page-fault and TLB pressure that outweighs the savings from avoided
+    ///    Vec doublings.  On a typical 256 KB L2 that ceiling is ~2 900 nodes.
+    ///
+    /// 2. **The parser is long-lived and reused** across many calls, so the
+    ///    upfront cost amortises over many parses.  In the single-shot benchmark
+    ///    pattern (`Parser::new` → `parse_buffer` → drop) even a well-sized
+    ///    pre-allocation regressed performance by ~10–45% depending on corpus
+    ///    size, because the allocation overhead dominated for small inputs and
+    ///    the arena exceeded L2 for large ones.
+    ///
+    /// The `Parser` itself does **not** call this; it lets the arena grow
+    /// naturally via `Vec` doubling, which keeps the live working set small and
+    /// cache-hot throughout the parse.  Call this only from benchmarked, long-
+    /// lived contexts where you have measured a concrete win.
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        NodeArena { nodes: Vec::with_capacity(capacity) }
+    }
+
     /// Allocate a leaf node (no children, no parent).
     #[inline]
     pub fn alloc(&mut self, mut node: SyntaxNode<'a>) -> NodeId {

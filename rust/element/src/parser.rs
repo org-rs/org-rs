@@ -930,8 +930,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             if b == b'[' {
                 break;
             }
-            // Stop before bare URL protocols at word boundaries
-            if i == 0 || Self::is_pre_char(bytes[i - 1]) {
+            // Stop before bare URL protocols at word boundaries.
+            // Gate on the first byte first: all four protocols start with
+            // 'h', 'f', or 'm', so skip the pre-char and starts_with work
+            // for the vast majority of bytes that can never begin a URL.
+            if matches!(b, b'h' | b'f' | b'm')
+                && (i == 0 || Self::is_pre_char(bytes[i - 1]))
+            {
                 let rem = &bytes[i..];
                 if rem.starts_with(b"https://")
                     || rem.starts_with(b"http://")
