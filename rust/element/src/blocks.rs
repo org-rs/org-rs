@@ -49,6 +49,32 @@ pub struct DynamicBlockData<'a> {
     drawer_name: &'a str,
 }
 
+/// Packed bitflags shared by [`ExampleBlockData`] and [`SrcBlockData`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockFlags(u8);
+
+impl BlockFlags {
+    const PRESERVE_INDENT: u8 = 0b001;
+    const RETAIN_LABELS: u8  = 0b010;
+    const USE_LABELS: u8     = 0b100;
+
+    #[inline]
+    pub fn new(preserve_indent: bool, retain_labels: bool, use_labels: bool) -> Self {
+        let mut f = 0;
+        if preserve_indent { f |= Self::PRESERVE_INDENT; }
+        if retain_labels  { f |= Self::RETAIN_LABELS; }
+        if use_labels     { f |= Self::USE_LABELS; }
+        BlockFlags(f)
+    }
+
+    #[inline]
+    pub fn preserve_indent(self) -> bool { self.0 & Self::PRESERVE_INDENT != 0 }
+    #[inline]
+    pub fn retain_labels(self) -> bool  { self.0 & Self::RETAIN_LABELS != 0 }
+    #[inline]
+    pub fn use_labels(self) -> bool     { self.0 & Self::USE_LABELS != 0 }
+}
+
 #[derive(Debug)]
 pub struct ExampleBlockData<'a> {
     /// Format string used to write labels in current block,
@@ -70,19 +96,11 @@ pub struct ExampleBlockData<'a> {
     /// Optional header arguments (string or nil)
     parameters: Option<&'a str>,
 
-    /// Non_nil when indentation within the block mustn't be modified
-    /// upon export (boolean).
-    preserve_indent: bool,
-
-    /// Non_nil if labels should be kept visible upon export (boolean).
-    retain_labels: bool,
+    /// Packed flags.
+    flags: BlockFlags,
 
     /// Optional switches for code block export (string or nil).
     switches: Option<&'a str>,
-
-    /// Non_nil if links to labels contained in the block should
-    /// display the label instead of the line number (boolean).
-    use_labels: bool,
 
     /// Contents (string).
     value: &'a str,
@@ -123,18 +141,11 @@ pub struct SrcBlockData<'a> {
     /// Optional header arguments (string or nil).
     parameters: Option<&'a str>,
 
-    /// Non_nil when indentation within the block
-    /// mustn't be modified upon export (boolean).
-    preserve_indent: bool,
-    ///Non_nil if labels should be kept visible upon export (boolean).
-    retain_labels: bool,
+    /// Packed flags.
+    flags: BlockFlags,
 
     /// Optional switches for code block export (string or nil).
     switches: Option<&'a str>,
-
-    /// Non_nil if links to labels contained in the block
-    /// should display the label instead of the line number (boolean).
-    use_labels: bool,
 
     ///Source code (string).
     value: &'a str,
@@ -288,10 +299,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 number_lines: None,
                 options: "",
                 parameters: None,
-                preserve_indent: false,
-                retain_labels: false,
+                flags: BlockFlags::new(false, false, false),
                 switches: None,
-                use_labels: false,
                 value,
             })),
             bounds.location,
@@ -350,10 +359,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 language,
                 number_lines: None,
                 parameters: None,
-                preserve_indent: false,
-                retain_labels: false,
+                flags: BlockFlags::new(false, false, false),
                 switches: None,
-                use_labels: false,
                 value,
             })),
             bounds.location,

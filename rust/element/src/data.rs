@@ -719,6 +719,29 @@ pub struct PlanningData<'a> {
     pub scheduled: Option<TimestampData<'a>>,
 }
 
+/// Packed bitflags for [`EntityData`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EntityFlags(u8);
+
+impl EntityFlags {
+    const LATEX_MATH_P: u8 = 0b01;
+    const USE_BRACKETS_P: u8 = 0b10;
+
+    #[inline]
+    pub fn new(latex_math_p: bool, use_brackets_p: bool) -> Self {
+        let mut f = 0;
+        if latex_math_p { f |= Self::LATEX_MATH_P; }
+        if use_brackets_p { f |= Self::USE_BRACKETS_P; }
+        EntityFlags(f)
+    }
+
+    #[inline]
+    pub fn latex_math_p(self) -> bool { self.0 & Self::LATEX_MATH_P != 0 }
+
+    #[inline]
+    pub fn use_brackets_p(self) -> bool { self.0 & Self::USE_BRACKETS_P != 0 }
+}
+
 #[derive(Debug)]
 pub struct EntityData<'a> {
     /// Entity's ASCII representation (string).
@@ -730,19 +753,14 @@ pub struct EntityData<'a> {
     /// Entity's LaTeX representation (string).
     latex: &'a str,
 
-    /// Non-nil if entity's LaTeX representation should be
-    /// in math mode (boolean).
-    latex_math_p: bool,
+    /// Packed flags.
+    flags: EntityFlags,
 
     /// Entity's Latin-1 encoding representation (string).
     latin1: &'a str,
 
     /// Entity's name, without backslash nor brackets (string).
     name: &'a str,
-
-    /// Non-nil if entity is written with optional
-    /// brackets in original buffer (boolean).
-    use_brackets_p: bool,
 
     /// Entity's UTF-8 encoding representation (string).
     utf_8: &'a str,
@@ -813,10 +831,9 @@ impl<'a> EntityData<'a> {
             ascii,
             html,
             latex,
-            latex_math_p,
+            flags: EntityFlags::new(latex_math_p, false),
             latin1,
             name,
-            use_brackets_p: false,
             utf_8,
         })
     }
@@ -872,12 +889,61 @@ pub struct InlineSrcBlockData<'a> {
     value: &'a str,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum LinkFormat {
     Plain,
     Angle,
     Bracket,
+}
+
+/// Packed bitflags for [`LinkData`], combining [`LinkFormat`] (3 variants, 2 bits)
+/// and [`LinkType`] (6 variants, 3 bits) into a single byte.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LinkFlags(u8);
+
+impl LinkFlags {
+    const FORMAT_MASK: u8 = 0b00011;
+    const TYPE_SHIFT: u8 = 2;
+
+    #[inline]
+    pub fn new(format: LinkFormat, link_type: LinkType) -> Self {
+        let f = match format {
+            LinkFormat::Plain  => 0,
+            LinkFormat::Angle  => 1,
+            LinkFormat::Bracket => 2,
+        };
+        let t = match link_type {
+            LinkType::Coderef   => 0,
+            LinkType::CustomId  => 1,
+            LinkType::File      => 2,
+            LinkType::Fuzzy     => 3,
+            LinkType::Id        => 4,
+            LinkType::Radio     => 5,
+        };
+        LinkFlags(f | (t << Self::TYPE_SHIFT))
+    }
+
+    #[inline]
+    pub fn format(self) -> LinkFormat {
+        match self.0 & Self::FORMAT_MASK {
+            0 => LinkFormat::Plain,
+            1 => LinkFormat::Angle,
+            _ => LinkFormat::Bracket,
+        }
+    }
+
+    #[inline]
+    pub fn link_type(self) -> LinkType {
+        match self.0 >> Self::TYPE_SHIFT {
+            0 => LinkType::Coderef,
+            1 => LinkType::CustomId,
+            2 => LinkType::File,
+            3 => LinkType::Fuzzy,
+            4 => LinkType::Id,
+            _ => LinkType::Radio,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -887,8 +953,8 @@ pub struct LinkData<'a> {
     /// It only applies to "file" type links.
     application: Option<&'a str>,
 
-    /// Format for link syntax (symbol plain, angle, bracket).
-    format: LinkFormat,
+    /// Packed format + link-type flags.
+    flags: LinkFlags,
 
     /// Identifier for link's destination.
     /// It is usually the link part with type,
@@ -901,9 +967,6 @@ pub struct LinkData<'a> {
     /// Additional information for file location (string or nil).
     /// It only applies to "file" type links.
     search_option: Option<&'a str>,
-
-    /// Link type
-    pub link_type: LinkType,
 }
 
 impl<'a> LinkData<'a> {
@@ -919,11 +982,10 @@ impl<'a> LinkData<'a> {
         };
         LinkData {
             application: None,
-            format: LinkFormat::Plain,
+            flags: LinkFlags::new(LinkFormat::Plain, link_type),
             path: raw,
             raw_link: raw,
             search_option: None,
-            link_type,
         }
     }
 
@@ -944,12 +1006,16 @@ impl<'a> LinkData<'a> {
 
         LinkData {
             application: None,
-            format: LinkFormat::Bracket,
+            flags: LinkFlags::new(LinkFormat::Bracket, link_type),
             path,
             raw_link: raw,
             search_option: None,
-            link_type,
         }
+    }
+
+    #[inline]
+    pub fn link_type(&self) -> LinkType {
+        self.flags.link_type()
     }
 }
 

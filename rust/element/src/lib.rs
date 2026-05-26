@@ -52,9 +52,9 @@ mod table;
 pub mod prelude {
     pub use crate::data::{Interval, NodeArena, Nodes, Syntax, SyntaxNode, SyntaxNodeBuilder, SyntaxT};
     pub use crate::data::{
-        ClockData, ClockStatus, EntityData,
+        ClockData, ClockStatus, EntityData, EntityFlags,
         ExportSnippetData, FootnoteReferenceData, InlineBabelCallData,
-        InlineSrcBlockData, LineNumberingMode, LinkData, LinkFormat, LinkType,
+        InlineSrcBlockData, LineNumberingMode, LinkData, LinkFlags, LinkFormat, LinkType,
         MacroData, PlanningData, RadioTargetData, StatisticsCookieData,
         StringOrObject, Brackets, ScriptFlags, ScriptKind,
         TimestampData, TimestampType, RepeaterType, TimeUnit,
@@ -63,10 +63,10 @@ pub mod prelude {
     pub use crate::affiliated::{AffiliatedData, DualVal, ElementSpan, ElementSpanBuilder};
     pub use crate::babel::BabelCallData;
     pub use crate::blocks::{
-        DynamicBlockData, ExampleBlockData, ExportBlockData, SpecialBlockData, SrcBlockData,
+        BlockFlags, DynamicBlockData, ExampleBlockData, ExportBlockData, SpecialBlockData, SrcBlockData,
     };
     pub use crate::headline::{
-        HeadlineData, InlineTaskData, NodePropertyData, Tag, TodoKeyword,
+        HeadlineData, HeadlineFlags, InlineTaskData, NodePropertyData, Tag, TodoKeyword,
     };
     pub use crate::keyword::KeywordData;
     pub use crate::latex::LatexEnvironmentData;
