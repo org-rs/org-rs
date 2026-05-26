@@ -1,0 +1,47 @@
+:PROPERTIES:
+:ID:       0901C8A4-6423-4944-BCEF-ADCCA854B5BD
+:END:
+#+title: REST
+#+filetags: Programming
+
+REST is an architectural style for client/server communication
+
+- Requests identify resources
+- Use routes to increase specifics
+
+* RPC vs REST Calls
+
+** Resign
+
+RPC:
+POST /resign
+{
+  "personid": 1234
+}
+
+REST:
+DELETE /PERSONS/1234
+
+
+** Read a specific item:
+
+RPC:
+POST /addItem
+{
+  "personid": 1234
+  "itemid": 456
+}
+
+REST
+POST /persons/123
+{
+  "itemid": 456
+}
+
+* Endpoint setup
+
+  | Update   | PUT  | =/resource/{id}= |
+  | Create   | POST | =/resource=      |
+  | Read all | GET  | =/resource=      |
+  | Read one | GET  | =/resource/{id}= |
+  |          |      |                |

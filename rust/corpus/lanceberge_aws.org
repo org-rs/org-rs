@@ -1,0 +1,323 @@
+:PROPERTIES:
+:ID:       3DAEAED2-F8E1-41DD-BC46-585F940A4467
+:END:
+#+title: AWS
+#+filetags: Programming
+
+[[id:5A1C593C-55D4-4760-B85A-A7112FB017A9][Distributed Systems]]
+
+* Fundamentals
+
+Client-server model
+
+- We make requests to the server, which returns data
+
+** Cloud Computing
+
+- Provide various services that are abstractions of compute and memory needs
+
+** Deployment Models
+
+- Cloud-Based - Everything is run in the cloud
+- On-Premises - Deployed onsite using virtualization
+- Hybrid - Connect cloud-based resources to physical infrastructure
+
+* EC2
+
+- EC2 instances are virtual machines that can be provisioned
+- Multitenacy - sharing of resources between VMs
+- Vertical scaling - increasing the amount of compute resources
+
+** Instance Types
+
+- General purpose - balanced resources
+- Compute optimized - HPC
+  - Good for batch processing (running computations on small amounts of data)
+- Memory optimized - fast performance for large datasets (more efficient for reads)
+- Accelerated computing - Floating point computations, graphics
+- Storage optimized - high performance for locally stored data (mroe efficient for sequential reads and writes)
+
+** Costs
+
+- On-Demand - pay for exactly what use
+- Savings plan - Commit to a duration and get a potentially cheaper plan
+- Reserved - Gives a big discount for extremely consistent usage
+  - 1 and 3 year contracts
+- Spot instances - Request spare compute capacity, but AWS can reclaim the usage whenever they want
+- Dedicated hosts - Intense capacity fully dedicated to the user
+
+** Scaling & Load-Balancing
+
+- Auto-Scaling - set a minimum, desired, and maximum amount of EC2 resources to scale to
+- Load-Balancing - The service that directs traffic between auto-scaling group
+  - This is meant to ensure that EC2 instances don't have to do all of the work by themselves
+
+** Messaging and Queueing
+
+- SQS - lets you send messages into a queue - enables different software components to communicate
+  - This enables a loosely-coupled architecture
+- SNS - uses a publish/subscribe model - people subscribe to a topic and messages are sent to those subscribers
+- Monolithic vs microservices - monolithic - everything is tightly coupled. Microservices - loosely coupled services that prevent a single point of failure
+
+** Serverless Computing
+
+- EC2 - if you want full access to the underlying OS
+- Lambda - upload your code, create a trigger for it. The management of the underlying instances are configured and provisioned for you
+  - Pay only for the compute power you use
+- ECS - Allows us to provide compute power to containers. Docker provides system-level virtualization through containers (a way to package your application and its dependencies)
+- AWS Fargate - Serverless computing for containers
+- EKS - run Kubernetes on AWS
+
+*** Pros vs. Cons
+
+    - Serveress auto-scales
+      - Only pay for what you use
+      - Serverless can lead to cold starts
+    - Managed can be more cost-effective for consistent workloads
+
+* AWS Global Architecture
+
+- AWS Regions - there are AWS regions in the busiest locations across the world
+- Data doesn't flow between regions unless the user allows it
+- Choose regions closest to where your users are
+- Availability Zones - a single group of data centers
+- CDN - Network that delivers content to users based on their geographical location
+
+** Edge Locations
+
+- AWS CloudFront - used to deliver data to customers across the world using edge locations
+- Edge locations - separate from regions. Run Route 53 - a DNS service
+  - These are sites that store cached copies of your data
+- AWS Outposts - let you install a mini region in your server
+
+** Interacting with AWS
+
+- Through SDKs or CLI
+
+** Deployment
+
+- EBS
+- Cloudformation - lets you declare your AWS resources using JSON
+
+* Networking
+
+- VPC                - whitelist or blacklist certain IP addresses
+- Subnets            - chunks of IP addresses that allow you to group resources together
+  - Basically a group of EC2 instances. Some will be privately accessible, some publicly
+- VPN                - the bodyguard
+- AWS Direct Connect - lets you establish a private connection from your data center to AWS
+  - This is the secret path
+- Default security group - doesn't allow any traffic into the EC2 instance
+- Packets - messages from the internet
+- Network ACL - checks if each packet can get through (stateless)
+- Security group - has a state (memory) of what can come through
+  - Deny by default
+
+** DNS and Route 53
+
+- Routes URLs to the underlying website
+- DNS resolution - translate domain name to IP address
+
+* Databases
+
+- Block storage - lets you overwrite only the components that are changed when you update a file
+- EBS lets us create virtual hard drives that we can attach to our EC2 instances
+  - data is in the same AZ
+
+** S3
+
+- Data is stored in buckets
+- S3 standard IA - rapid access but less frequent
+
+** EFS
+
+- lets you have multiple instances accessing the data - data is stored across multiple Availability zones
+
+** DynamoDB
+
+- Serverless, store data in items and attributes
+- Data is across multiple AZs
+
+** Redshift
+
+- Data warehousing - lets you collect data from multiple sources
+
+* Security
+** User Permissions
+
+- IAM - identity access management
+  - Lets you control the access permissions of users
+  - Roles - An identity you can switch to for temporary permissions
+  - Groups - groups of users with the same permissions
+- AWS Organizations - central location to manage AWS accounts (i.e. if you have various accounts)
+  - Organizational Units (OUs) - when you apply a policy to an OU, all of the accounts inherit it
+- AWS Artifact - provide access to compliance and security reports
+
+** AWS Shield Advanced
+
+- fight sloworis and DDOS attacks
+
+** Security Services
+
+- Amazon Key Management Service (KMS) - lets you perform encryption operations
+- WAF - web application framework, lets you monitor network requests
+- Inspector - automated security assessments
+- GuardDuty - threat detection
+
+* Monitoring and Analytics
+
+- Cloudwatch - set alarms based on triggers
+- CloudTrail - log every request (API call) to AWS
+- AWS Trusted Advisor - Check the security, performance, cost of your system, fault tolerance, and provide advice
+
+* Billing
+
+- Dashboard - show all of your billing info
+- Consolidated billing - get a singular bill if you have multiple AWS accounts for the same company
+- Budget - you can set a budget and get an alert if you're close to the threshold
+- Cost Explorer - visualize spending
+- Support plans - business gives you Trusted avdisor
+- AWS Marketplace - independently created AWS services
+
+* Migration and Innovation
+
+* Organizations, IAM
+
+  https://aws.amazon.com/blogs/security/how-to-use-aws-organizations-to-automate-end-to-end-account-creation/
+
+  #+BEGIN_SRC sh
+  aws iam create-user --user-name your-username
+
+# Attach a policy to the user (start with minimal permissions)
+aws iam attach-user-policy --user-name your-username --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess
+
+# Create a role (run this in each member account)
+aws iam create-role --role-name CrossAccountAccess --assume-role-policy-document file://trust-policy.json
+  #+END_SRC
+
+#+BEGIN_SRC json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::MASTER_ACCOUNT_ID:root"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+#+END_SRC
+
+Configure each account with the AWS CLI
+
+#+BEGIN_SRC sh
+aws configure --profile master-account
+aws configure --profile project1
+aws configure --profile project2
+#+END_SRC
+
+For the member account profiles, use the ARN of the cross-account role instead of access keys:
+
+#+BEGIN_SRC sh
+[profile project1]
+role_arn = arn:aws:iam::PROJECT1_ACCOUNT_ID:role/CrossAccountAccess
+source_profile = master-account
+#+END_SRC
+
+* Fargate
+
+  https://medium.com/@arliber/aws-fargate-from-start-to-finish-for-a-nodejs-app-9a0e5fbf6361
+
+  - Create a cluster (networking only)
+  - Create task definition. Set up port mapping for whichever port the app runs on
+  - Create a load balancer
+    - Create a new security group
+      - It should take traffic on port 80 and 443
+      - Make sure the security group allows inbound traffic on port 80 and 443 from all ips
+    - Target group points to fargate instance
+      - Set up one for HTTP and one for HTTPS
+      - Select IP as the target type
+      - The port should be the application port
+  - Create a service - runs the task definition in the cluster
+    - The service should use the existing listener on port 443
+    - Create a custom security group with the port (3000) for [[id:D846457A-1522-4ADA-999B-35095AA0AB4A][SvelteKit]]
+      - Make it available to all: 0.0.0.0/0,::/0
+    - Click on the security group of this service and enable it to receive inbound traffic from the LB
+      - TCP - application port -> the security group of the LB
+    - Select the ALB and the existing target groups
+
+** TODO use the CLI or terraform next time I do all this
+
+** Deploy to Fargate Github Actions
+
+   #+BEGIN_SRC yml
+name: Build and Deploy to Fargate
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Login to AWS ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: braindump
+          IMAGE_TAG: latest
+        run: |
+          docker build \
+          -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Download task definition
+        run: |
+          aws ecs describe-task-definition --task-definition braindump_task_definition --query taskDefinition > task-definition.json
+
+      - name: Update ECS task definition
+        id: task-definition
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: braindump
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy AWS ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-definition.outputs.task-definition }}
+          service: BraindumpAppService
+          cluster: BraindumpCluster1
+   #+END_SRC
+
+
+* Route 53
+
+  - Create a hosted zone
+  - Copy over nameservers
+  - Alias -> load balancer
+  - Go to ACM and create a certificate
+  - Create the record in S3
+  - Create a www cname, make sure you have a record for it in ACM
+  - Make sure the load balancer has the new record

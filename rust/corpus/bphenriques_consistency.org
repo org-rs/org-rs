@@ -1,0 +1,175 @@
+:PROPERTIES:
+:ID:       2fa03d4f-948e-4a6e-a38b-178456b578c3
+:END:
+#+TITLE: Consistency And Availability
+#+filetags: system-design
+
+* Scalability
+
+It can meets increases in demand while remaining responsive.
+
+This is different from performance. Performance optimizes response time (latency) while scalability optimizes ability to handle load. Requests per second actually measures both but we do not know which aspect was improved.
+
+*Note* Scalability is not the number of requests qwe can handle a in a given period of time (req/sec) but he number of requests itself (load).
+
+If x axis is number of requests (Load) and y axis is response time. Improving performance leads to decrease in the y axis. Improving scalability means a shift on the x axis meaning that we can handle more requests with the same response time.
+
+Still confused as if I improve performance I should free up resources to handle more requests..
+
+Reactive Microservices focus on improving scalability.
+
+* Consistency:
+
+All members of the system have the same view or state. This does not factors time.
+
+** Eventual Consistency
+
+Guarantees that, in the absence of new updates, all accesses to a specific piece of data will eventually return the most recent data.
+
+Different forms:
+- Eventual Consistency
+- Causal Consistency
+- Sequential Conssitency
+- others
+
+E.g., Source control are eventually consistent. All the code reading is potentially out-of-date and a merge operations is relied upon to bring the local state back to speed.
+
+*** TODO: Check each one
+
+** Strong Consistency
+
+An update to a piece of data needs agreement from all nodes before it becomes visible.
+
+Physically it is impossible therefore we simulate: Locks that introduce overhead in the form of contention. Now it becomes a single resource which eliminates the distributed nature. Tying the distributed problem to a non-distributed resource.
+
+Traditionally, monoliths are based around strong consistency.
+
+*** Effects of contention
+
+Definition: Any two things that contend for a single limited resource and only one will win and the other will be forced to wait.
+
+As the number of resources disputing for the resource, more time time it will take to finally free up the resources.
+
+See:
+-[[id:2fa03d4f-948e-4a6e-a38b-178456b578b9][ Amdah's Law]]
+- [[id:2fa03d4f-948e-4a6e-a38b-178456b578d1][Gunther's Universal Scalability Law]]
+
+**** Coherence Delay
+
+Definition: Time it takes for synchronization to complete on a distributed systems - My definition following below notes:
+
+Syncronization is done using crosstalk or gossip - Each system sends messages to each other node informing of any state changes. The time it takes for the cynscronization to complete is called *Coeherency Delay*.
+
+Increasing the number of nodes increases the delay.
+
+**** Laws of scalability
+
+Both these laws demonstrate that linear scalability is almost always unachivable. Such is only possible if the system lieve in total isolation.
+
+**** Reactive Systems
+
+Reduce contention by:
+- Isolating locks
+- Eliminating transactions
+- Avoiding blocking operations
+
+Mitigate coherency delays by:
+- Embracing Eventual Consistency
+- Building in Autonmy
+
+This allows for higher scalability as we reduce or eliminate these factors.
+
+
+* CAP Theorem
+
+States that a distributed system cannnot provide more than than two of the following:
+- Consistency
+- Availability
+- Partition Tolerance
+
+One has to pick one of the following combinations:
+- (CP) Consistent and Partition Tolerance
+- (AP) Available and Partition Tolerance.
+
+In practice, they may claim CP/AP except for some edge-cases. It is a balance.
+
+** Partition Tolerance
+
+The system continues to operate despite an arbitrary number of messages being dropped (or delayed) by the network.
+
+They can occur due to:
+- Problems in the network.
+- When a node goes down.
+
+May be short or long lived.
+
+
+Two options:
+- (AP) Sacrifice Consistency: Allow writes to both sides of the partition. This require merging the data in order to restore consistency.
+- (CP) Sacrifice Availability: Disabling or terminating on side of the partitions. During this, some or all of your system will be unavailable.
+
+* Sharding as a way to have strong consistency
+
+Limit the scope of the contention and reduce crosstalk. Is applied within the application. It is not the same type of sharding used in some databases, the technique is similar though.
+
+Allows strong consistency.
+
+Partitions entities (or Actors) in the domain according to their id.
+
+Groups of entities are called a shard and each entity only exists in one shard.
+
+Each shard exists in only one location. This fact eliminates the distributed systems problem.
+
+The entity acts as a consistency boundary.
+
+In order for this to work, we need to have a coordinator that ensures that traffic for a particular entity is routed to the correct location. The coordinator uses the ID to calculate the appropriate shard.
+
+Aggregate Roots are good candidate for sharding.
+
+It is important to have a balanced shards and that requires a good sharding key - UUIDs or hashcodes. Poor key selections will result in hotspots.
+
+Rule of thumb: 10x as many shards as nodes.
+
+Akka provides this as a means to distribute actors across a cCLuster in a shared setup. Lagom persistent entities levarage akka cluster sharding to distribute the entities across the cluster.
+
+What about resharding? when a system goes down...
+
+Sharding allows a great caching solution as:
+- We can store the cache results after writing to the database
+- Databases is effectively write-only which can speed up things
+- We only consult the cache during reads.
+- Begs the question: How many items and what is the TTL? Well.. it for certain reduces the read on the DB but that is not forever unless we have infinite memory.
+
+** Effects
+
+- Does not eliminate contention. It solely isolates to a single entity.
+- The router/coordinator represents a source of contention as well.
+- A shareded system minimizes contention by:
+  - Limiting the amounf of work the router/coordinator performs - By storing where the shard is after asking the coordinator - How to invalidate that cache due to failures?
+  - Isolates contention to individual entities
+
+Scalability is doen by distributing the shards over mode machines.
+Strong consistency is achiaved by isolating operations to a specific entity.
+Careful choice of shard keys is important to maintain a good scalability.
+
+** Failure
+
+Sharding sacrifices availability. Once a shard goes down, there will be a period of time where it is unavailable and wil migrate to another node eventually.
+
+* CRDTs provide a availability solution based on async replication
+
+Conflict-free Replicated Data
+
+On the application level.
+
+Highly available and eventually consistent.
+
+Specially designed data type.
+
+Updates are applied on one replica and then copied async.
+
+Udpdates are merged to determine the final state.
+
+Two types:
+- CvRDT - Convergent Replicated Data Type copy state between replicas. Requires a merge operation that understands how to combine two states. These operations must be: commutative, associative and idempotent.
+- CmRDT - Commutative Replicated Data Types. These copy operations isntead of state.

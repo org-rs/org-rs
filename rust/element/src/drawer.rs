@@ -157,10 +157,21 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             None => return children,
         };
 
-        let content_end = if end > 0 && input.as_bytes().get(end - 1) == Some(&b'\n') {
-            end - 1
-        } else {
-            end
+        // `end` points past the `:END:\n` line.  Strip back to the newline that
+        // precedes `:END:` so the content slice never includes the end marker.
+        let content_end = {
+            let before_end_nl = if end > 0 && input.as_bytes().get(end - 1) == Some(&b'\n') {
+                end - 1
+            } else {
+                end
+            };
+            if before_end_nl > first_line_end {
+                memrchr(b'\n', &input.as_bytes()[first_line_end..before_end_nl])
+                    .map(|i| first_line_end + i + 1)
+                    .unwrap_or(first_line_end)
+            } else {
+                first_line_end
+            }
         };
 
         if first_line_end >= content_end {
