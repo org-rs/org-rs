@@ -48,7 +48,6 @@ use crate::cursor::REGEX_EMPTY_LINE;
 use crate::data::{Interval, StringOrObject, SyntaxT};
 use crate::parser::Parser;
 use regex::{Match, Regex};
-use std::borrow::Cow;
 use std::collections::HashMap;
 
 lazy_static! {
@@ -154,19 +153,19 @@ pub struct AffiliatedData<'a> {
     /// DUAL, PARSED, MULTI
     pub caption: Vec<DualVal<StringOrObject<'a>>>,
     /// MULTI
-    pub header: Vec<Cow<'a, str>>,
+    pub header: Vec<&'a str>,
 
     /// No special capabilities
-    pub name: Option<Cow<'a, str>>,
+    pub name: Option<&'a str>,
 
     /// No special capabilities
-    pub plot: Option<Cow<'a, str>>,
+    pub plot: Option<&'a str>,
 
     /// DUAL
-    pub results: Option<DualVal<Cow<'a, str>>>,
+    pub results: Option<DualVal<&'a str>>,
 
     /// MULTI
-    pub attr: HashMap<String, Vec<Cow<'a, str>>>,
+    pub attr: HashMap<String, Vec<&'a str>>,
 }
 
 impl<'a> Default for AffiliatedData<'a> {
@@ -251,9 +250,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
             let value_end = self.cursor.line_end_position(None);
 
-            let value = Cow::from(self.input[value_begin..value_end].trim());
+            let value = self.input[value_begin..value_end].trim();
 
-            let secondary_value = captures.name("SECONDARY").map(|sec| Cow::from(sec.as_str().trim()));
+            let secondary_value = captures.name("SECONDARY").map(|sec| sec.as_str().trim());
 
             match matched.0 {
                 "CAPTION" => output.caption.push(DualVal {
@@ -305,7 +304,6 @@ mod test {
     use crate::data::StringOrObject;
     use crate::environment::DefaultEnvironment;
     use crate::parser::{ParseGranularity, Parser};
-    use std::borrow::Cow;
     use std::collections::HashMap;
 
     #[test]
@@ -397,17 +395,17 @@ mod test {
         assert_eq!(0, maybe_collected.span.start);
         assert!(maybe_collected.affiliated.is_some());
         let collected = maybe_collected.affiliated.unwrap();
-        let mut test_attrs: HashMap<String, Vec<Cow<str>>> = HashMap::new();
+        let mut test_attrs: HashMap<String, Vec<&str>> = HashMap::new();
         test_attrs.insert(
             "ATTR_HTML".to_string(),
-            vec![Cow::from(":file filename.ext")],
+            vec![":file filename.ext"],
         );
         assert_eq!(test_attrs, collected.attr);
 
         let mut test_caption: Vec<DualVal<StringOrObject>> = vec![];
         test_caption.push(DualVal {
-            value: StringOrObject::Raw(Cow::from("org-rs")),
-            secondary: Some(StringOrObject::Raw(Cow::from("GIT"))),
+            value: StringOrObject::Raw("org-rs"),
+            secondary: Some(StringOrObject::Raw("GIT")),
         });
 
         assert_eq!(test_caption, collected.caption);
