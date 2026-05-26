@@ -36,7 +36,7 @@ fn strip_line_prefix(line: &str) -> &str {
 /// Strip the `: ` prefix from each fixed-width line.
 /// Returns a borrowed slice for single-line input (zero allocation),
 /// or an owned String when multiple lines require reconstruction.
-fn strip_fixed_width_colons(input: &str) -> Cow<'_, str> {
+pub fn strip_fixed_width_colons(input: &str) -> Cow<'_, str> {
     let mut lines = input.lines();
     let first = match lines.next() {
         None => return Cow::Borrowed(""),
@@ -300,7 +300,6 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         let raw_value = &self.input[content_start..end_area];
-        let value = strip_fixed_width_colons(raw_value);
 
         let mut post_blank = 0;
         let mut check_pos = end;
@@ -323,7 +322,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         self.arena.alloc(
-            SyntaxNode::new(Syntax::FixedWidth(value), (begin, end))
+            SyntaxNode::new(Syntax::FixedWidth(raw_value), (begin, end))
                 .post_blank(post_blank)
                 .affiliated(affiliated)
                 .build()

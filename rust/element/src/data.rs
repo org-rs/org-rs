@@ -28,8 +28,6 @@ use crate::{
     table::{SpreadsheetCellData, SpreadsheetData, SpreadsheetRowData, TableRowType},
 };
 use memchr::memchr;
-
-use std::borrow::Cow;
 use std::num::NonZeroUsize;
 
 use strum_macros::EnumDiscriminants;
@@ -349,7 +347,7 @@ pub enum Syntax<'a> {
     ExportBlock(Box<ExportBlockData<'a>>),
 
     /// Element
-    FixedWidth(Cow<'a, str>),
+    FixedWidth(&'a str),
 
     /// Greater element
     FootnoteDefinition(Box<FootnoteDefinitionData<'a>>),
@@ -644,7 +642,7 @@ impl SyntaxT {
 
 /// Some elements can contain objects directly in their value fields
 pub enum StringOrObject<'a> {
-    Raw(Cow<'a, str>),
+    Raw(&'a str),
     Parsed(Box<SyntaxNode<'a>>),
 }
 

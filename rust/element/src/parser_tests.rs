@@ -906,6 +906,7 @@ mod footnote_definition {
 
 mod fixed_width {
     use super::*;
+    use crate::markup::strip_fixed_width_colons;
 
     #[test]
     fn basic() {
@@ -943,7 +944,8 @@ mod fixed_width {
         let section_children = &arena[*section].children;
         let fw_node = section_children.first().expect("Expected fixed-width node");
 
-        if let Syntax::FixedWidth(value) = &arena[*fw_node].data {
+        if let Syntax::FixedWidth(raw) = &arena[*fw_node].data {
+            let value = strip_fixed_width_colons(raw);
             assert!(
                 !value.contains(':'),
                 "Fixed-width value should not contain colons, got: {:?}",

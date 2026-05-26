@@ -69,7 +69,6 @@ use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use memchr::memchr;
 use regex::Regex;
-use std::borrow::Cow;
 
 lazy_static! {
 
@@ -142,7 +141,7 @@ impl<'a> ListStruct<'a> {
 #[derive(Debug)]
 pub struct ItemData<'rope> {
     /// Item's bullet (string).
-    bullet: Cow<'rope, str>,
+    bullet: &'rope str,
     /// Item's check_box, if any (symbol on, off, trans, nil).
     checkbox: Option<CheckBox>,
     /// Item's counter, if any. Literal counters become ordinals (integer).
@@ -151,9 +150,9 @@ pub struct ItemData<'rope> {
     /// of the item and the beginning of the contents (0, 1 or 2).
     pre_blank: usize,
     /// Uninterpreted item's tag, if any (string or nil).
-    raw_tag: Option<Cow<'rope, str>>,
+    raw_tag: Option<&'rope str>,
     /// Parsed item's tag, if any (secondary string or nil).
-    tag: Option<Cow<'rope, str>>,
+    tag: Option<&'rope str>,
     // TODO figure out what is list structure
     // /// Full list's structure, as returned by org_list_struct (alist).
     structure: ListStruct<'rope>,
@@ -284,8 +283,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     fn item_parser_internal(&mut self, item: &ListItem<'a>, end: usize) -> NodeId {
-        let bullet = Cow::Borrowed(item.bullet);
-        let tag = item.tag.map(Cow::Borrowed);
+        let bullet = item.bullet;
+        let tag = item.tag;
 
         // Content begins after the bullet and its trailing space/tab.
         let content_start = item.position + item.indent + item.bullet.len() + 1;
@@ -297,7 +296,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             checkbox: item.checkbox.clone(),
             counter: item.counter.unwrap_or(0),
             pre_blank: 0,
-            raw_tag: tag.clone(),
+            raw_tag: tag,
             tag,
             structure: ListStruct::new(),
         };
