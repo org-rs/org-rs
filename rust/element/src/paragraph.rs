@@ -26,9 +26,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// A paragraph extends from the current position to the first blank
     /// line or to the start of the next element-level construct
     /// (headline, keyword, block, etc.), whichever comes first.
+    #[inline]
     pub fn paragraph_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
-        let bytes = self.input.as_bytes();
         let mut end = start;
 
         // Advance line by line until we hit a blank line, an element
@@ -101,6 +101,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// A section is a container that spans from the current cursor position
     /// to `limit`.  It is the body content under a headline (or the text
     /// before the first headline in the document).
+    #[inline]
     pub fn section_parser(&mut self, limit: usize) -> NodeId {
         let begin = self.cursor.pos();
         self.arena.alloc(

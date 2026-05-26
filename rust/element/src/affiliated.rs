@@ -50,7 +50,6 @@ use crate::parser::Parser;
 use regex::{Match, Regex};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::str::FromStr;
 
 lazy_static! {
 
@@ -116,17 +115,20 @@ pub struct ElementSpanBuilder<'a> {
 }
 
 impl<'a> ElementSpanBuilder<'a> {
+    #[inline]
     pub fn affiliated(mut self, aff: Option<AffiliatedData<'a>>) -> Self {
         self.affiliated = aff;
         self
     }
 
+    #[inline]
     pub fn build(self) -> ElementSpan<'a> {
         ElementSpan { span: self.span, affiliated: self.affiliated }
     }
 }
 
 impl<'a> ElementSpan<'a> {
+    #[inline]
     pub fn new(span: impl Into<Interval>) -> ElementSpanBuilder<'a> {
         ElementSpanBuilder { span: span.into(), affiliated: None }
     }
@@ -167,6 +169,7 @@ pub struct AffiliatedData<'a> {
 }
 
 impl<'a> Default for AffiliatedData<'a> {
+    #[inline]
     fn default() -> AffiliatedData<'a> {
         AffiliatedData {
             caption: vec![],
@@ -214,6 +217,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// objects itself." - It is hard to encode this into a type system, since in all other
     /// cases, apart from affiliated keywords, objects parents are nodes of syntax trees
     /// (ACC or PARENT)
+    #[inline]
     pub fn collect_affiliated_keywords(&mut self, limit: usize) -> ElementSpan<'a> {
         if !self.cursor.is_bol() {
             return ElementSpan::new((self.cursor.pos(), limit)).build();
@@ -295,16 +299,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 }
 
+#[cfg(test)]
 mod test {
     use super::REGEX_AFFILIATED;
     use crate::affiliated::DualVal;
     use crate::cursor::{is_multiline_regex, Cursor};
-    use crate::data::RepeaterType::CatchUp;
     use crate::data::StringOrObject;
     use crate::environment::DefaultEnvironment;
-    use crate::parser::ParseGranularity;
-    use crate::parser::Parser;
-    use regex::Match;
+    use crate::parser::{ParseGranularity, Parser};
     use std::borrow::Cow;
     use std::collections::HashMap;
 

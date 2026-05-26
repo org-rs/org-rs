@@ -70,8 +70,6 @@ use crate::parser::Parser;
 use memchr::memchr;
 use regex::Regex;
 use std::borrow::Cow;
-use std::cell::Cell;
-use std::cell::RefCell;
 
 lazy_static! {
 
@@ -128,6 +126,7 @@ pub struct ListItem<'a> {
 }
 
 impl<'a> ListStruct<'a> {
+    #[inline]
     pub fn new() -> Self {
         ListStruct { items: Vec::new() }
     }
@@ -180,6 +179,7 @@ pub enum CheckBox {
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Fallback: item parser (not yet fully implemented).
+    #[inline]
     pub fn item_parser(
         &mut self,
         _structure: Option<Rc<ListStruct<'a>>>,
@@ -190,6 +190,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Fallback: plain list parser (not yet fully implemented).
+    #[inline]
     pub fn plain_list_parser(
         &mut self,
         element_span: ElementSpan<'a>,
@@ -310,6 +311,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Scan input for list items at current indentation level
     /// This matches Elisp's org-element--list-struct
+    #[inline]
     pub fn list_struct(&self, limit: usize) -> Rc<ListStruct<'a>> {
         let mut items = Vec::new();
         let mut pos = self.cursor.pos();

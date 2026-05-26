@@ -46,6 +46,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     ///
     /// Format: `#+CALL: name(args)` or `#+CALL: name[:header] args`
     /// Case insensitive (matches CALL, call, etc.)
+    #[inline]
     pub fn babel_call_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let input_slice = &self.input[start..limit];

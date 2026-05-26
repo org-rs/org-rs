@@ -37,6 +37,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// A keyword follows the pattern `#+KEY: VALUE`.  `start` is the
     /// buffer position at the beginning of the first affiliated keyword
     /// (or the keyword itself when there is no affiliation).
+    #[inline]
     pub fn keyword_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated: _ } = element_span;
         let line_end = memchr(b'\n', self.input[start..limit].as_bytes())

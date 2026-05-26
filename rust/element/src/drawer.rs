@@ -32,6 +32,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     ///
     /// Format: `:NAME:\n...content...\n:END:`
     /// Case insensitive (matches :NAME: and :END:)
+    #[inline]
     pub fn drawer_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
         let input_slice = &self.input[start..limit];

@@ -99,6 +99,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     ///
     /// A comment is one or more consecutive lines starting with `# `
     /// (hash + space) or just `#` at end of line.
+    #[inline]
     pub fn comment_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let span = element_span.span;
         let mut end = span.start;
@@ -127,6 +128,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     ///
     /// A horizontal rule is a line containing at least five consecutive
     /// dashes and nothing else (ignoring surrounding whitespace).
+    #[inline]
     pub fn horizontal_rule_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let span = element_span.span;
         let end = memchr(b'\n', self.input[span.start..span.end].as_bytes()).map_or(span.end, |i| span.start + i + 1);
@@ -145,6 +147,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Stores raw text in value field
     /// - Sets content_location for contents_begin/contents_end
     /// - Calculates pre_blank and post_blank
+    #[inline]
     pub fn footnote_definition_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start: begin, end: limit }, affiliated } = element_span;
         let input_slice = &self.input[begin..limit];
@@ -255,6 +258,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Uses affiliated data from parameter
     /// - Value is stored WITHOUT colons (stripped at parse time)
     /// - Calculates post-blank
+    #[inline]
     pub fn fixed_width_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start: begin, end: limit }, affiliated } = element_span;
         let content_start = self.cursor.pos();

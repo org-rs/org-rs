@@ -16,7 +16,6 @@
 use std::rc::Rc;
 
 use memchr::{memchr, memchr2};
-use regex::Regex;
 
 use crate::affiliated::ElementSpan;
 use crate::babel::REGEX_BABEL_CALL;
@@ -25,14 +24,13 @@ use crate::data::{
     EntityData, FootnoteReferenceData, Interval, LinkData, NodeArena, NodeId, Syntax, SyntaxNode,
     SyntaxT, TimestampData,
 };
-use crate::environment::Environment;
 
 use crate::blocks::{
     REGEX_BLOCK_BEGIN, REGEX_COLON_OR_EOL, REGEX_DYNAMIC_BLOCK, REGEX_STARTS_WITH_HASHTAG,
 };
 use crate::drawer::REGEX_DRAWER;
 use crate::headline::{
-    REGEX_CLOCK_LINE, REGEX_HEADLINE_SHORT, REGEX_PLANNING_LINE, REGEX_PROPERTY_DRAWER,
+    REGEX_CLOCK_LINE, REGEX_PLANNING_LINE, REGEX_PROPERTY_DRAWER,
 };
 use crate::keyword::*;
 use crate::latex::REGEX_LATEX_BEGIN_ENVIRIONMENT;
@@ -41,7 +39,7 @@ use crate::markup::REGEX_DIARY_SEXP;
 use crate::markup::REGEX_FIXED_WIDTH;
 use crate::markup::REGEX_FOOTNOTE_DEFINITION;
 use crate::markup::REGEX_HORIZONTAL_RULE;
-use crate::table::{REGEX_TABLE_BORDER, REGEX_TABLE_PRE_BORDER, REGEX_TABLE_RULE};
+use crate::table::REGEX_TABLE_BORDER;
 
 /// determines the depth of the recursion.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,11 +93,12 @@ macro_rules! capturing_at {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+    #[inline]
     pub fn new(
         input: &'a str,
         granularity: ParseGranularity,
         environment: Environment,
-    ) -> Parser<Environment> {
+    ) -> Parser<'a, Environment> {
         Parser {
             cursor: Cursor::new(input, 0),
             input,
@@ -143,6 +142,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// org-element-parse-buffer
     /// Parses input from beginning to the end
+    #[inline]
     pub fn parse_buffer(&mut self) -> (NodeArena<'a>, NodeId) {
         self.cursor.set(0);
         self.cursor.skip_whitespace();
@@ -156,6 +156,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Parse elements between BEG and END positions.
+    #[inline]
     pub fn parse_elements(
         &mut self,
         span: impl Into<Interval>,
@@ -281,6 +282,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Parse the element starting at cursor position (point).
+    #[inline]
     pub fn current_element(
         &mut self,
         limit: usize,
@@ -510,6 +512,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Parse objects between `beg` and `end` and return recursive structure.
+    #[inline]
     pub fn parse_objects(
         &mut self,
         interval: impl Into<Interval>,
@@ -932,6 +935,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         Some((node, consume))
     }
 
+    #[inline]
     pub fn try_parse_timestamp(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || (bytes[0] != b'<' && bytes[0] != b'[') {
@@ -960,7 +964,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let close = found_close?;
 
         // Extract content between brackets
-        let content = &text[1..close];
+        let _content = &text[1..close];
         let raw = &text[..close + 1];
 
         // Try to create a valid TimestampData

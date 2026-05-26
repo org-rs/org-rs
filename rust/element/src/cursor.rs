@@ -34,10 +34,12 @@ pub trait Metric {
 pub struct BaseMetric(());
 
 impl Metric for BaseMetric {
+    #[inline]
     fn is_boundary(s: &str, offset: usize) -> bool {
         s.is_char_boundary(offset)
     }
 
+    #[inline]
     fn prev(s: &str, offset: usize) -> Option<usize> {
         if offset == 0 {
             None
@@ -50,6 +52,7 @@ impl Metric for BaseMetric {
         }
     }
 
+    #[inline]
     fn next(s: &str, offset: usize) -> Option<usize> {
         if offset == s.len() {
             None
@@ -62,6 +65,7 @@ impl Metric for BaseMetric {
 
 pub struct LinesMetric(());
 impl Metric for LinesMetric {
+    #[inline]
     fn is_boundary(s: &str, offset: usize) -> bool {
         if offset == 0 {
             false
@@ -70,11 +74,13 @@ impl Metric for LinesMetric {
         }
     }
 
+    #[inline]
     fn prev(s: &str, offset: usize) -> Option<usize> {
         debug_assert!(offset > 0, "caller is responsible for validating input");
         memrchr(b'\n', &s.as_bytes()[..offset - 1]).map(|pos| pos + 1)
     }
 
+    #[inline]
     fn next(s: &str, offset: usize) -> Option<usize> {
         memchr(b'\n', &s.as_bytes()[offset..]).map(|pos| offset + pos + 1)
     }
@@ -86,19 +92,23 @@ pub struct Cursor<'a> {
 }
 
 impl<'a> Cursor<'a> {
+    #[inline]
     pub fn new(data: &'a str, pos: usize) -> Cursor<'a> {
         Cursor { data, pos }
     }
 
+    #[inline]
     pub fn set(&mut self, pos: usize) {
         self.pos = pos;
     }
 
+    #[inline]
     pub fn pos(&self) -> usize {
         self.pos
     }
 
     /// Get next codepoint after cursor position, and advance cursor.
+    #[inline]
     pub fn get_next_char(&mut self) -> Option<char> {
         let pos = self.pos;
         if let Some(offset) = self.next::<BaseMetric>() {
@@ -110,6 +120,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Get previous codepoint before cursor position, and advance cursor backwards.
+    #[inline]
     pub fn get_prev_char(&mut self) -> Option<char> {
         if let Some(offset) = self.prev::<BaseMetric>() {
             self.pos = offset;
@@ -119,6 +130,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    #[inline]
     pub fn next<M: Metric>(&mut self) -> Option<usize> {
         if let Some(offset) = M::next(self.data, self.pos) {
             self.pos = offset;
@@ -128,10 +140,12 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    #[inline]
     pub fn is_boundary<M: Metric>(&self) -> bool {
         M::is_boundary(self.data, self.pos)
     }
 
+    #[inline]
     pub fn prev<M: Metric>(&mut self) -> Option<usize> {
         if let Some(offset) = M::prev(self.data, self.pos) {
             self.pos = offset;
@@ -141,6 +155,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    #[inline]
     pub fn at_or_next<M: Metric>(&mut self) -> Option<usize> {
         if self.is_boundary::<M>() {
             Some(self.pos())
@@ -149,6 +164,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    #[inline]
     pub fn at_or_prev<M: Metric>(&mut self) -> Option<usize> {
         if self.is_boundary::<M>() {
             Some(self.pos())
@@ -158,6 +174,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Count the number of boundaries between two points.
+    #[inline]
     pub fn count_between<M: Metric>(&self, begin: usize, end: usize) -> usize {
         let mut cur = Cursor { ..*self };
         cur.set(begin);
@@ -174,6 +191,7 @@ impl<'a> Cursor<'a> {
 
     /// Skip over space, tabs and newline characters
     /// Cursor position is set before next non-whitespace char
+    #[inline]
     pub fn skip_whitespace(&mut self) -> usize {
         let bytes = self.data.as_bytes();
         while self.pos < bytes.len() {
@@ -187,6 +205,7 @@ impl<'a> Cursor<'a> {
 
     /// Skip over space, tabs and newline characters, going backwards
     /// Cursor position is set before the previous non-whitespace char
+    #[inline]
     pub fn skip_whitespace_backwards(&mut self) -> usize {
         let bytes = self.data.as_bytes();
         // Don't move if current position is a non-whitespace byte.
@@ -206,6 +225,7 @@ impl<'a> Cursor<'a> {
     /// Acts like "Home" button
     /// If cursor is already at the beginning of the line - nothing happens
     /// Returns the position of the cursor
+    #[inline]
     pub fn goto_line_begin(&mut self) -> usize {
         if self.pos() != 0 && self.at_or_prev::<LinesMetric>().is_none() {
             self.set(0);
@@ -215,6 +235,7 @@ impl<'a> Cursor<'a> {
 
     /// Moves cursor to the beginning of the next line. If there is no next line
     /// cursor position is set to len() of the input
+    #[inline]
     pub fn goto_next_line(&mut self) -> usize {
         let res = self.next::<LinesMetric>();
         match res {
@@ -229,6 +250,7 @@ impl<'a> Cursor<'a> {
     /// Moves cursor to the beginning of the previous line.
     /// If there is no previous line then cursor position
     /// is set the beginning of the rope - 0
+    #[inline]
     pub fn goto_prev_line(&mut self) -> usize {
         // move to the beginning of the current line
         self.goto_line_begin();
@@ -253,6 +275,7 @@ impl<'a> Cursor<'a> {
     ///
     /// Corresponds to `line-beginning-position` in elisp
     /// This function does not move the cursor (does save-excursion)
+    #[inline]
     pub fn line_beginning_position(&mut self, n: Option<i32>) -> usize {
         let pos = self.pos();
         match n {
@@ -268,7 +291,7 @@ impl<'a> Cursor<'a> {
                 } else {
                     self.goto_line_begin();
                     if self.pos() != 0 {
-                        for p in 0..(x - 1).abs() {
+                        for _p in 0..(x - 1).abs() {
                             if self.prev::<LinesMetric>().is_none() {
                                 self.set(0);
                                 break;
@@ -290,6 +313,7 @@ impl<'a> Cursor<'a> {
     ///
     /// Corresponds to `line-end-position` in elisp
     /// This function does not move the cursor (does save-excursion)
+    #[inline]
     pub fn line_end_position(&mut self, n: Option<i32>) -> usize {
         let pos = self.pos();
         match n {
@@ -303,7 +327,7 @@ impl<'a> Cursor<'a> {
                         self.goto_next_line();
                     }
                 } else if self.pos() != 0 {
-                    for p in 0..=x.abs() {
+                    for _p in 0..=x.abs() {
                         if self.prev::<LinesMetric>().is_none() {
                             break;
                         }
@@ -317,6 +341,7 @@ impl<'a> Cursor<'a> {
         return result;
     }
 
+    #[inline]
     pub fn char_after(&mut self, offset: usize) -> Option<char> {
         let pos = self.pos();
         self.set(offset);
@@ -335,6 +360,7 @@ impl<'a> Cursor<'a> {
     /// The result is true if so, false otherwise.
     /// This function does not move cursor
     /// Use `capturing_at` if you need capture groups.
+    #[inline]
     pub fn looking_at(&self, re: &Regex) -> Option<Match<'a>> {
         let end = if !is_multiline_regex(re.as_str()) {
             LinesMetric::next(self.data, self.pos)
@@ -352,6 +378,7 @@ impl<'a> Cursor<'a> {
     /// Acts exactly as `looking_at` but returns Captures
     /// This is slower than simple regex search so if you don't need
     /// capture groups use `looking_at` for better performance
+    #[inline]
     pub fn capturing_at(&self, re: &Regex) -> Option<Captures<'a>> {
         let end = if !is_multiline_regex(re.as_str()) {
             LinesMetric::next(self.data, self.pos)
@@ -367,7 +394,8 @@ impl<'a> Cursor<'a> {
     /// Possibly moves cursor to the beginning of the next headline
     /// corresponds to `outline-next-heading` in emacs
     /// If next headline is found returns it's start position
-    pub fn next_headline(&mut self) -> Option<(usize)> {
+    #[inline]
+    pub fn next_headline(&mut self) -> Option<usize> {
         // make sure we don't match current headline
         self.next::<LinesMetric>();
         let beg = self.pos();
@@ -382,6 +410,7 @@ impl<'a> Cursor<'a> {
 
     /// Return true if cursor is on a headline.
     /// corresponds to `org-at-heading-p`
+    #[inline]
     pub fn on_headline(&mut self) -> bool {
         let pos = self.pos();
         self.goto_line_begin();
@@ -390,6 +419,7 @@ impl<'a> Cursor<'a> {
         return result;
     }
 
+    #[inline]
     pub fn is_bol(&self) -> bool {
         if self.pos == 0 {
             true
@@ -406,6 +436,7 @@ impl<'a> Cursor<'a> {
     /// None is returned. If count is not provided then 1 is used as
     /// count. Note that searching backward is not supported like it
     /// is in the elisp equivalent.
+    #[inline]
     pub fn search_forward(
         &mut self,
         str: &str,
@@ -456,6 +487,7 @@ impl<'a> Cursor<'a> {
     ///   the search.  The match found must not end after that position.  A
     ///   value of nil means search to the end of the accessible portion of
     ///   the buffer.
+    #[inline]
     pub fn re_search_forward(&mut self, re: &Regex, bound: Option<usize>) -> Option<usize> {
         let end = bound.unwrap_or(self.data.len());
 
@@ -463,7 +495,7 @@ impl<'a> Cursor<'a> {
             return None;
         }
 
-        /// Set point to the end of the occurrence found, and return point.
+        // Set point to the end of the occurrence found, and return point.
         match re.find(&self.data[self.pos..end]) {
             None => None,
             Some(m) => {
@@ -474,6 +506,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Moves point forward, stopping before a char not in str, or at position limit.
+    #[inline]
     pub fn skip_chars_forward(&mut self, str: &str, limit: Option<usize>) -> usize {
         let pos = self.pos();
         let limit = match limit {
@@ -504,6 +537,7 @@ impl<'a> Cursor<'a> {
 /// Given the inital byte of a UTF-8 codepoint, returns the number of
 /// bytes required to represent the codepoint.
 /// RFC reference : https://tools.ietf.org/html/rfc3629#section-4
+#[inline]
 pub fn len_utf8_from_first_byte(b: u8) -> usize {
     match b {
         b if b < 0x80 => 1,
@@ -514,24 +548,21 @@ pub fn len_utf8_from_first_byte(b: u8) -> usize {
 }
 
 /// Checks if a regular expression can match multiple lines.
+#[inline]
 pub fn is_multiline_regex(regex: &str) -> bool {
     const MULTILINE_INDICATORS: &[&str] = &[r"\n", r"\r", r"[[:space:]]"];
     MULTILINE_INDICATORS.iter().any(|i| regex.contains(i))
 }
 
+#[cfg(test)]
 mod test {
 
     use super::Cursor;
     use super::LinesMetric;
-    use super::Metric;
     use super::REGEX_EMPTY_LINE;
 
-    use crate::data::Syntax;
-    use crate::headline::REGEX_HEADLINE_SHORT;
-    use crate::parser::Parser;
-
     use crate::cursor::BaseMetric;
-    use regex::Match;
+    use crate::headline::REGEX_HEADLINE_SHORT;
     use regex::Regex;
 
     #[test]
