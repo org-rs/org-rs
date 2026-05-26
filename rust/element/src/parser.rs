@@ -944,14 +944,18 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             _                      => return None,
         };
 
+        let post_blank = bytes.get(close + 1..)
+            .map(|rest| rest.iter().take_while(|&&b| b == b' ' || b == b'\t').count())
+            .unwrap_or(0);
+
         let node = self.arena.alloc_with_children(
-            SyntaxNode::new(data, (start, start + close + 1))
+            SyntaxNode::new(data, (start, start + close + 1 + post_blank))
                 .content(content_location)
                 .build(),
             children,
         );
 
-        Some((node, close + 1))
+        Some((node, close + 1 + post_blank))
     }
 
     fn try_parse_plain_link(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
