@@ -129,6 +129,7 @@ impl<'a> SyntaxNodeBuilder<'a> {
 impl<'a> SyntaxNode<'a> {
     /// Begin constructing a [`SyntaxNode`].  Returns a [`SyntaxNodeBuilder`]
     /// pre-loaded with the two required fields; call `.build()` to finish.
+    #[allow(clippy::new_ret_no_self)]
     #[inline]
     pub fn new(data: Syntax<'a>, location: impl Into<Interval>) -> SyntaxNodeBuilder<'a> {
         SyntaxNodeBuilder {
@@ -161,7 +162,7 @@ impl<'a> SyntaxNode<'a> {
     /// can continue past the unrecognised content without panicking.
     #[inline]
     pub fn fallback(input: &str, start: usize, limit: usize) -> SyntaxNode<'a> {
-        let end = memchr(b'\n', input[start..limit].as_bytes())
+        let end = memchr(b'\n', &input.as_bytes()[start..limit])
             .map_or(limit, |i| (start + i + 1).min(limit));
         SyntaxNode {
             parent: None,
@@ -288,7 +289,7 @@ impl<'a> Iterator for Nodes<'a> {
 
         loop {
             let n = self.arena.nodes[self.current].children.len();
-            let exhausted = self.stack.last().map_or(true, |&idx| idx >= n);
+            let exhausted = self.stack.last().is_none_or(|&idx| idx >= n);
             if !exhausted {
                 break;
             }
@@ -512,56 +513,39 @@ impl SyntaxT {
     #[inline]
     pub fn is_greater_element(self) -> bool {
         use SyntaxT::*;
-        match self {
-            CenterBlock | Drawer | DynamicBlock | FootnoteDefinition | Headline | InlineTask
+        matches!(self, CenterBlock | Drawer | DynamicBlock | FootnoteDefinition | Headline | InlineTask
             | Item | PlainList | PropertyDrawer | QuoteBlock | Section | SpecialBlock | Table
-            | Spreadsheet => {
-                true
-            }
-            _ => false,
-        }
+            | Spreadsheet)
     }
 
     fn is_element(self) -> bool {
         use SyntaxT::*;
-        match self {
-            BabelCall | CenterBlock | Clock | Comment | CommentBlock | DiarySexp | Drawer
+        matches!(self, BabelCall | CenterBlock | Clock | Comment | CommentBlock | DiarySexp | Drawer
             | DynamicBlock | ExampleBlock | ExportBlock | FixedWidth | FootnoteDefinition
             | Headline | HorizontalRule | InlineTask | Item | Keyword | LatexEnvironment
             | NodeProperty | Paragraph | PlainList | Planning | PropertyDrawer | QuoteBlock
             | Section | SpecialBlock | SrcBlock | Table | Spreadsheet | TableRow | SpreadsheetRow
-            | VerseBlock => true,
-            _ => false,
-        }
+            | VerseBlock)
     }
 
     fn is_object(self) -> bool {
         use SyntaxT::*;
-        match self {
-            Bold | Code | Entity | ExportSnippet | FootnoteReference | InlineBabelCall
+        matches!(self, Bold | Code | Entity | ExportSnippet | FootnoteReference | InlineBabelCall
             | InlineSrcBlock | Italic | LineBreak | LatexFragment | Link | Macro | RadioTarget
             | StatisticsCookie | StrikeThrough | Subscript | Superscript | TableCell | Target
-            | Timestamp | Underline | Verbatim | PlainText | SpreadsheetCell => true,
-            _ => false,
-        }
+            | Timestamp | Underline | Verbatim | PlainText | SpreadsheetCell)
     }
 
     fn is_recursive_object(self) -> bool {
         use SyntaxT::*;
-        match self {
-            Bold | FootnoteReference | Italic | Link | RadioTarget | StrikeThrough | Subscript
-            | Superscript | TableCell | Underline => true,
-            _ => false,
-        }
+        matches!(self, Bold | FootnoteReference | Italic | Link | RadioTarget | StrikeThrough | Subscript
+            | Superscript | TableCell | Underline)
     }
 
     fn is_object_container(self) -> bool {
         use SyntaxT::*;
-        match self {
-            Paragraph | TableRow | VerseBlock | Bold | FootnoteReference | Italic | Link
-            | RadioTarget | StrikeThrough | Subscript | Superscript | TableCell | Underline => true,
-            _ => false,
-        }
+        matches!(self, Paragraph | TableRow | VerseBlock | Bold | FootnoteReference | Italic | Link
+            | RadioTarget | StrikeThrough | Subscript | Superscript | TableCell | Underline)
     }
 
     fn is_container(self) -> bool {
@@ -631,23 +615,17 @@ impl SyntaxT {
             //       latex-fragment macro statistics-cookie
             //       strike-through subscript superscript
             //       underline verbatim)
-            Link => match that {
-                Bold | Code | Entity | ExportSnippet | InlineBabelCall | InlineSrcBlock
+            Link => matches!(that, Bold | Code | Entity | ExportSnippet | InlineBabelCall | InlineSrcBlock
                 | Italic | LatexFragment | Macro | StatisticsCookie | StrikeThrough | Subscript
-                | Superscript | Underline | Verbatim => true,
-                _ => false,
-            },
+                | Superscript | Underline | Verbatim),
 
             // Remove any variable object from radio target as it would
             // prevent it from being properly recognized.
             // (radio-target bold code entity italic
             //               latex-fragment strike-through
             //               subscript superscript underline)
-            RadioTarget => match that {
-                Bold | Code | Entity | Italic | LatexFragment | StrikeThrough | Subscript
-                | Superscript | Underline => true,
-                _ => false,
-            },
+            RadioTarget => matches!(that, Bold | Code | Entity | Italic | LatexFragment | StrikeThrough | Subscript
+                | Superscript | Underline),
 
             // Ignore inline babel call and inline source block as formulas
             // are possible.  Also ignore line breaks and statistics
@@ -655,18 +633,12 @@ impl SyntaxT {
             // (table-cell bold code entity export-snippet footnote-reference italic
             //             latex-fragment link macro radio-target strike-through
             //             subscript superscript target timestamp underline verbatim)
-            TableCell => match that {
-                Bold | Code | Entity | ExportSnippet | FootnoteReference | Italic
+            TableCell => matches!(that, Bold | Code | Entity | ExportSnippet | FootnoteReference | Italic
                 | LatexFragment | Link | Macro | RadioTarget | StrikeThrough | Subscript
-                | Superscript | Target | Timestamp | Underline | Verbatim => true,
-                _ => false,
-            },
+                | Superscript | Target | Timestamp | Underline | Verbatim),
 
             //(table-row table-cell)
-            TableRow => match that {
-                TableCell => true,
-                _ => false,
-            },
+            TableRow => matches!(that, TableCell),
 
             _ => false,
         }
@@ -676,7 +648,7 @@ impl SyntaxT {
 /// Some elements can contain objects directly in their value fields
 pub enum StringOrObject<'a> {
     Raw(Cow<'a, str>),
-    Parsed(SyntaxNode<'a>),
+    Parsed(Box<SyntaxNode<'a>>),
 }
 
 impl<'a> core::fmt::Debug for StringOrObject<'a> {
@@ -1158,7 +1130,7 @@ impl<'a> TimestampData<'a> {
                 if let (Some(h), Some(m)) = (time_iter.next(), time_iter.next()) {
                     hour_start = h.parse().ok();
                     minute_start = m
-                        .trim_end_matches(|c: char| c == '>' || c == ']')
+                        .trim_end_matches(['>', ']'])
                         .parse()
                         .ok();
                 }
@@ -1168,7 +1140,7 @@ impl<'a> TimestampData<'a> {
 
         // Check for end time in a time range: end_part = "11:30>" when input is "10:15-11:30"
         let (hour_end, minute_end) = if let Some(ep) = end_part {
-            let end_trimmed = ep.trim_end_matches(|c: char| c == '>' || c == ']');
+            let end_trimmed = ep.trim_end_matches(['>', ']']);
             let mut ep_iter = end_trimmed.split(':');
             if let (Some(h), Some(m)) = (ep_iter.next(), ep_iter.next()) {
                 (h.parse().ok(), m.parse().ok())

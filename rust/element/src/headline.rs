@@ -181,7 +181,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let (priority, rest) = rest
             .strip_prefix("[#")
             .and_then(|s| s.split_once(']'))
-            .filter(|(cookie, _)| cookie.len() == 1 && cookie.chars().next().map_or(false, |c| c.is_ascii_alphabetic()))
+            .filter(|(cookie, _)| cookie.len() == 1 && cookie.chars().next().is_some_and(|c| c.is_ascii_alphabetic()))
             .map(|(cookie, after)| (cookie.chars().next().unwrap() as usize, after.trim_start()))
             .unwrap_or((0, rest));
 
@@ -191,13 +191,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         // Strip COMMENT keyword from title if present.
         let commentedp = raw_title.starts_with("COMMENT ") || raw_title == "COMMENT";
-        let title = if raw_title.starts_with("COMMENT ") {
-            &raw_title["COMMENT ".len()..]
-        } else if raw_title == "COMMENT" {
-            ""
-        } else {
-            raw_title
-        };
+        let title = raw_title.strip_prefix("COMMENT ").unwrap_or(raw_title);
 
         // Compute raw_value: everything between stars+space and line end.
         let raw_value = &self.input[after_stars_start..line_end];

@@ -58,7 +58,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                         let match_start = search_pos + idx;
                         let match_end = match_start + end_marker.len();
                         let line_start =
-                            memrchr(b'\n', self.input[..match_start].as_bytes()).map_or(0, |p| p + 1);
+                            memrchr(b'\n', &self.input.as_bytes()[..match_start]).map_or(0, |p| p + 1);
                         let line = &self.input[line_start..match_start];
 
                         if line.chars().all(|c| c == ' ' || c == '\t' || c == '\n') {
@@ -82,11 +82,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
                 }
 
-                let post_blank = (end_pos < limit).then(|| {
+                let post_blank = if end_pos < limit {
                     let remaining = &self.input[end_pos..limit];
                     remaining.len() - remaining.trim_start().len()
-                })
-                .unwrap_or(0)
+                } else {
+                    0
+                }
                 .min(2);
 
                 let value = &self.input[start..end_pos];

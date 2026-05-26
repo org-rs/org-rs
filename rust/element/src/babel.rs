@@ -62,11 +62,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             .map(|m| input_slice[m.end()..].split_whitespace().next().unwrap_or(""))
             .unwrap_or("");
 
-        let post_blank = (line_end < limit).then(|| {
+        let post_blank = if line_end < limit {
             let remaining = &self.input[line_end..limit];
             remaining.len() - remaining.trim_start().len()
-        })
-        .unwrap_or(0)
+        } else {
+            0
+        }
         .min(2);
 
         self.arena.alloc(

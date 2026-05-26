@@ -35,7 +35,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // start pattern, or the limit.
         while end < limit {
             // Find end of current line.
-            let line_end = memchr(b'\n', self.input[end..limit].as_bytes())
+            let line_end = memchr(b'\n', &self.input.as_bytes()[end..limit])
                 .map_or(limit, |i| end + i + 1);
 
             // Check if this line is blank (only whitespace).
@@ -56,7 +56,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     && trimmed
                         .as_bytes()
                         .get(1)
-                        .map_or(false, |&b| b == b' ' || b == b'*')
+                        .is_some_and(|&b| b == b' ' || b == b'*')
                 {
                     break; // headline
                 }
@@ -81,7 +81,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         // Ensure we advance at least one line to avoid infinite loops.
         if end == start {
-            end = memchr(b'\n', self.input[start..limit].as_bytes())
+            end = memchr(b'\n', &self.input.as_bytes()[start..limit])
                 .map_or(limit, |i| start + i + 1);
         }
 

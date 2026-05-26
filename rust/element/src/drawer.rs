@@ -67,7 +67,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                         }
                     }
                 }
-                if let Some(nl) = memchr(b'\n', self.input[search_pos..limit].as_bytes()) {
+                if let Some(nl) = memchr(b'\n', &self.input.as_bytes()[search_pos..limit]) {
                     search_pos += nl + 1;
                 } else {
                     break;
@@ -78,11 +78,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
             }
 
-            let post_blank = (end < limit).then(|| {
+            let post_blank = if end < limit {
                 let remaining = &self.input[end..limit];
                 remaining.len() - remaining.trim_start().len()
-            })
-            .unwrap_or(0)
+            } else {
+                0
+            }
             .min(2);
 
             let children = if name.eq_ignore_ascii_case("PROPERTIES") {
@@ -113,7 +114,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut children = Vec::new();
         let input = self.input;
 
-        let first_line_end = match memchr(b'\n', input[start..].as_bytes()) {
+        let first_line_end = match memchr(b'\n', &input.as_bytes()[start..]) {
             Some(nl) => start + nl + 1,
             None => return children,
         };
@@ -132,7 +133,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut pos = 0;
 
         while pos < content.len() {
-            let line_end = match memchr(b'\n', content[pos..].as_bytes()) {
+            let line_end = match memchr(b'\n', &content.as_bytes()[pos..]) {
                 Some(nl) => pos + nl,
                 None => content.len(),
             };

@@ -131,6 +131,7 @@ impl<'a> Cursor<'a> {
     }
 
     #[inline]
+    #[allow(clippy::should_implement_trait)]
     pub fn next<M: Metric>(&mut self) -> Option<usize> {
         if let Some(offset) = M::next(self.data, self.pos) {
             self.pos = offset;
@@ -304,7 +305,7 @@ impl<'a> Cursor<'a> {
 
         let result = self.pos();
         self.set(pos);
-        return result;
+        result
     }
 
     /// Return the character position of the last character on the current line.
@@ -338,7 +339,7 @@ impl<'a> Cursor<'a> {
 
         let result = self.prev::<BaseMetric>().unwrap_or(0);
         self.set(pos);
-        return result;
+        result
     }
 
     #[inline]
@@ -347,7 +348,7 @@ impl<'a> Cursor<'a> {
         self.set(offset);
         let result = self.get_next_char();
         self.set(pos);
-        return result;
+        result
     }
 
     /// Checks if current line matches a given regex
@@ -414,9 +415,9 @@ impl<'a> Cursor<'a> {
     pub fn on_headline(&mut self) -> bool {
         let pos = self.pos();
         self.goto_line_begin();
-        let result = self.looking_at(&*REGEX_HEADLINE_SHORT).is_some();
+        let result = self.looking_at(&REGEX_HEADLINE_SHORT).is_some();
         self.set(pos);
-        return result;
+        result
     }
 
     #[inline]
@@ -443,10 +444,7 @@ impl<'a> Cursor<'a> {
         bound: Option<usize>,
         count: Option<usize>,
     ) -> Option<usize> {
-        let count = match count {
-            Some(count) => count,
-            _ => 1,
-        };
+        let count = count.unwrap_or(1);
 
         let bound = match bound {
             Some(bound) => bound,

@@ -125,6 +125,13 @@ pub struct ListItem<'a> {
     pub tag: Option<&'a str>,
 }
 
+impl<'a> Default for ListStruct<'a> {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> ListStruct<'a> {
     #[inline]
     pub fn new() -> Self {
@@ -318,7 +325,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let input = self.input;
 
         while pos < limit {
-            let (line, next_pos) = match memchr(b'\n', input[pos..].as_bytes()) {
+            let (line, next_pos) = match memchr(b'\n', &input.as_bytes()[pos..]) {
                 Some(nl_pos) => (&input[pos..pos + nl_pos], pos + nl_pos + 1),
                 None => (&input[pos..], limit),
             };

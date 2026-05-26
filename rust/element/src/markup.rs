@@ -105,7 +105,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut end = span.start;
 
         while end < span.end {
-            let line_end = memchr(b'\n', self.input[end..span.end].as_bytes())
+            let line_end = memchr(b'\n', &self.input.as_bytes()[end..span.end])
                 .map_or(span.end, |i| end + i + 1);
             let line = self.input[end..line_end].trim_start();
             if line.starts_with("# ") || line == "#" || line == "#\n" {
@@ -116,7 +116,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         if end == span.start {
-            end = memchr(b'\n', self.input[span.start..span.end].as_bytes())
+            end = memchr(b'\n', &self.input.as_bytes()[span.start..span.end])
                 .map_or(span.end, |i| span.start + i + 1);
         }
 
@@ -131,7 +131,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     #[inline]
     pub fn horizontal_rule_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let span = element_span.span;
-        let end = memchr(b'\n', self.input[span.start..span.end].as_bytes()).map_or(span.end, |i| span.start + i + 1);
+        let end = memchr(b'\n', &self.input.as_bytes()[span.start..span.end]).map_or(span.end, |i| span.start + i + 1);
         self.arena.alloc(SyntaxNode::new(Syntax::HorizontalRule, (span.start, end)).build())
     }
 
@@ -163,7 +163,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         };
 
         let after_label = begin + label_end;
-        let line_end_pos = memchr(b'\n', self.input[after_label..limit].as_bytes())
+        let line_end_pos = memchr(b'\n', &self.input.as_bytes()[after_label..limit])
             .map_or(limit, |i| after_label + i);
 
         let mut end = line_end_pos;
@@ -177,7 +177,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 break;
             }
 
-            if remaining.starts_with('*') && remaining.chars().nth(1).map_or(false, |c| c == ' ') {
+            if remaining.starts_with('*') && remaining.chars().nth(1) == Some(' ') {
                 break;
             }
 
@@ -187,8 +187,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 break;
             }
 
-            if remaining.starts_with('\n') {
-                let next_line = &remaining[1..];
+            if let Some(next_line) = remaining.strip_prefix('\n') {
                 if next_line.trim().is_empty() {
                     end = search_pos;
                     pre_blank = 1;
@@ -265,7 +264,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut end_area = content_start;
 
         while end_area < limit {
-            let line_end = memchr(b'\n', self.input[end_area..limit].as_bytes())
+            let line_end = memchr(b'\n', &self.input.as_bytes()[end_area..limit])
                 .map_or(limit, |i| end_area + i + 1);
 
             let line = &self.input[end_area..line_end];
@@ -283,7 +282,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         if end_area == content_start {
-            end_area = memchr(b'\n', self.input[content_start..limit].as_bytes())
+            end_area = memchr(b'\n', &self.input.as_bytes()[content_start..limit])
                 .map_or(limit, |i| content_start + i + 1);
         }
 

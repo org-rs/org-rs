@@ -176,7 +176,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                                 month_s.parse::<u32>(),
                                 day_s.parse::<u32>(),
                             ) {
-                                if month > 12 || day > 31 || year < 1970 || year > 2100 {
+                                if month > 12 || day > 31 || !(1970..=2100).contains(&year) {
                                     return false;
                                 }
                                 if month == 2 && day == 29 && !Self::is_leap_year(year) {
@@ -194,7 +194,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Check if a year is a leap year.
     fn is_leap_year(year: u32) -> bool {
-        (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+        (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
     }
 
     /// Parse a diary sexp element.
@@ -206,7 +206,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Uses `limit` to bound search
     /// - Uses `start` for begin position
     /// - Value is the full sexp string
-    /// Parse a diary sexp element.
+    ///   Parse a diary sexp element.
     ///
     /// Diary sexp format: `%%(SEXP)` at beginning of line (unindented).
     /// The sexp must have balanced parentheses.
@@ -231,7 +231,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             None => return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit)),
         };
 
-        let line_end = memchr(b'\n', self.input[start..limit].as_bytes())
+        let line_end = memchr(b'\n', &self.input.as_bytes()[start..limit])
             .map_or(limit, |i| start + i);
 
         let end = line_end;
