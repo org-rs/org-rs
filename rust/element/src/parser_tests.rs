@@ -2319,4 +2319,32 @@ mod post_blank {
         assert!(starts.contains(&8),
             "expected plain_text at 8 ('.'), got starts: {:?}", starts);
     }
+
+    #[test]
+    fn plain_text_after_bracket_link_starts_after_space() {
+        // "[[help:consult-outline][consult-outline]] / [[help:consult-imenu][consult-imenu]].\n"
+        //  0                                      39^40^41^42
+        //                                         ']' ']' ' ' '/': byte layout
+        //
+        // Bytes 0-40: the link [[help:consult-outline][consult-outline]] (41 bytes).
+        // Byte 41: ' ' (space) — Emacs absorbs this into the link's :end (post-blank).
+        // Byte 42: '/' — Emacs plain_text begin.
+        //
+        // Emacs org-element absorbs trailing whitespace into a link's :end (:post-blank),
+        // so the plain_text "/ " starts at byte 42 (the '/').
+        // Rust does not absorb post-blank in try_parse_link, so it ends the link at
+        // byte 41 (exclusive).  scan_plain_text_end on " / [[..." stops at index 1
+        // because '/' at index 1 is preceded by ' ' (a pre-char), splitting off a
+        // lone 1-char plain_text at byte 41 that Emacs does not produce.
+        let input = "[[help:consult-outline][consult-outline]] / [[help:consult-imenu][consult-imenu]].\n";
+        let starts = plain_text_starts(input);
+        assert!(
+            starts.contains(&42),
+            "expected plain_text at 42 ('/'), got starts: {:?}", starts
+        );
+        assert!(
+            !starts.contains(&41),
+            "plain_text must not start at 41 (post-blank space after link), got starts: {:?}", starts
+        );
+    }
 }

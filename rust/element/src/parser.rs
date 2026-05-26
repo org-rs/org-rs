@@ -797,6 +797,16 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         let close = found_close?;
+
+        // Absorb trailing spaces/tabs into the link's extent, matching Emacs
+        // org-element's :post-blank behaviour.  Without this, scan_plain_text_end
+        // splits the space off as a lone PlainText before '/' triggers the
+        // pre-char stop, producing a node Emacs never emits.
+        let post_blank = bytes[close..]
+            .iter()
+            .take_while(|&&b| b == b' ' || b == b'\t')
+            .count();
+
         let raw = &text[..close];
 
         // Detect the optional description: the ][ separator between target and
@@ -812,7 +822,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let link_data = LinkData::new(raw);
 
         let node = self.arena.alloc(
-            SyntaxNode::new(Syntax::Link(Box::new(link_data)), (start, start + close))
+            SyntaxNode::new(Syntax::Link(Box::new(link_data)), (start, start + close + post_blank))
                 .content((start + 2, start + close - 2))
                 .build(),
         );
@@ -824,7 +834,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             }
         }
 
-        Some((node, close))
+        Some((node, close + post_blank))
     }
 
     fn try_parse_target(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
