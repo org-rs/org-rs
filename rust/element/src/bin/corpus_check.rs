@@ -364,7 +364,7 @@ fn run_oracle(path: &Path) -> Result<String, CorpusError> {
         .args([
             "--batch", "-Q",
             "--load", oracle_el.to_str().ok_or(CorpusError::EmacsUnavailable)?,
-            "--",     path.to_str().ok_or(CorpusError::EmacsUnavailable)?,
+            path.to_str().ok_or(CorpusError::EmacsUnavailable)?,
         ])
         .output()
         .map_err(|source| CorpusError::OracleExec { path: path.to_owned(), source })?;
