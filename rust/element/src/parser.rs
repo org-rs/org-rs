@@ -332,15 +332,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                         loc,
                         |that| SyntaxT::Headline.can_contain(that),
                     );
-                    if !title_objects.is_empty() {
-                        let combined: Vec<NodeId> = {
-                            let node = self.arena.get(element);
-                            title_objects.into_iter()
-                                .chain(node.children.iter().copied())
-                                .collect()
-                        };
-                        self.arena.set_children(element, combined);
-                    }
+                    self.arena.set_title_objects(element, title_objects);
                 }
             }
 

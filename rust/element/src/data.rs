@@ -263,6 +263,23 @@ impl<'a> NodeArena<'a> {
         self.nodes[parent].children = children;
     }
 
+    /// Store parsed headline-title objects in `HeadlineData::title_objects`.
+    ///
+    /// Title objects are inline nodes from the headline's secondary string.
+    /// They belong to `:title` in Emacs org-element and must not appear in
+    /// `SyntaxNode::children`, which contains only body content (sections and
+    /// sub-headlines).  This method sets the parent pointer of each object to
+    /// `parent` so arena traversals can still walk up to the headline.
+    #[inline]
+    pub fn set_title_objects(&mut self, parent: NodeId, objects: Vec<NodeId>) {
+        for &obj in &objects {
+            self.nodes[obj].parent = NonZeroUsize::new(parent + 1);
+        }
+        if let Syntax::Headline(ref mut data) = self.nodes[parent].data {
+            data.title_objects = objects;
+        }
+    }
+
     #[inline]
     pub fn get(&self, id: NodeId) -> &SyntaxNode<'a> {
         &self.nodes[id]
