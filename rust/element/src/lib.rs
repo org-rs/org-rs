@@ -56,7 +56,7 @@ pub mod prelude {
         ExportSnippetData, FootnoteReferenceData, InlineBabelCallData,
         InlineSrcBlockData, LineNumberingMode, LinkData, LinkFormat, LinkType,
         MacroData, PlanningData, RadioTargetData, StatisticsCookieData,
-        StringOrObject, SubscriptData, SuperscriptData,
+        StringOrObject, Brackets, ScriptFlags, ScriptKind,
         TimestampData, TimestampType, RepeaterType, TimeUnit,
         WarningType,
     };
