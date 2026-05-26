@@ -185,20 +185,32 @@ fn find_block_bounds_impl(
 
 /// Find the bounds of a named block (`#+BEGIN_TYPE` / `#+END_TYPE`).
 fn find_block_bounds(input: &str, start: usize, limit: usize, block_type: &str) -> Option<BlockBounds> {
-    let expected = format!("#+END_{}", block_type.to_ascii_uppercase());
+    let end_tag = b"#+END_";
     find_block_bounds_impl(input, start, limit, |line| {
-        let upper = line.trim().to_ascii_uppercase();
-        upper == expected
-            || upper.starts_with(&format!("{} ", expected))
-            || upper.starts_with(&format!("{}\t", expected))
+        let trimmed = line.trim();
+        let bytes = trimmed.as_bytes();
+        let tag_len = end_tag.len() + block_type.len();
+        if bytes.len() < tag_len {
+            return false;
+        }
+        if !bytes[..end_tag.len()].eq_ignore_ascii_case(end_tag) {
+            return false;
+        }
+        if !bytes[end_tag.len()..tag_len].eq_ignore_ascii_case(block_type.as_bytes()) {
+            return false;
+        }
+        bytes.len() == tag_len || bytes[tag_len] == b' ' || bytes[tag_len] == b'\t'
     })
 }
 
 /// Find bounds of a dynamic block (`#+BEGIN:` / `#+END:`).
 fn find_dynamic_block_bounds(input: &str, start: usize, limit: usize) -> Option<BlockBounds> {
     find_block_bounds_impl(input, start, limit, |line| {
-        let upper = line.trim().to_ascii_uppercase();
-        upper.starts_with("#+END:") || upper.starts_with("#+END ")
+        let trimmed = line.trim();
+        let bytes = trimmed.as_bytes();
+        bytes.len() >= 6
+            && bytes[..5].eq_ignore_ascii_case(b"#+END")
+            && (bytes[5] == b':' || bytes[5] == b' ')
     })
 }
 
