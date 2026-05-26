@@ -15,7 +15,7 @@
 
 use std::rc::Rc;
 
-use memchr::{memchr, memchr2, memchr3};
+use memchr::{memchr, memchr2, memchr3, memmem};
 
 use crate::affiliated::ElementSpan;
 use crate::babel::REGEX_BABEL_CALL;
@@ -753,17 +753,32 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         let close = found_close?;
-        let content_start = 2;
-        let content_end = close - 2;
         let raw = &text[..close];
+
+        // Detect the optional description: the ][ separator between target and
+        // description within [[target][description]].  The description is in
+        // org-element-contents (unlike the headline title), so it is parsed
+        // into child objects.
+        let inner = &text[2..close - 2];
+        let desc_loc = memmem::find(inner.as_bytes(), b"][").map(|sep| Interval {
+            start: start + 2 + sep + 2,
+            end:   start + close - 2,
+        });
 
         let link_data = LinkData::new(raw);
 
         let node = self.arena.alloc(
             SyntaxNode::new(Syntax::Link(Box::new(link_data)), (start, start + close))
-                .content((start + content_start, start + content_end))
+                .content((start + 2, start + close - 2))
                 .build(),
         );
+
+        if let Some(desc) = desc_loc {
+            if desc.start < desc.end {
+                let children = self.parse_objects(desc, |that| SyntaxT::Link.can_contain(that));
+                self.arena.set_children(node, children);
+            }
+        }
 
         Some((node, close))
     }
