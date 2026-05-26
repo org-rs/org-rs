@@ -158,7 +158,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         &mut self,
         span: impl Into<Interval>,
         mut mode: ParserMode,
-        structure: Option<Rc<ListStruct>>,
+        structure: Option<Rc<ListStruct<'a>>>,
     ) -> Vec<NodeId> {
         let span = span.into();
         let pos = self.cursor.pos();
@@ -284,7 +284,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         &mut self,
         limit: usize,
         mode: ParserMode,
-        structure: Option<Rc<ListStruct>>,
+        structure: Option<Rc<ListStruct<'a>>>,
     ) -> NodeId {
         let pos = self.cursor.pos();
 

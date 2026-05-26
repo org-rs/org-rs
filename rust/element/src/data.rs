@@ -379,7 +379,7 @@ pub enum Syntax<'a> {
     Paragraph,
 
     /// Greater element
-    PlainList(Box<PlainListData>),
+    PlainList(Box<PlainListData<'a>>),
 
     /// Element
     Planning(Box<PlanningData<'a>>),

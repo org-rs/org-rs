@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{black_box, Criterion};
 
 use org_element::prelude::*;
 
@@ -52,5 +52,9 @@ fn bench_parse_granularity(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_parse_sizes, bench_parse_granularity);
-criterion_main!(benches);
+fn main() {
+    let mut c = Criterion::default().configure_from_args();
+    bench_parse_sizes(&mut c);
+    bench_parse_granularity(&mut c);
+    c.final_summary();
+}
