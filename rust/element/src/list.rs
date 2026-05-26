@@ -65,6 +65,7 @@
 use std::rc::Rc;
 
 use crate::affiliated::ElementSpan;
+use crate::cursor::CachedRegex;
 use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use memchr::memchr;
@@ -102,7 +103,8 @@ lazy_static! {
 //   "Regexp matching the beginning of a plain list item."
 //   (concat "^" (org-item-re)))
 
-    pub static ref REGEX_ITEM : Regex = Regex::new(r"([ \t]*([-+]|(([0-9]+)[.)]))|[ \t]+\*)([ \t]|$)").unwrap();
+    pub static ref REGEX_ITEM : CachedRegex =
+        CachedRegex::new(Regex::new(r"([ \t]*([-+]|(([0-9]+)[.)]))|[ \t]+\*)([ \t]|$)").unwrap());
 
 }
 

@@ -324,7 +324,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 let maybe_headline_offset = self.cursor.line_beginning_position(Some(0));
                 let maybe_star = self.cursor.char_after(maybe_headline_offset);
                 let is_prev_line_headline = Some('*') == maybe_star;
-                let is_match_planning = self.cursor.looking_at(&REGEX_PLANNING_LINE).is_some();
+                let is_match_planning = self.cursor.looking_at(&*REGEX_PLANNING_LINE).is_some();
 
                 if mode == Planning && is_prev_line_headline && is_match_planning {
                     return self.planning_parser(limit);
@@ -337,7 +337,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 let maybe_star = self.cursor.char_after(maybe_headline_offset);
                 let is_prev_line_headline = Some('*') == maybe_star;
                 let is_match_property_drawer =
-                    self.cursor.looking_at(&REGEX_PROPERTY_DRAWER).is_some();
+                    self.cursor.looking_at(&*REGEX_PROPERTY_DRAWER).is_some();
 
                 if (mode == Planning || mode == PropertyDrawer)
                     && is_prev_line_headline

@@ -32,6 +32,7 @@
 //!
 //! TAGS is made of words separated with colons, e.g. `:tag1:tag2:`.
 
+use crate::cursor::CachedRegex;
 use crate::data::{Interval, NodeId, Syntax, SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use memchr::memchr;
@@ -42,23 +43,27 @@ const ORG_DEADLINE_STRING: &str = "DEADLINE";
 const ORG_SCHEDULED_STRING: &str = "SCHEDULED";
 
 lazy_static! {
-    pub static ref REGEX_HEADLINE_SHORT: Regex = Regex::new(r"^\*+\s").unwrap();
+    pub static ref REGEX_HEADLINE_SHORT: CachedRegex =
+        CachedRegex::new(Regex::new(r"^\*+\s").unwrap());
 
     pub static ref REGEX_HEADLINE_MULTILINE: Regex = Regex::new(r"(?m)^\*+\s").unwrap();
 
     /// Matches a line with planning info.
     /// Matched keyword is in group 1
-    pub static ref REGEX_PLANNING_LINE: Regex = Regex::new(
-        &format!(r"^[ \t]*((?:{}|{}|{}):)",
-            ORG_CLOSED_STRING, ORG_DEADLINE_STRING, ORG_SCHEDULED_STRING ))
-        .unwrap();
+    pub static ref REGEX_PLANNING_LINE: CachedRegex = CachedRegex::new(
+        Regex::new(
+            &format!(r"^[ \t]*((?:{}|{}|{}):)",
+                ORG_CLOSED_STRING, ORG_DEADLINE_STRING, ORG_SCHEDULED_STRING ))
+            .unwrap());
 
     /// Matches an entire property drawer.
-    pub static ref REGEX_PROPERTY_DRAWER: Regex = Regex::new(
-        r"^[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?: .*)?[ \t]*\n)*?[ \t]*:END:[ \t]*")
-            .unwrap();
+    pub static ref REGEX_PROPERTY_DRAWER: CachedRegex = CachedRegex::new(
+        Regex::new(
+            r"^[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?: .*)?[ \t]*\n)*?[ \t]*:END:[ \t]*")
+            .unwrap());
 
-    pub static ref REGEX_CLOCK_LINE: Regex = Regex::new(r"(?i)^[ \t]*clock:").unwrap();
+    pub static ref REGEX_CLOCK_LINE: CachedRegex =
+        CachedRegex::new(Regex::new(r"(?i)^[ \t]*clock:").unwrap());
 }
 
 /// Packed bitflags for [`HeadlineData`].
