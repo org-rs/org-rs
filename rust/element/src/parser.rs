@@ -15,7 +15,7 @@
 
 use std::rc::Rc;
 
-use memchr::{memchr, memchr2};
+use memchr::{memchr, memchr2, memchr3};
 
 use crate::affiliated::ElementSpan;
 use crate::babel::REGEX_BABEL_CALL;
@@ -333,12 +333,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 let maybe_headline_offset = self.cursor.line_beginning_position(Some(delta));
                 let maybe_star = self.cursor.char_after(maybe_headline_offset);
                 let is_prev_line_headline = Some('*') == maybe_star;
-                let is_match_property_drawer =
-                    self.cursor.looking_at(&*REGEX_PROPERTY_DRAWER).is_some();
 
                 if (mode == Planning || mode == PropertyDrawer)
                     && is_prev_line_headline
-                    && is_match_property_drawer
+                    && self.cursor.looking_at(&*REGEX_PROPERTY_DRAWER).is_some()
                 {
                     return self.property_drawer_parser(limit);
                 }
@@ -914,39 +912,81 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return None;
         }
 
-        // Find where plain text ends (at next markup marker or end)
         let bytes = text.as_bytes();
-        let mut consume = 0;
 
-        for (i, &b) in bytes.iter().enumerate() {
-            // Stop at emphasis markers that could start markup
-            if matches!(b, b'*' | b'/' | b'_' | b'+' | b'=' | b'~') && i > 0 {
-                // Check if it's a valid PRE char for markup
-                if Self::is_pre_char(bytes[i - 1]) {
+        // Four independent SIMD cursors, one per character group.
+        //
+        // Design rationale — eliminating overscan
+        // ----------------------------------------
+        // A naïve single-scan approach re-runs all four memchr calls from
+        // the same offset every time a candidate fails its contextual check
+        // (pre-char guard, URL-prefix test).  That re-scans three groups that
+        // haven't moved, wasting work proportional to false-candidate density.
+        //
+        // With four independent absolute-position cursors we advance only the
+        // cursor whose candidate failed; the other three retain the positions
+        // they already found.  A typical Org-mode paragraph contains very few
+        // stop characters relative to its length, so each cursor advances a
+        // handful of times at most regardless of text length.
+        //
+        // Group assignment (mutually exclusive — each byte belongs to ≤ 1 group):
+        //   p1: b'['           — links, footnotes, timestamps (always stops)
+        //   p2: b'*' b'/' b'_' — emphasis markers A (stops if pre-char precedes)
+        //   p3: b'+' b'=' b'~' — emphasis markers B (stops if pre-char precedes)
+        //   p4: b'h' b'f' b'm' — URL first-byte    (stops if pre-char + protocol)
+        let mut p1 = memchr(b'[', bytes);
+        let mut p2 = memchr3(b'*', b'/', b'_', bytes);
+        let mut p3 = memchr3(b'+', b'=', b'~', bytes);
+        let mut p4 = memchr3(b'h', b'f', b'm', bytes);
+
+        let mut consume = 0usize;
+
+        loop {
+            let ps = [p1, p2, p3, p4];
+            let i = match ps.iter().copied().flatten().min() {
+                None => {
+                    consume = bytes.len();
                     break;
                 }
-            }
-            // Stop before '[' so footnote references, links, and timestamps get a chance
+                Some(pos) => pos,
+            };
+
+            let b = bytes[i];
+
             if b == b'[' {
+                consume = i;
                 break;
             }
-            // Stop before bare URL protocols at word boundaries.
-            // Gate on the first byte first: all four protocols start with
-            // 'h', 'f', or 'm', so skip the pre-char and starts_with work
-            // for the vast majority of bytes that can never begin a URL.
-            if matches!(b, b'h' | b'f' | b'm')
-                && (i == 0 || Self::is_pre_char(bytes[i - 1]))
-            {
-                let rem = &bytes[i..];
-                if rem.starts_with(b"https://")
-                    || rem.starts_with(b"http://")
-                    || rem.starts_with(b"ftp://")
-                    || rem.starts_with(b"mailto:")
-                {
+
+            if matches!(b, b'*' | b'/' | b'_' | b'+' | b'=' | b'~') && i > 0 {
+                if Self::is_pre_char(bytes[i - 1]) {
+                    consume = i;
                     break;
                 }
             }
+
+            if matches!(b, b'h' | b'f' | b'm') && (i == 0 || Self::is_pre_char(bytes[i - 1])) {
+                let url_rem = &bytes[i..];
+                if url_rem.starts_with(b"https://")
+                    || url_rem.starts_with(b"http://")
+                    || url_rem.starts_with(b"ftp://")
+                    || url_rem.starts_with(b"mailto:")
+                {
+                    consume = i;
+                    break;
+                }
+            }
+
+            // Candidate did not trigger a stop; include this byte and advance
+            // only the cursor whose group owns this byte value.
             consume = i + 1;
+            let rest = &bytes[consume..];
+            match b {
+                b'[' => unreachable!(),
+                b'*' | b'/' | b'_' => p2 = memchr3(b'*', b'/', b'_', rest).map(|r| consume + r),
+                b'+' | b'=' | b'~' => p3 = memchr3(b'+', b'=', b'~', rest).map(|r| consume + r),
+                _ => p4 = memchr3(b'h', b'f', b'm', rest).map(|r| consume + r),
+            }
         }
 
         if consume == 0 {
