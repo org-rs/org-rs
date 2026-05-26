@@ -114,6 +114,10 @@ lazy_static! {
 pub struct ListStruct<'a> {
     /// Items found so far: (position, indent, bullet, counter, checkbox, tag)
     pub items: Vec<ListItem<'a>>,
+    /// Byte position at which the list ends — the first line that is not part
+    /// of the list (a headline, a less-indented line, or end of input).
+    /// Set by `list_struct` when the scan terminates.
+    pub end: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -136,7 +140,7 @@ impl<'a> Default for ListStruct<'a> {
 impl<'a> ListStruct<'a> {
     #[inline]
     pub fn new() -> Self {
-        ListStruct { items: Vec::new() }
+        ListStruct { items: Vec::new(), end: 0 }
     }
 }
 
@@ -273,7 +277,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let end_pos = if i + 1 < items.len() && items[i + 1].indent == first_indent {
                 items[i + 1].position
             } else {
-                span.end
+                structure.end
             };
 
             let item_node = self.item_parser_internal(item, end_pos);
@@ -383,6 +387,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut pos = self.cursor.pos();
         let input = self.input;
 
+        // The indent of the first item anchors what counts as a continuation
+        // line (any non-bullet, non-blank line indented MORE than this stops
+        // the scan only if it is at the same-or-lower indent level).
+        let mut first_indent: Option<usize> = None;
+
         while pos < limit {
             let (line, next_pos) = match memchr(b'\n', &input.as_bytes()[pos..]) {
                 Some(nl_pos) => (&input[pos..pos + nl_pos], pos + nl_pos + 1),
@@ -410,6 +419,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 rest.starts_with('-') || rest.starts_with('+') || starts_with_ordered;
 
             if starts_with_bullet {
+                first_indent.get_or_insert(indent);
                 let (bullet, counter, checkbox, tag) = Self::parse_item_bullet(rest);
                 items.push(ListItem {
                     position: pos,
@@ -420,13 +430,21 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     tag,
                 });
             } else {
+                // Non-bullet, non-blank line.  It is a continuation of the
+                // current item if it is indented strictly MORE than the first
+                // item's bullet.  Otherwise it terminates the list.
+                let fi = first_indent.unwrap_or(0);
+                if indent > fi {
+                    pos = next_pos;
+                    continue;
+                }
                 break;
             }
 
             pos = next_pos;
         }
 
-        Rc::new(ListStruct { items })
+        Rc::new(ListStruct { items, end: pos })
     }
 
     fn get_indent(line: &str) -> (usize, &str) {
