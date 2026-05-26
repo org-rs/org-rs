@@ -22,7 +22,44 @@ use regex::{Captures, Match, Regex};
 use crate::headline::{REGEX_HEADLINE_MULTILINE, REGEX_HEADLINE_SHORT};
 
 lazy_static! {
-    pub static ref REGEX_EMPTY_LINE: Regex = Regex::new(r"^[ \t]*$").unwrap();
+    pub static ref REGEX_EMPTY_LINE: CachedRegex =
+        CachedRegex::new(Regex::new(r"^[ \t]*$").unwrap());
+}
+
+/// A [`Regex`] with its multiline-ness precomputed.
+///
+/// The `multiline` flag is computed once at construction time by checking
+/// whether the pattern contains `\n`, `\r`, or `[[:space:]]`.  This avoids
+/// re-scanning the pattern string on every call to [`Cursor::looking_at`]
+/// or [`Cursor::capturing_at`].
+#[derive(Debug, Clone)]
+pub struct CachedRegex {
+    regex: Regex,
+    multiline: bool,
+}
+
+impl CachedRegex {
+    /// Build a `CachedRegex` from a `Regex`, precomputing whether it can
+    /// match across line boundaries.
+    #[inline]
+    pub fn new(re: Regex) -> Self {
+        let multiline = is_multiline_regex(re.as_str());
+        CachedRegex { regex: re, multiline }
+    }
+
+    /// `true` when the wrapped pattern can match across multiple lines.
+    #[inline]
+    pub fn multiline(&self) -> bool {
+        self.multiline
+    }
+}
+
+impl std::ops::Deref for CachedRegex {
+    type Target = Regex;
+    #[inline]
+    fn deref(&self) -> &Regex {
+        &self.regex
+    }
 }
 
 pub trait Metric {
@@ -362,8 +399,8 @@ impl<'a> Cursor<'a> {
     /// This function does not move cursor
     /// Use `capturing_at` if you need capture groups.
     #[inline]
-    pub fn looking_at(&self, re: &Regex) -> Option<Match<'a>> {
-        let end = if !is_multiline_regex(re.as_str()) {
+    pub fn looking_at(&self, re: &CachedRegex) -> Option<Match<'a>> {
+        let end = if !re.multiline() {
             LinesMetric::next(self.data, self.pos)
                 .map(|p| p - 1) // exclude '\n' from the string'
                 .unwrap_or_else(|| self.data.len())
@@ -380,8 +417,8 @@ impl<'a> Cursor<'a> {
     /// This is slower than simple regex search so if you don't need
     /// capture groups use `looking_at` for better performance
     #[inline]
-    pub fn capturing_at(&self, re: &Regex) -> Option<Captures<'a>> {
-        let end = if !is_multiline_regex(re.as_str()) {
+    pub fn capturing_at(&self, re: &CachedRegex) -> Option<Captures<'a>> {
+        let end = if !re.multiline() {
             LinesMetric::next(self.data, self.pos)
                 .map(|p| p - 1) // exclude '\n' from the string'
                 .unwrap_or_else(|| self.data.len())
@@ -415,7 +452,7 @@ impl<'a> Cursor<'a> {
     pub fn on_headline(&mut self) -> bool {
         let pos = self.pos();
         self.goto_line_begin();
-        let result = self.looking_at(&REGEX_HEADLINE_SHORT).is_some();
+        let result = self.looking_at(&*REGEX_HEADLINE_SHORT).is_some();
         self.set(pos);
         result
     }

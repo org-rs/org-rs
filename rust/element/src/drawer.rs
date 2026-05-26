@@ -14,6 +14,7 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::affiliated::ElementSpan;
+use crate::cursor::CachedRegex;
 use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use lazy_static::lazy_static;
@@ -24,7 +25,8 @@ lazy_static! {
     /// Matches first or last line of a drawer
     /// Group 1 contains drawer's name or "END"
     /// Note: (?m) enables multiline mode so ^ matches line start
-    pub static ref REGEX_DRAWER: Regex = Regex::new(r"(?im)^[ \t]*:((?:\w|[-_])+):[ \t]*$").unwrap();
+    pub static ref REGEX_DRAWER: CachedRegex =
+        CachedRegex::new(Regex::new(r"(?im)^[ \t]*:((?:\w|[-_])+):[ \t]*$").unwrap());
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {

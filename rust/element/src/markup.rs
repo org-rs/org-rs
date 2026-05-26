@@ -17,6 +17,7 @@
 use std::borrow::Cow;
 
 use crate::affiliated::ElementSpan;
+use crate::cursor::CachedRegex;
 use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use memchr::memchr;
@@ -59,21 +60,25 @@ pub fn strip_fixed_width_colons(input: &str) -> Cow<'_, str> {
 }
 
 lazy_static! {
-    pub static ref REGEX_HORIZONTAL_RULE: Regex = Regex::new(r"[ \t]*-{5,}[ \t]*$").unwrap();
+    pub static ref REGEX_HORIZONTAL_RULE: CachedRegex =
+        CachedRegex::new(Regex::new(r"[ \t]*-{5,}[ \t]*$").unwrap());
 
     /// Regular expression matching the definition of a footnote.
     /// Match group 1 contains definition's label
-    pub static ref REGEX_FOOTNOTE_DEFINITION: Regex = Regex::new(r"^\[fn:([-_[:word:]]+)\]").unwrap();
+    pub static ref REGEX_FOOTNOTE_DEFINITION: CachedRegex =
+        CachedRegex::new(Regex::new(r"^\[fn:([-_[:word:]]+)\]").unwrap());
 
     /// Diary Sexp elements - must be at beginning of line (unindented)
     /// Match group 1 contains the content after %%(
     /// Note: No ^ anchor needed - parser ensures we're at the right position
-    pub static ref REGEX_DIARY_SEXP: Regex = Regex::new(r"%%\((.*)").unwrap();
+    pub static ref REGEX_DIARY_SEXP: CachedRegex =
+        CachedRegex::new(Regex::new(r"%%\((.*)").unwrap());
 
     /// Fixed Width Areas
     /// A "fixed-width line" start with a colon character and a whitespace or an end of line.
     /// Fixed width areas can contain any number of consecutive fixed-width lines.
-    pub static ref REGEX_FIXED_WIDTH: Regex = Regex::new(r"[ \t]*:( |$)").unwrap();
+    pub static ref REGEX_FIXED_WIDTH: CachedRegex =
+        CachedRegex::new(Regex::new(r"[ \t]*:( |$)").unwrap());
 
 }
 

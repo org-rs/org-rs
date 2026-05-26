@@ -14,6 +14,7 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::affiliated::ElementSpan;
+use crate::cursor::CachedRegex;
 use crate::data::{Interval, LineNumberingMode, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use memchr::memchr;
@@ -21,19 +22,23 @@ use regex::Regex;
 
 lazy_static! {
     /// Used to identify the  Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
-    pub static ref REGEX_STARTS_WITH_HASHTAG: Regex = Regex::new(r"[ \t]*#").unwrap();
+    pub static ref REGEX_STARTS_WITH_HASHTAG: CachedRegex =
+        CachedRegex::new(Regex::new(r"[ \t]*#").unwrap());
 
     /// Used to identify Comments. Used together with REGEX_STARTS_WITH_HASHTAG
-    pub static ref REGEX_COLON_OR_EOL: Regex = Regex::new(r"(?: |$)").unwrap();
+    pub static ref REGEX_COLON_OR_EOL: CachedRegex =
+        CachedRegex::new(Regex::new(r"(?: |$)").unwrap());
 
     /// Used to identify center, comment, example, export, quote, source, verse
     /// and special blocks. Used together with REGEX_STARTS_WITH_HASHTAG
     /// Case insensitive to match #+BEGIN_CENTER and #+begin_center
-    pub static ref REGEX_BLOCK_BEGIN: Regex = Regex::new(r"(?i)\+BEGIN_(\S+)").unwrap();
+    pub static ref REGEX_BLOCK_BEGIN: CachedRegex =
+        CachedRegex::new(Regex::new(r"(?i)\+BEGIN_(\S+)").unwrap());
 
     /// Used to identify rare, but technically legal dynamic `BEGIN` blocks
     /// Note: uses #+BEGIN: (no underscore after BEGIN)
-    pub static ref REGEX_DYNAMIC_BLOCK: Regex = Regex::new(r"(?i)\+BEGIN:? ").unwrap();
+    pub static ref REGEX_DYNAMIC_BLOCK: CachedRegex =
+        CachedRegex::new(Regex::new(r"(?i)\+BEGIN:? ").unwrap());
 }
 
 /// Greater element

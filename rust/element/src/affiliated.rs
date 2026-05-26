@@ -44,6 +44,7 @@
 //!
 //! “CAPTION” keyword can contain objects in both VALUE and OPTIONAL fileds.
 
+use crate::cursor::CachedRegex;
 use crate::cursor::REGEX_EMPTY_LINE;
 use crate::data::{Interval, StringOrObject, SyntaxT};
 use crate::parser::Parser;
@@ -85,7 +86,8 @@ lazy_static! {
    /// the future, for now due laziness and lack of time static regex will be used.
    ///
    /// elisp: `org-element--affiliated-re`
-   pub static ref REGEX_AFFILIATED: Regex = Regex::new(
+   pub static ref REGEX_AFFILIATED: CachedRegex = CachedRegex::new(
+       Regex::new(
            &format!(
               r"(?i)^[ \t]*{}|{}|{}|{}|{}[ \t]*",
               r"#\+(?:(?:(?P<CAPTION>CAPTION)|(?P<RESULTS>RESULTS?))(?:\[(?P<SECONDARY>.*)\])?",   // DUAL
@@ -93,7 +95,7 @@ lazy_static! {
               r"(?P<PLOT>PLOT)",
               r"(?P<NAME>(?:DATA|LABEL|NAME|RESNAME|(?:S(?:OURC|RCNAM)|TBLNAM)E))",
               r"(?P<ATTR>ATTR_[-_A-Za-z0-9]+)):")
-       ).unwrap();
+        ).unwrap());
 }
 
 /// The span and affiliated keywords that together describe where an element begins.
@@ -300,7 +302,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 mod test {
     use super::REGEX_AFFILIATED;
     use crate::affiliated::DualVal;
-    use crate::cursor::{is_multiline_regex, Cursor};
+    use crate::cursor::Cursor;
     use crate::data::StringOrObject;
     use crate::environment::DefaultEnvironment;
     use crate::parser::{ParseGranularity, Parser};
@@ -314,7 +316,7 @@ mod test {
 
     #[test]
     fn affiliated_re() {
-        assert!(!is_multiline_regex(REGEX_AFFILIATED.as_str()));
+        assert!(!REGEX_AFFILIATED.multiline());
         let mut maybe_cap = REGEX_AFFILIATED.captures(r"  \n#+caPtion[GIT]: org-rs");
         assert!(maybe_cap.is_none());
 
