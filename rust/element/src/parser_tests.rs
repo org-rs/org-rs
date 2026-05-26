@@ -184,6 +184,135 @@ mod item {
         }
     }
 
+    /// A headline following a plain list (after a blank line) must NOT be
+    /// parsed as a child of the last list item.  Emacs `list_struct` stops
+    /// the scan at the headline line; the item's `:contents-end` is therefore
+    /// the start of that headline, not the section limit.
+    ///
+    /// Discrepancy class: `root/headline/section/plain_list/item/headline`
+    ///
+    /// Corner cases:
+    /// - headline directly after a blank line following an item
+    /// - same-level sub-headline after a flat list inside a heading
+    /// - multiple items, headline follows the last one
+    mod headline_not_inside_item {
+        use super::*;
+
+        fn headlines_in_item_subtree(arena: &crate::data::NodeArena, item_id: NodeId) -> usize {
+            let mut count = 0;
+            for &child in &arena[item_id].children {
+                if matches!(arena[child].data, Syntax::Headline(_)) {
+                    count += 1;
+                }
+                count += headlines_in_item_subtree(arena, child);
+            }
+            count
+        }
+
+        /// A sub-headline following a list item (blank line in between) must
+        /// not be swallowed into the item's content.
+        #[test]
+        fn sub_headline_after_blank_is_not_item_child() {
+            let input = "* Top Level\n- list item\n\n** Sub-headline\n";
+            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+            let (arena, root) = parser.parse_buffer();
+
+            let top_hl = arena[root].children[0];
+            let section = arena[top_hl].children
+                .iter()
+                .find(|&&n| matches!(arena[n].data, Syntax::Section))
+                .copied()
+                .expect("expected Section child of headline");
+            let list = arena[section].children
+                .iter()
+                .find(|&&n| matches!(arena[n].data, Syntax::PlainList(_)))
+                .copied()
+                .expect("expected PlainList inside section");
+            let item = arena[list].children[0];
+            let headlines_in_item = headlines_in_item_subtree(&arena, item);
+            assert_eq!(
+                headlines_in_item, 0,
+                "** Sub-headline must not appear inside the list item (found {} headline(s))",
+                headlines_in_item
+            );
+        }
+
+        /// The sub-headline must still appear as a sibling of the section
+        /// (direct child of the parent headline), not lost entirely.
+        #[test]
+        fn sub_headline_is_sibling_of_section() {
+            let input = "* Top Level\n- list item\n\n** Sub-headline\n";
+            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+            let (arena, root) = parser.parse_buffer();
+
+            let top_hl = arena[root].children[0];
+            let sub_hl_count = arena[top_hl].children
+                .iter()
+                .filter(|&&n| matches!(arena[n].data, Syntax::Headline(_)))
+                .count();
+            assert_eq!(
+                sub_hl_count, 1,
+                "** Sub-headline must be a direct child of * Top Level (found {} headline sibling(s))",
+                sub_hl_count
+            );
+        }
+
+        /// Multiple items — headline follows the last one.
+        #[test]
+        fn headline_after_multiple_items_not_in_last_item() {
+            let input = "* Parent\n- alpha\n- beta\n\n** Child\n";
+            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+            let (arena, root) = parser.parse_buffer();
+
+            let top_hl = arena[root].children[0];
+            let section = arena[top_hl].children
+                .iter()
+                .find(|&&n| matches!(arena[n].data, Syntax::Section))
+                .copied()
+                .expect("expected Section");
+            let list = arena[section].children
+                .iter()
+                .find(|&&n| matches!(arena[n].data, Syntax::PlainList(_)))
+                .copied()
+                .expect("expected PlainList");
+
+            for &item in &arena[list].children {
+                let hl_count = headlines_in_item_subtree(&arena, item);
+                assert_eq!(
+                    hl_count, 0,
+                    "** Child must not appear inside any list item (item {:?} has {} headline(s))",
+                    arena[item].location, hl_count
+                );
+            }
+        }
+
+        /// A list at top level (no parent headline) followed by a headline.
+        #[test]
+        fn top_level_list_followed_by_headline() {
+            let input = "- top item\n\n* Headline\n";
+            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+            let (arena, root) = parser.parse_buffer();
+
+            // Find the PlainList (may be inside a section or directly under root)
+            fn find_list(arena: &crate::data::NodeArena, id: NodeId) -> Option<NodeId> {
+                if matches!(arena[id].data, Syntax::PlainList(_)) { return Some(id); }
+                for &c in &arena[id].children {
+                    if let Some(l) = find_list(arena, c) { return Some(l); }
+                }
+                None
+            }
+            let list = find_list(&arena, root).expect("expected a PlainList");
+            for &item in &arena[list].children {
+                let hl_count = headlines_in_item_subtree(&arena, item);
+                assert_eq!(
+                    hl_count, 0,
+                    "* Headline must not appear inside the list item (found {} headline(s))",
+                    hl_count
+                );
+            }
+        }
+    }
+
     /// For description list items (`- TAG :: content`), the paragraph inside
     /// the item must start after the ` :: ` separator, not at the tag.
     ///
@@ -2067,3 +2196,72 @@ mod od1_compliance {
         }
     }
 }
+
+/// Subscript (`text_{sub}` / `text_word`) and superscript (`text^{sup}`)
+/// objects are defined in `SyntaxT` but never emitted by the parser.
+///
+/// Corpus discrepancy class:
+///   `root/headline/section/paragraph/subscript` (3)
+///   `root/headline/section/quote_block/paragraph/subscript` (11)
+///
+/// Corner cases:
+/// - bare word subscript: `H_2` → subscript `2`
+/// - braced subscript: `H_{2}O` → subscript `2`
+/// - bare superscript: `E=mc^2` → superscript `2`
+/// - braced superscript: `x^{n+1}` → superscript `n+1`
+mod subscript_superscript {
+    use super::*;
+    use crate::data::ScriptKind;
+
+    fn find_script(arena: &crate::data::NodeArena, id: NodeId) -> Vec<NodeId> {
+        let mut out = Vec::new();
+        if matches!(arena[id].data, Syntax::Script(_)) {
+            out.push(id);
+        }
+        for &child in &arena[id].children {
+            out.extend(find_script(arena, child));
+        }
+        out
+    }
+
+    #[test]
+    fn bare_subscript() {
+        let input = "H_2\n";
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let scripts = find_script(&arena, root);
+        assert!(!scripts.is_empty(), "expected a Script node for 'H_2'; got none");
+        let kind = if let Syntax::Script(f) = arena[scripts[0]].data { f.kind() } else { unreachable!() };
+        assert_eq!(kind, ScriptKind::Sub, "expected Sub, got {:?}", kind);
+    }
+
+    #[test]
+    fn braced_subscript() {
+        let input = "H_{2}O\n";
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let scripts = find_script(&arena, root);
+        assert!(!scripts.is_empty(), "expected a Script node for 'H_{{2}}O'; got none");
+    }
+
+    #[test]
+    fn bare_superscript() {
+        let input = "E=mc^2\n";
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let scripts = find_script(&arena, root);
+        assert!(!scripts.is_empty(), "expected a Script node for 'mc^2'; got none");
+        let kind = if let Syntax::Script(f) = arena[scripts[0]].data { f.kind() } else { unreachable!() };
+        assert_eq!(kind, ScriptKind::Sup, "expected Sup, got {:?}", kind);
+    }
+
+    #[test]
+    fn braced_superscript() {
+        let input = "x^{n+1}\n";
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let scripts = find_script(&arena, root);
+        assert!(!scripts.is_empty(), "expected a Script node for 'x^{{n+1}}'; got none");
+    }
+}
+

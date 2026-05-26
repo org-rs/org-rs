@@ -108,24 +108,40 @@ impl fmt::Debug for TypeKey {
     }
 }
 
+/// 1-based Emacs character position as emitted by the oracle (`:begin` / `:end`).
+/// This is a *character* count, not a byte offset — they differ for non-ASCII text.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct EmacsPos(NonZeroU64);
+struct EmacsCharPos(NonZeroU64);
 
-impl EmacsPos {
-    fn offset(self) -> usize {
-        (self.0.get() - 1) as usize
-    }
+impl EmacsCharPos {
+    /// 0-based character index.
+    #[inline]
+    fn char_index(self) -> usize { (self.0.get() - 1) as usize }
 }
 
-impl PartialEq<usize> for EmacsPos {
-    fn eq(&self, other: &usize) -> bool {
-        self.offset() == *other
-    }
+/// 0-based byte offset into the file content, as used by the Rust parser.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct ByteOffset(usize);
+
+impl ByteOffset {
+    #[inline]
+    fn as_usize(self) -> usize { self.0 }
 }
 
-impl PartialEq<EmacsPos> for usize {
-    fn eq(&self, other: &EmacsPos) -> bool {
-        other == self
+/// Converts Emacs character positions to byte offsets by walking the source
+/// string on each call.  No allocation — O(file_size) per lookup.
+struct CharByteTable<'a>(&'a str);
+
+impl<'a> CharByteTable<'a> {
+    fn new(s: &'a str) -> Self { CharByteTable(s) }
+
+    fn to_byte(&self, pos: EmacsCharPos) -> ByteOffset {
+        let idx = pos.char_index();
+        ByteOffset(
+            self.0.char_indices().nth(idx)
+                .map(|(b, _)| b)
+                .unwrap_or(self.0.len()),
+        )
     }
 }
 
@@ -154,8 +170,8 @@ impl fmt::Debug for Snippet {
 #[derive(Debug)]
 struct OracleNode {
     node_type: String,
-    begin: Option<EmacsPos>,
-    end: Option<EmacsPos>,
+    begin: Option<ByteOffset>,
+    end: Option<ByteOffset>,
     props: HashMap<String, Value>,
     children: Vec<OracleNode>,
 }
@@ -167,8 +183,8 @@ impl OracleNode {
 
     fn span(&self) -> (usize, usize) {
         (
-            self.begin.map_or(0, EmacsPos::offset),
-            self.end.map_or(0, EmacsPos::offset),
+            self.begin.map_or(0, ByteOffset::as_usize),
+            self.end.map_or(0, ByteOffset::as_usize),
         )
     }
 }
@@ -185,7 +201,7 @@ impl fmt::Display for OracleNode {
     }
 }
 
-fn from_value(v: &Value) -> Option<OracleNode> {
+fn from_value(v: &Value, table: &CharByteTable<'_>) -> Option<OracleNode> {
     let mut iter = v.list_iter()?;
 
     let node_type = iter.next()?.as_symbol()?.to_string();
@@ -200,8 +216,10 @@ fn from_value(v: &Value) -> Option<OracleNode> {
             let key = k.as_symbol()?.to_string();
             let val = pl.next()?.clone();
             match key.as_str() {
-                ":begin" => begin = val.as_u64().and_then(NonZeroU64::new).map(EmacsPos),
-                ":end"   => end   = val.as_u64().and_then(NonZeroU64::new).map(EmacsPos),
+                ":begin" => begin = val.as_u64().and_then(NonZeroU64::new)
+                                       .map(|n| table.to_byte(EmacsCharPos(n))),
+                ":end"   => end   = val.as_u64().and_then(NonZeroU64::new)
+                                       .map(|n| table.to_byte(EmacsCharPos(n))),
                 _        => { props.insert(key, val); }
             }
         }
@@ -209,7 +227,7 @@ fn from_value(v: &Value) -> Option<OracleNode> {
 
     let children = iter
         .filter(|v| !v.is_string() && !v.is_symbol() && !v.is_null())
-        .filter_map(from_value)
+        .filter_map(|v| from_value(v, table))
         .collect();
 
     Some(OracleNode { node_type, begin, end, props, children })
@@ -378,7 +396,8 @@ fn process_file(path: &Path) -> Result<Vec<Discrepancy>, CorpusError> {
     let sexp   = run_oracle(path)?;
     let root   = lexpr::from_str(&sexp)
         .map_err(|source| CorpusError::OracleSexp { path: path.to_owned(), source })?;
-    let oracle = from_value(&root)
+    let table  = CharByteTable::new(&input);
+    let oracle = from_value(&root, &table)
         .ok_or_else(|| CorpusError::EmptyOracle { path: path.to_owned() })?;
 
     let mut parser = Parser::new(&input, ParseGranularity::Object, DefaultEnvironment);

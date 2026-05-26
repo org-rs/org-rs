@@ -379,13 +379,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 return self.headline_parser();
             }
 
-            if mode == Section {
-                return self.section_parser(limit);
-            }
-
-            if mode == FirstSection {
+            if mode == Section || mode == FirstSection {
                 let p = self.cursor.pos();
-                let lim = self.cursor.next_headline().unwrap_or(limit);
+                let lim = self.cursor.next_headline().unwrap_or(limit).min(limit);
                 self.cursor.set(p);
                 return self.section_parser(lim);
             }
