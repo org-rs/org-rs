@@ -935,8 +935,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         Some((node, consume))
     }
 
+    /// Parse a timestamp from `text` and return the data + bytes consumed.
+    /// Does NOT allocate an arena node — use [`try_parse_timestamp`] when a
+    /// node is needed in the parse tree.
     #[inline]
-    pub fn try_parse_timestamp(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
+    pub fn parse_timestamp(&self, text: &'a str) -> Option<(TimestampData<'a>, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || (bytes[0] != b'<' && bytes[0] != b'[') {
             return None;
@@ -963,23 +966,25 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let close = found_close?;
 
-        // Extract content between brackets
-        let _content = &text[1..close];
         let raw = &text[..close + 1];
-
-        // Try to create a valid TimestampData
         let timestamp_data = TimestampData::new(raw)?;
+        Some((timestamp_data, close + 1))
+    }
+
+    #[inline]
+    pub fn try_parse_timestamp(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
+        let (timestamp_data, consumed) = self.parse_timestamp(text)?;
 
         let node = self.arena.alloc(
             SyntaxNode::new(
                 Syntax::Timestamp(Box::new(timestamp_data)),
-                (start, start + close + 1),
+                (start, start + consumed),
             )
-            .content((start + 1, start + close))
+            .content((start + 1, start + consumed - 1))
             .build(),
         );
 
-        Some((node, close + 1))
+        Some((node, consumed))
     }
 
     fn try_parse_entity(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {

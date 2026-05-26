@@ -29,6 +29,18 @@ lazy_static! {
         CachedRegex::new(Regex::new(r"(?im)^[ \t]*:((?:\w|[-_])+):[ \t]*$").unwrap());
 }
 
+/// Check whether `line` (a single line, without trailing newline) is
+/// a drawer-end line — i.e. `:END:` with optional surrounding whitespace.
+#[inline]
+fn is_end_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    let bytes = trimmed.as_bytes();
+    bytes.len() >= 5
+        && bytes[0] == b':'
+        && bytes[bytes.len() - 1] == b':'
+        && bytes[1..bytes.len() - 1].eq_ignore_ascii_case(b"END")
+}
+
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Parse a drawer element.
     ///
@@ -51,29 +63,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let mut found_end = false;
 
             while search_pos < limit {
-                if let Some(cap) = REGEX_DRAWER.captures(&self.input[search_pos..limit]) {
-                    if let Some(m) = cap.get(1) {
-                        if m.as_str().eq_ignore_ascii_case("END") {
-                            let match_start = search_pos + cap.get(0).map_or(0, |x| x.start());
-                            let match_end = search_pos + cap.get(0).map_or(0, |x| x.end());
-                            end = if match_end < limit
-                                && self.input.as_bytes().get(match_end) == Some(&b'\n')
-                            {
-                                match_end + 1
-                            } else {
-                                match_end
-                            };
-                            found_end = true;
-                            let _ = match_start;
-                            break;
-                        }
-                    }
-                }
-                if let Some(nl) = memchr(b'\n', &self.input.as_bytes()[search_pos..limit]) {
-                    search_pos += nl + 1;
-                } else {
+                let line_end = memchr(b'\n', &self.input.as_bytes()[search_pos..limit])
+                    .map_or(limit, |i| search_pos + i);
+                let line = &self.input[search_pos..line_end];
+
+                if is_end_line(line) {
+                    end = if line_end < limit { line_end + 1 } else { line_end };
+                    found_end = true;
                     break;
                 }
+
+                search_pos = if line_end < limit { line_end + 1 } else { limit };
             }
 
             if !found_end {
