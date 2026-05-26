@@ -163,3 +163,670 @@ And still more text, because long paragraphs are common in org files.
       1
     (* n (factorial (1- n)))))
 #+END_SRC
+#+TITLE: Research Notes — Custom Drawers Showcase
+#+AUTHOR: Threndel Quoxworth
+
+:PROPERTIES:
+:document_type: research_notes
+:department: Computational Linguistics
+:project_code: CL-2025-04
+:END:
+
+# The PROPERTIES drawer above is in the zeroth section.
+# It attaches to the document as a whole, not to any heading.
+
+The zeroth section of this file contains a property drawer, which is valid
+in this position. The drawer above establishes document-level metadata.
+
+* On Drawer Nesting and Custom Names
+
+** The PROPERTIES Drawer
+
+The =:PROPERTIES:= drawer is special — it holds node properties for the
+heading it belongs to. It must directly follow the heading (or its planning
+line) with no intervening blank lines.
+
+* TODO Analyse corpus of 19th-century English fiction :corpus:nlp:
+SCHEDULED: <2025-02-01 Sat>
+:PROPERTIES:
+:ID: f7e6d5c4-b3a2-1098-7654-3210fedcba98
+:CUSTOM_ID: corpus-analysis-2025
+:effort: 40:00
+:assignee: Threndel Quoxworth
+:priority_note: High impact on thesis chapter 3
+:END:
+
+** The Property Append Form
+
+Node properties can be *appended* rather than replaced using the =NAME+= form.
+This is useful for building up lists of values across multiple property entries.
+
+* TODO Build feature extraction pipeline :pipeline:ml:
+:PROPERTIES:
+:tags: python
+:tags+: sklearn
+:tags+: spacy
+:tags+: transformers
+:related_papers: Vaswani2017
+:related_papers+: Devlin2019
+:related_papers+: Brown2020
+:END:
+
+The =tags= property above has the effective value =python sklearn spacy transformers=.
+The =related_papers= property accumulates three values on separate =+= lines.
+
+** Custom Named Drawers
+
+Custom drawers (any name that is not =PROPERTIES=, =LOGBOOK=, or =END=) are
+valid drawer elements. They are treated as opaque containers.
+
+* DONE Literature review — transformer architectures :reading:nlp:
+CLOSED: [2025-01-05 Sun]
+:PROPERTIES:
+:effort: 8:00
+:END:
+:NOTE:
+Key finding: self-attention mechanisms outperform recurrent approaches for
+long-range dependency capture (sequence length > 512 tokens). The O(n²) memory
+cost of full attention remains a practical bottleneck for very long documents.
+
+Action: investigate Longformer, BigBird, and Mamba as long-sequence alternatives.
+:END:
+:SOURCE:
+Primary: [cite:@vaswani2017attention]
+Secondary: [cite:@devlin2019bert], [cite:@brown2020gpt3]
+Review paper: [cite:@tay2022efficient_transformers]
+:END:
+
+* TODO Design evaluation benchmark :evaluation:
+DEADLINE: <2025-03-15 Sat>
+:PROPERTIES:
+:effort: 12:00
+:END:
+:REVIEW:
+[2025-01-04 Sat] Initial design discussed with supervisor. Three evaluation
+dimensions agreed: accuracy, speed, and memory footprint.
+
+[2025-01-06 Mon] Revised after considering [cite:@papineni2002bleu] and
+[cite:@lin2004rouge] — both metrics have known shortcomings for our use case.
+A human-evaluation component is now mandatory.
+:END:
+:DECISION_LOG:
+2025-01-04 :: Use F1 over accuracy — class imbalance in validation set.
+2025-01-05 :: Include perplexity as secondary metric for language model tasks.
+2025-01-06 :: Exclude BLEU — inappropriate for structured prediction tasks.
+:END:
+
+-----
+
+* Drawers Inside Greater Elements
+
+** Drawers inside greater blocks
+
+#+begin_quote
+:ATTRIBUTION:
+Speaker: Prof. Glorble Vextwicky
+Occasion: Inaugural lecture, Grumblewick University, 2024-11-15
+Source: Transcript (unedited)
+:END:
+
+The relationship between language and thought is not one of simple encoding.
+Language does not merely /express/ thought — it shapes the boundaries of what
+can be thought, what can be communicated, and ultimately what can be done.
+#+end_quote
+
+** Drawers inside list items
+
+Project work packages:
+
+- WP1: Corpus construction
+  :SCOPE:
+  Collect 50,000 Org Mode documents from public repositories on GitHub,
+  GitLab, and Sourcehut. Filter for English-language content using
+  langdetect. Deduplicate using SimHash.
+  :END:
+  :PROGRESS:
+  [2025-01-06 Mon] 12,400 documents collected. Deduplication in progress.
+  :END:
+
+- WP2: Annotation
+  :SCOPE:
+  Annotate 5,000 documents for: heading structure, inline markup,
+  link types, and temporal expression types. Use inter-annotator
+  agreement (Cohen's kappa) to validate annotation scheme.
+  :END:
+
+- WP3: Model training
+  :SCOPE:
+  Fine-tune a pre-trained transformer (BERT-base or RoBERTa) on the
+  annotated corpus. Train with AdamW, linear warmup, cosine decay.
+  :END:
+  :HYPERPARAMS:
+  learning_rate: 2e-5
+  batch_size: 32
+  epochs: 5
+  warmup_steps: 500
+  weight_decay: 0.01
+  :END:
+
+-----
+
+* Deeply Nested Drawers
+
+A heading with multiple custom drawers and a property drawer, showing
+that all three can coexist:
+
+* TODO Integrate Mamba state-space model :research:ml:experimental:
+SCHEDULED: <2025-04-01 Tue> DEADLINE: <2025-05-31 Sat>
+:PROPERTIES:
+:effort: 20:00
+:assignee: Threndel Quoxworth
+:ID: c1d2e3f4-a5b6-7890-cdef-012345678901
+:END:
+:BACKGROUND:
+Mamba (Gu & Dao, 2023) introduces selective state-space models that achieve
+linear scaling in sequence length while matching transformer performance on
+language modelling benchmarks. The key innovation is *input-dependent*
+SSM parameters — analogous to attention, but O(n) rather than O(n²).
+:END:
+:RISKS:
+- Mamba is a very new architecture (2023); tooling support is immature.
+- Hardware requirements: A100 or H100 GPUs; not available on our cluster.
+- Integration with existing pipeline requires significant refactoring.
+:END:
+:MITIGATION:
+For hardware: apply for EPSRC compute allocation by 2025-02-28.
+For tooling: contribute patches upstream if necessary.
+For integration: build an adapter layer — do not modify core pipeline.
+:END:
+
+-----
+
+* The LOGBOOK Drawer (Conventional Name)
+
+While =:LOGBOOK:= is just a custom drawer by name, Org Mode and many tools
+treat it conventionally to hold state-change history and clock entries.
+
+* DONE Implement tokeniser for Org Mode headings :implementation:
+CLOSED: [2025-01-03 Fri 17:45]
+:PROPERTIES:
+:effort: 6:00
+:actual_time: 5:30
+:END:
+:LOGBOOK:
+- State "DONE"         from "DOING"        [2025-01-03 Fri 17:45]
+- State "DOING"        from "TODO"         [2025-01-02 Thu 09:15]
+- State "TODO"         from ""             [2024-12-20 Fri 11:00]
+CLOCK: [2025-01-02 Thu 09:15]--[2025-01-02 Thu 17:30] =>  8:15
+CLOCK: [2025-01-03 Fri 09:00]--[2025-01-03 Fri 12:30] =>  3:30
+:END:
+#+TITLE: Recurring Habit and Schedule Tracker
+#+AUTHOR: Vorwick Thrumble
+#+TODO: TODO DOING WAITING | DONE SKIPPED
+
+* Active and Inactive Timestamps
+
+** Active timestamps — appear in the agenda
+
+A scheduled event: <2025-03-15 Sat>
+An event with time: <2025-03-15 Sat 09:30>
+A date without day name (minimal form): <2025-03-15>
+
+Active timestamps inline in text:
+
+The project kickoff is on <2025-01-20 Mon> and the first review is scheduled
+for <2025-02-10 Mon 14:00>. The final deadline is <2025-06-30 Mon>.
+
+** Inactive timestamps — do not appear in the agenda
+
+Created: [2025-01-06 Mon 11:42]
+Last modified: [2025-01-06 Mon 15:03]
+Reviewed: [2024-12-20 Fri]
+
+Inactive timestamps in text:
+
+This document was originally drafted [2024-11-01 Fri] and substantially
+revised [2024-12-15 Sun]. The version history begins at [2024-10-15 Tue 09:00].
+
+-----
+
+* Date and Time Ranges
+
+** Multi-day active range
+
+Conference attendance:
+<2025-03-12 Wed>--<2025-03-14 Fri>
+
+Annual leave:
+<2025-07-21 Mon>--<2025-08-01 Fri>
+
+** Multi-day inactive range
+
+Reference period:
+[2024-01-01 Mon]--[2024-12-31 Tue]
+
+Sprint duration:
+[2025-01-06 Mon]--[2025-01-17 Fri]
+
+** Same-day time range (active)
+
+Morning block: <2025-01-20 Mon 09:00-12:00>
+Afternoon session: <2025-02-05 Wed 14:30-16:45>
+Evening seminar: <2025-03-01 Sat 19:00-21:30>
+
+** Same-day time range (inactive)
+
+Historical record: [2024-12-18 Wed 10:00-11:30]
+Meeting log: [2024-11-07 Thu 15:00-15:45]
+
+-----
+
+* Repeaters
+
+** Cumulative repeater (+) — always reschedule by N units from original date
+
+Daily stand-up (every weekday — approximated as daily):
+
+* TODO Morning stand-up :team:
+SCHEDULED: <2025-01-06 Mon 09:00 +1d>
+:PROPERTIES:
+:ID: d1a2b3c4-e5f6-7890-abcd-ef1234567890
+:END:
+
+Weekly review:
+
+* TODO Weekly review :planning:
+SCHEDULED: <2025-01-10 Fri 16:00 +1w>
+:PROPERTIES:
+:effort: 1:00
+:END:
+
+Monthly one-on-one:
+
+* TODO One-on-one with manager :admin:
+SCHEDULED: <2025-01-15 Wed +1m>
+
+Quarterly board report:
+
+* TODO Prepare board report :reporting:admin:
+DEADLINE: <2025-03-31 Mon +3m>
+
+Annual performance review:
+
+* TODO Complete self-assessment :hr:
+DEADLINE: <2025-12-01 Mon +1y>
+
+** Catch-up repeater (++) — reschedule from today, skipping missed occurrences
+
+Bi-weekly newsletter:
+
+* TODO Draft newsletter :comms:
+SCHEDULED: <2025-01-14 Tue ++2w>
+
+Every-other-day medication log:
+
+* TODO Take vitamin D supplement :health:
+SCHEDULED: <2025-01-06 Mon ++2d>
+
+** Restart repeater (.+) — reschedule N units from the completion date
+
+Irregular maintenance — reset the clock from when last done:
+
+* TODO Water the office plants :maintenance:
+SCHEDULED: <2025-01-06 Mon .+3d>
+
+* TODO Back up development database :sysadmin:
+SCHEDULED: <2025-01-06 Mon .+1w>
+
+* TODO Update project dependencies :maintenance:dev:
+SCHEDULED: <2025-01-06 Mon .+1m>
+
+-----
+
+* Delays
+
+** All-type delay (-) — warn this many units before the date for all occurrences
+
+Task with a one-week warning before the deadline:
+
+* TODO Submit grant application :research:
+DEADLINE: <2025-04-30 Wed -1w>
+
+Task with a two-day warning:
+
+* TODO Pay quarterly tax :finance:
+DEADLINE: <2025-04-05 Sat -2d>
+
+** First-type delay (--) — warn only for the first (upcoming) occurrence
+
+Repeating task — warn only for the next occurrence, not all future ones:
+
+* TODO Monthly server audit :sysadmin:
+SCHEDULED: <2025-02-01 Sat +1m --3d>
+
+-----
+
+* Combined Repeater and Delay
+
+A repeater with a delay combines both markers in the REPEATER-OR-DELAY field.
+The order of the two markers is not significant.
+
+Weekly team sync — repeat weekly, warn two days before:
+
+* TODO Team sync preparation :team:planning:
+SCHEDULED: <2025-01-10 Fri 10:00 +1w -2d>
+
+Monthly financial close — cumulative repeat, three-day all-type warning:
+
+* DOING Monthly financial close :finance:
+SCHEDULED: <2025-01-31 Fri +1m -3d>
+:PROPERTIES:
+:effort: 4:00
+:assignee: Vorwick Thrumble
+:END:
+
+Quarterly report — catch-up repeat with first-type warning:
+
+* TODO Draft quarterly report :reporting:
+DEADLINE: <2025-03-31 Mon ++3m --1w>
+
+-----
+
+* Repeater with Upper Bound
+
+The upper bound form =MARK VALUE UNIT/VALUE UNIT= limits how far ahead a
+cumulative repeater will advance when catching up after a long absence.
+
+Weekly habit with a two-week catch-up limit:
+
+* TODO Write in journal :personal:
+SCHEDULED: <2025-01-06 Mon +1d/1w>
+:PROPERTIES:
+:effort: 0:15
+:END:
+
+Monthly review with a three-month upper bound:
+
+* TODO Audit access permissions :security:sysadmin:
+SCHEDULED: <2025-01-31 Fri +1m/3m>
+
+Yearly archiving with a two-year limit:
+
+* TODO Archive old project files :admin:
+SCHEDULED: <2025-12-31 Wed +1y/2y>
+
+-----
+
+* Full Planning Lines — All Three Keywords Together
+
+A task that has been closed but retains its scheduled and deadline timestamps
+for historical reference:
+
+* DONE Migrate production database :ops:
+SCHEDULED: <2025-01-03 Fri> DEADLINE: <2025-01-05 Sun> CLOSED: [2025-01-04 Sat 23:47]
+:PROPERTIES:
+:effort: 6:00
+:actual_time: 7:30
+:END:
+
+Migration completed one day ahead of deadline. Actual time exceeded estimate due
+to an unexpected schema conflict in the =user_sessions= table.
+
+Another fully-planned task:
+
+* DONE Launch staging environment :devops:
+SCHEDULED: <2024-12-16 Mon> DEADLINE: <2024-12-20 Fri> CLOSED: [2024-12-18 Wed 14:22]
+:PROPERTIES:
+:environment: staging
+:region: eu-west-1
+:END:
+
+A task with repeated keyword (last instance wins):
+
+* TODO Renew SSL certificates :security:
+SCHEDULED: <2025-06-01 Sun> DEADLINE: <2025-06-15 Sun> DEADLINE: <2025-06-10 Tue>
+
+The effective deadline above is <2025-06-10 Tue> — the last DEADLINE wins.
+
+-----
+
+* Timestamps Inline in Paragraphs
+
+Timestamps can appear anywhere objects are valid — not just in planning lines.
+
+The first public release of Emacs was on [1985-01-01 Tue] (approximately — the
+exact date is debated). GNU Emacs 19.1 shipped on <1993-05-31 Mon>. Version 21
+arrived <2001-10-28 Sun>, followed by 22 on <2007-06-02 Sat>.
+
+The tree-sitter integration was merged into Emacs during the period
+<2022-09-01 Thu>--<2022-11-01 Tue>, shipping in Emacs 29.1 on <2023-07-30 Sun>.
+
+Meeting notes cross-reference: discussed [2025-01-06 Mon 14:00] with outcome
+to revisit [2025-01-13 Mon 14:00].
+
+-----
+
+* SKIPPED Timestamps with No Day Name
+
+These timestamps omit the optional =DAYNAME= field:
+
+SCHEDULED: <2025-06-15>
+DEADLINE: [2025-09-01]
+
+Inline: project window is <2025-06-01>--<2025-08-31>, reviewed at [2025-07-15].
+#+TITLE: Time Tracking Log — Clocks and Diary Sexps
+#+AUTHOR: Grumbal Thruss
+#+TODO: TODO CLOCKED REVIEWING | DONE BILLED
+
+# Diary sexp entries can appear in the zeroth section too, though
+# they are more commonly placed in dedicated calendar files.
+
+%%(diary-anniversary 1989 3 14) Birthday of %d-year-old Pi Day baby
+
+* Clock Elements
+
+** Open clocks (no end time — currently running or left unclosed)
+
+An open clock records a start time with no end time:
+
+CLOCK: [2025-01-06 Mon 09:15]
+
+Another open clock (different heading — parser encounters it):
+
+* TODO Refactor authentication module :backend:security:
+CLOCK: [2025-01-06 Mon 14:30]
+:PROPERTIES:
+:effort: 3:00
+:END:
+
+** Closed clocks with duration
+
+CLOCK: [2025-01-05 Sun 20:00]--[2025-01-05 Sun 21:45] =>  1:45
+
+CLOCK: [2025-01-04 Sat 10:00]--[2025-01-04 Sat 13:30] =>  3:30
+
+A clock where the hours in the duration exceed 9 (multi-digit HH):
+
+CLOCK: [2025-01-03 Fri 08:00]--[2025-01-04 Sat 08:00] => 24:00
+
+** Duration-only clocks (rare but valid)
+
+CLOCK: =>  0:42
+CLOCK: => 12:00
+CLOCK: => 100:30
+
+** Clocks in LOGBOOK drawers
+
+The conventional usage is to store clocks inside a =:LOGBOOK:= drawer:
+
+* DONE Write technical specification :docs:
+CLOSED: [2025-01-05 Sun 18:00]
+:PROPERTIES:
+:effort: 5:00
+:END:
+:LOGBOOK:
+CLOCK: [2025-01-05 Sun 14:00]--[2025-01-05 Sun 18:00] =>  4:00
+CLOCK: [2025-01-04 Sat 16:00]--[2025-01-04 Sat 17:00] =>  1:00
+:END:
+
+* DONE Implement rate limiting :backend:security:
+CLOSED: [2025-01-03 Fri 17:30]
+:PROPERTIES:
+:effort: 4:00
+:END:
+:LOGBOOK:
+- State "DONE"         from "CLOCKED"      [2025-01-03 Fri 17:30]
+- State "CLOCKED"      from "TODO"         [2025-01-02 Thu 09:00]
+CLOCK: [2025-01-03 Fri 13:00]--[2025-01-03 Fri 17:30] =>  4:30
+CLOCK: [2025-01-02 Thu 09:00]--[2025-01-02 Thu 13:00] =>  4:00
+CLOCK: [2025-01-02 Thu 14:00]--[2025-01-02 Thu 17:30] =>  3:30
+:END:
+
+** Clocks with a zero duration
+
+CLOCK: [2025-01-06 Mon 12:00]--[2025-01-06 Mon 12:00] =>  0:00
+
+** Clocks inside list items
+
+Weekly summary:
+
+- Monday
+  CLOCK: [2025-01-06 Mon 09:00]--[2025-01-06 Mon 12:30] =>  3:30
+  CLOCK: [2025-01-06 Mon 13:30]--[2025-01-06 Mon 17:00] =>  3:30
+
+- Tuesday
+  CLOCK: [2025-01-07 Tue 09:15]--[2025-01-07 Tue 18:00] =>  8:45
+
+-----
+
+* Planning Lines with All Three Keywords
+
+** All three keywords on one line
+
+* DONE Deploy hotfix to production :ops:
+SCHEDULED: <2025-01-05 Sun 22:00> DEADLINE: <2025-01-05 Sun 23:59> CLOSED: [2025-01-05 Sun 22:47]
+:PROPERTIES:
+:ticket: OPS-2847
+:severity: critical
+:END:
+
+** Planning with inactive scheduled timestamp
+
+Some tools use inactive timestamps in SCHEDULED for reference-only dates:
+
+* REVIEWING Code review: PR #412 :review:backend:
+SCHEDULED: [2025-01-06 Mon] DEADLINE: <2025-01-07 Tue>
+:PROPERTIES:
+:pr_number: 412
+:reviewer: Grumbal Thruss
+:END:
+
+** Repeated deadline keyword (last wins)
+
+* TODO Renew infrastructure contracts :admin:
+SCHEDULED: <2025-11-01 Sat> DEADLINE: <2025-12-01 Mon> DEADLINE: <2025-11-15 Sat>
+:PROPERTIES:
+:contract_value: 48000
+:currency: GBP
+:END:
+
+The effective deadline is <2025-11-15 Sat> — the second DEADLINE keyword wins.
+
+-----
+
+* Diary Sexp Elements
+
+Diary sexp elements (=%%SEXP=) are lesser elements that can appear in any
+section. They hold calendar expressions evaluated by the Emacs diary.
+
+Each line is a separate diary sexp element:
+
+%%(diary-anniversary 1969 7 20) Apollo 11 moon landing — %d years ago
+%%(diary-anniversary 1991 8 25) Linux kernel first announced — %d years
+%%(diary-anniversary 1983 1 1) The ARPANET transitions to TCP/IP — %d years
+
+%%(diary-float t 4 2) Second Thursday of the month — team retrospective
+%%(diary-float t 5 3) Third Friday of the month — invoice deadline
+
+A diary sexp with no arguments (a fixed-date trigger):
+%%(org-calendar-holiday)
+
+Diary sexps can also appear at the heading level:
+
+* Calendar Entries
+
+%%(diary-anniversary 1990 5 15) Project lead's work anniversary — %d years
+%%(diary-float 3 3 -1) Last Wednesday of March — Q1 close
+
+* Recurring Administrative Events
+
+%%(diary-float t 1 1) First Monday of every month — expense report due
+%%(diary-float t 4 4) Fourth Thursday of November — US Thanksgiving (if applicable)
+%%(diary-float t 1 -1) Last Monday of every month — team planning session
+
+-----
+
+* Mixed Clocks, Planning, and Diary Sexps
+
+A realistic time-tracking section:
+
+* TODO Prepare quarterly board presentation :management:reporting:
+SCHEDULED: <2025-03-20 Thu> DEADLINE: <2025-03-28 Fri>
+:PROPERTIES:
+:effort: 8:00
+:audience: board_of_directors
+:slide_count_target: 20
+:END:
+:LOGBOOK:
+CLOCK: [2025-01-06 Mon 16:00]--[2025-01-06 Mon 17:30] =>  1:30
+:END:
+
+Preparation notes: the previous quarter's presentation is at
+[[file:archive.org::*Harbour Light][Harbour Light archive entry]] for reference.
+
+** Slide outline
+
+- [ ] Executive summary (2 slides)
+- [ ] Revenue and KPIs (4 slides)
+- [-] Product roadmap (3 slides — in progress)
+- [ ] Headcount and hiring (2 slides)
+- [ ] Risk register update (2 slides)
+- [ ] Q2 outlook (3 slides)
+- [ ] Appendix (4 slides)
+
+** Related diary entries
+
+%%(diary-float 3 5 4) Fourth Friday of March — board meeting day
+* TODO Scheduled only
+SCHEDULED: <2025-03-01 Sat>
+
+* TODO Deadline only
+DEADLINE: <2025-04-30 Wed>
+
+* DONE Closed only
+CLOSED: [2025-01-05 Sun 17:00]
+
+* DONE All three planning keywords
+SCHEDULED: <2025-01-01 Wed> DEADLINE: <2025-01-10 Fri> CLOSED: [2025-01-08 Wed 14:23]
+
+* TODO Scheduled with time
+SCHEDULED: <2025-02-14 Fri 09:00>
+* Heading with a property drawer
+:PROPERTIES:
+:my_prop: hello
+:number: 42
+:empty_prop:
+:END:
+
+* Heading with property append form
+:PROPERTIES:
+:tags: alpha
+:tags+: beta
+:tags+: gamma
+:END:
+
+* Heading with planning then property drawer
+SCHEDULED: <2025-06-01 Sun>
+:PROPERTIES:
+:effort: 2:00
+:END:

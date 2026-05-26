@@ -85,11 +85,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     ) -> Option<crate::data::TimestampData<'a>> {
         let keyword_pos = line.find(keyword)?;
         let after_keyword = line[keyword_pos + keyword.len()..].trim_start();
-        let (node_id, _) = self.try_parse_timestamp(after_keyword, 0)?;
-        match &self.arena.get(node_id).data {
-            crate::data::Syntax::Timestamp(ts) => Some(ts.as_ref().clone()),
-            _ => None,
-        }
+        let (timestamp_data, _) = self.parse_timestamp(after_keyword)?;
+        Some(timestamp_data)
     }
 
     /// Parse a clock line element.
