@@ -339,40 +339,38 @@ fn parse_headline_tags<'a>(line: &'a str) -> (&'a str, Vec<Tag<'a>>) {
         return (line, vec![]);
     }
 
-    // Walk backwards through chars to find the opening `:` preceded by whitespace.
-    let char_indices: Vec<(usize, char)> = line.char_indices().collect();
-    let len = char_indices.len();
-    if len < 2 {
-        return (line, vec![]);
+    let mut rev_iter = line.char_indices().rev();
+
+    // Skip past the trailing ':'.
+    match rev_iter.next() {
+        Some((_, ':')) => {}
+        _ => return (line, vec![]),
     }
 
-    // Start just before the trailing ':'.
-    let mut i = len - 2;
-    loop {
-        let (byte_pos, c) = char_indices[i];
+    let mut rev_iter = rev_iter.peekable();
+    while let Some((byte_pos, c)) = rev_iter.next() {
         if c == ':' {
-            // Opening ':' must be preceded by whitespace.
-            if i > 0 && char_indices[i - 1].1.is_whitespace() {
-                let tag_start = char_indices[i + 1].0;
-                let tag_str = &line[tag_start..line.len() - 1];
-                let tags: Vec<Tag<'a>> = tag_str
-                    .split(':')
-                    .filter(|s| !s.is_empty())
-                    .map(Tag)
-                    .collect();
-                if !tags.is_empty() {
-                    let title = line[..byte_pos].trim_end();
-                    return (title, tags);
+            match rev_iter.peek() {
+                Some((_, prev_c)) if prev_c.is_whitespace() => {
+                    let tag_start = byte_pos + 1;
+                    let tag_str = &line[tag_start..line.len() - 1];
+                    let tags: Vec<Tag<'a>> = tag_str
+                        .split(':')
+                        .filter(|s| !s.is_empty())
+                        .map(Tag)
+                        .collect();
+                    if !tags.is_empty() {
+                        let title = line[..byte_pos].trim_end();
+                        return (title, tags);
+                    }
+                    return (line, vec![]);
                 }
-                return (line, vec![]);
+                _ => {}
             }
-            // Inner ':' between tags — keep going.
         } else if !is_valid_tag_char(c) {
             return (line, vec![]);
         }
-        if i == 0 {
-            return (line, vec![]);
-        }
-        i -= 1;
     }
+
+    (line, vec![])
 }
