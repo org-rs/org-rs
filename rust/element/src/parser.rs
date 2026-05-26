@@ -441,18 +441,24 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                         return self.comment_parser(span);
                     }
                     let block_name = capturing_at!(REGEX_BLOCK_BEGIN, self)
-                        .and_then(|cap| cap.get(1).map(|m| m.as_str().to_ascii_uppercase()));
+                        .and_then(|cap| cap.get(1).map(|m| m.as_str()));
                     if let Some(name) = block_name {
                         self.cursor.goto_line_begin();
-                        return match name.as_ref() {
-                            "CENTER" => self.center_block_parser(span),
-                            "COMMENT" => self.comment_block_parser(span),
-                            "EXAMPLE" => self.example_block_parser(span),
-                            "EXPORT" => self.export_block_parser(span),
-                            "QUOTE" => self.quote_block_parser(span),
-                            "SRC" => self.src_block_parser(span),
-                            "VERSE" => self.verse_block_parser(span),
-                            _ => self.special_block_parser(span),
+                        let mut buf = [0u8; 16];
+                        let bytes = name.as_bytes();
+                        let len = bytes.len().min(buf.len());
+                        for (dst, &src) in buf[..len].iter_mut().zip(&bytes[..len]) {
+                            *dst = src.to_ascii_lowercase();
+                        }
+                        return match &buf[..len] {
+                            b"center"  => self.center_block_parser(span),
+                            b"comment" => self.comment_block_parser(span),
+                            b"example" => self.example_block_parser(span),
+                            b"export"  => self.export_block_parser(span),
+                            b"quote"   => self.quote_block_parser(span),
+                            b"src"     => self.src_block_parser(span),
+                            b"verse"   => self.verse_block_parser(span),
+                            _          => self.special_block_parser(span),
                         };
                     }
                     if looking_at!(REGEX_BABEL_CALL, self).is_some() {
