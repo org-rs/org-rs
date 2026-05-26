@@ -112,22 +112,22 @@ lazy_static! {
 /// List structure - tracks items during list parsing
 /// Used to compute list boundaries and parent-child relationships
 #[derive(Debug, Clone)]
-pub struct ListStruct {
+pub struct ListStruct<'a> {
     /// Items found so far: (position, indent, bullet, counter, checkbox, tag)
-    pub items: Vec<ListItem>,
+    pub items: Vec<ListItem<'a>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct ListItem {
+pub struct ListItem<'a> {
     pub position: usize,
     pub indent: usize,
-    pub bullet: String,
+    pub bullet: &'a str,
     pub counter: Option<usize>,
     pub checkbox: Option<CheckBox>,
-    pub tag: Option<String>,
+    pub tag: Option<&'a str>,
 }
 
-impl ListStruct {
+impl<'a> ListStruct<'a> {
     pub fn new() -> Self {
         ListStruct { items: Vec::new() }
     }
@@ -150,13 +150,13 @@ pub struct ItemData<'rope> {
     tag: Option<Cow<'rope, str>>,
     // TODO figure out what is list structure
     // /// Full list's structure, as returned by org_list_struct (alist).
-    structure: ListStruct,
+    structure: ListStruct<'rope>,
 }
 
 #[derive(Debug)]
-pub struct PlainListData {
+pub struct PlainListData<'a> {
     /// Full list's structure, as returned by org_list_struct (alist).
-    pub structure: Rc<ListStruct>,
+    pub structure: Rc<ListStruct<'a>>,
 
     ///List's type (symbol descriptive, ordered, unordered).
     pub type_s: ListKind,
@@ -180,7 +180,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Fallback: item parser (not yet fully implemented).
     pub fn item_parser(
         &mut self,
-        _structure: Option<Rc<ListStruct>>,
+        _structure: Option<Rc<ListStruct<'a>>>,
         _raw_secondary_p: bool,
     ) -> NodeId {
         let start = self.cursor.pos();
@@ -191,7 +191,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     pub fn plain_list_parser(
         &mut self,
         element_span: ElementSpan<'a>,
-        structure: Rc<ListStruct>,
+        structure: Rc<ListStruct<'a>>,
     ) -> NodeId {
         let span = element_span.span;
         let items = &structure.items;
@@ -252,7 +252,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             .build(), children)
     }
 
-    fn get_list_type(items: &[ListItem]) -> ListKind {
+    fn get_list_type(items: &[ListItem<'a>]) -> ListKind {
         if items.is_empty() {
             return ListKind::Unordered;
         }
@@ -273,9 +273,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         ListKind::Unordered
     }
 
-    fn item_parser_internal(&mut self, item: &ListItem, end: usize) -> NodeId {
-        let bullet = Cow::Owned(item.bullet.clone());
-        let tag = item.tag.as_ref().map(|t| Cow::Owned(t.clone()));
+    fn item_parser_internal(&mut self, item: &ListItem<'a>, end: usize) -> NodeId {
+        let bullet = Cow::Borrowed(item.bullet);
+        let tag = item.tag.map(Cow::Borrowed);
 
         // Content begins after the bullet and its trailing space/tab.
         let content_start = item.position + item.indent + item.bullet.len() + 1;
@@ -308,7 +308,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Scan input for list items at current indentation level
     /// This matches Elisp's org-element--list-struct
-    pub fn list_struct(&self, limit: usize) -> Rc<ListStruct> {
+    pub fn list_struct(&self, limit: usize) -> Rc<ListStruct<'a>> {
         let mut items = Vec::new();
         let mut pos = self.cursor.pos();
         let input = self.input;
@@ -371,11 +371,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         (indent, "")
     }
 
-    fn parse_item_bullet(rest: &str) -> (String, Option<usize>, Option<CheckBox>, Option<String>) {
+    fn parse_item_bullet(rest: &str) -> (&str, Option<usize>, Option<CheckBox>, Option<&str>) {
         let bytes = rest.as_bytes();
         let len = bytes.len();
         let mut offset = 0;
-        let mut bullet = String::new();
+        let mut bullet: &str = &rest[..0];
         let mut counter = None;
         let mut checkbox = None;
         let mut tag = None;
@@ -383,7 +383,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         if offset < len {
             let c = bytes[offset];
             if c == b'-' || c == b'+' || c == b'*' {
-                bullet.push(c as char);
+                bullet = &rest[..1];
                 offset += 1;
             } else if c.is_ascii_digit() {
                 let num_start = offset;
@@ -391,7 +391,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     offset += 1;
                 }
                 if offset < len && (bytes[offset] == b'.' || bytes[offset] == b')') {
-                    bullet = rest[num_start..offset + 1].to_string();
+                    bullet = &rest[num_start..=offset];
                     offset += 1;
                 } else {
                     offset = num_start;
@@ -428,11 +428,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 };
                 let after = remaining[end + 1..].trim_start();
                 if let Some(tag_pos) = after.find("::") {
-                    tag = Some(after[..tag_pos].trim().to_string());
+                    tag = Some(after[..tag_pos].trim());
                 }
             }
         } else if let Some(tag_pos) = remaining.find("::") {
-            tag = Some(remaining[..tag_pos].trim().to_string());
+            tag = Some(remaining[..tag_pos].trim());
         }
 
         (bullet, counter, checkbox, tag)

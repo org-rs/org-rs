@@ -1622,7 +1622,7 @@ mod od1_compliance {
         if let Syntax::PlainList(data) = &arena[*list].data {
             let tag = &data.structure.items[0].tag;
             assert_eq!(
-                tag.as_deref(),
+                *tag,
                 Some("term"),
                 "Item tag should be the term before '::' (got {:?})",
                 tag
