@@ -183,6 +183,70 @@ mod item {
             panic!("Expected Item, got: {:?}", arena[*first_item].data);
         }
     }
+
+    /// For description list items (`- TAG :: content`), the paragraph inside
+    /// the item must start after the ` :: ` separator, not at the tag.
+    ///
+    /// Emacs org-element sets `:contents-begin` (and thus the paragraph
+    /// `:begin`) to the first character of the description, not the tag.
+    /// These tests check the paragraph's `location.start` directly.
+    mod description_item_paragraph_start {
+        use super::*;
+
+        fn para_start(input: &str) -> usize {
+            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+            let (arena, root) = parser.parse_buffer();
+            // Walk: root → section → plain_list → item → paragraph
+            let section  = arena[root].children[0];
+            let list     = arena[section].children[0];
+            let item     = arena[list].children[0];
+            let para     = arena[item].children[0];
+            assert_eq!(
+                SyntaxT::from(&arena[para].data),
+                SyntaxT::Paragraph,
+                "expected Paragraph as first child of item"
+            );
+            arena[para].location.start
+        }
+
+        /// Basic case: `- tag :: content` — paragraph starts at `content`.
+        #[test]
+        fn basic_desc_para_start() {
+            //          0123456789012345
+            let input = "- tag :: content\n";
+            //                   ^ offset 9
+            assert_eq!(para_start(input), 9, "paragraph should start after ' :: '");
+        }
+
+        /// Greedy: Emacs matches the LAST ` :: ` on the line as the separator.
+        /// So `- A :: B :: C` has tag `A :: B` and content `C`.
+        #[test]
+        fn greedy_last_separator() {
+            //          0123456789012345678901
+            let input = "- A :: B :: C\n";
+            //                       ^ offset 12
+            assert_eq!(para_start(input), 12, "greedy: last ' :: ' is the separator");
+        }
+
+        /// Tab after `::`: `- tag ::\tcontent` — paragraph starts at `content`.
+        #[test]
+        fn tab_after_colons() {
+            let input = "- tag ::\tcontent\n";
+            //           0123456789
+            //                    ^ offset 9
+            assert_eq!(para_start(input), 9, "paragraph should start after '::\\t'");
+        }
+
+        /// `::` at end of line — content is on the next line.
+        #[test]
+        fn content_on_next_line() {
+            let input = "- tag ::\n  content\n";
+            //           0         1
+            //           0123456789012345678
+            //                    ^ offset 9 (start of "  content" line)
+            assert_eq!(para_start(input), 9, "paragraph should start at beginning of continuation line");
+        }
+    }
 }
 
 mod headline {
