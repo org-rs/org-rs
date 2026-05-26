@@ -52,9 +52,52 @@ fn bench_parse_granularity(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_parse_viewport(c: &mut Criterion) {
+    let corpus = make_corpus(500);
+    let len = corpus.len();
+    let start_base = len / 4;
+    let bytes = corpus.as_bytes();
+
+    let mut group = c.benchmark_group("parse_viewport");
+    group.sample_size(100);
+
+    for (label, viewport_size) in [("2k", 2048), ("8k", 8192), ("32k", 32768), ("128k", 131072)] {
+        let slice_start = match bytes[start_base..].iter().position(|&b| b == b'\n') {
+            Some(pos) => start_base + pos + 1,
+            None => 0,
+        };
+
+        let end_byte = (start_base + viewport_size).min(len);
+        let slice_end = match bytes[end_byte..].iter().position(|&b| b == b'\n') {
+            Some(pos) => (end_byte + pos + 1).min(len),
+            None => len,
+        };
+
+        if slice_start >= slice_end {
+            continue;
+        }
+
+        let slice = &corpus[slice_start..slice_end];
+
+        group.bench_function(label, |b| {
+            b.iter(|| {
+                let mut parser = Parser::new(
+                    black_box(slice),
+                    ParseGranularity::Element,
+                    DefaultEnvironment,
+                );
+                parser.parse_buffer();
+            })
+        });
+    }
+
+    group.finish();
+}
+
 fn main() {
     let mut c = Criterion::default().configure_from_args();
     bench_parse_sizes(&mut c);
     bench_parse_granularity(&mut c);
+    bench_parse_viewport(&mut c);
     c.final_summary();
 }
