@@ -372,70 +372,67 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     fn parse_item_bullet(rest: &str) -> (String, Option<usize>, Option<CheckBox>, Option<String>) {
-        let mut chars = rest.chars().peekable();
+        let bytes = rest.as_bytes();
+        let len = bytes.len();
+        let mut offset = 0;
         let mut bullet = String::new();
         let mut counter = None;
         let mut checkbox = None;
         let mut tag = None;
 
-        if let Some(&c) = chars.peek() {
-            if c == '-' || c == '+' || c == '*' {
-                bullet.push(chars.next().unwrap());
+        if offset < len {
+            let c = bytes[offset];
+            if c == b'-' || c == b'+' || c == b'*' {
+                bullet.push(c as char);
+                offset += 1;
             } else if c.is_ascii_digit() {
-                let mut num = String::new();
-                while let Some(&d) = chars.peek() {
-                    if d.is_ascii_digit() {
-                        num.push(chars.next().unwrap());
-                    } else {
-                        break;
-                    }
+                let num_start = offset;
+                while offset < len && bytes[offset].is_ascii_digit() {
+                    offset += 1;
                 }
-                if let Some(&c2) = chars.peek() {
-                    if c2 == '.' || c2 == ')' {
-                        bullet = num.clone();
-                        bullet.push(chars.next().unwrap());
-                    }
+                if offset < len && (bytes[offset] == b'.' || bytes[offset] == b')') {
+                    bullet = rest[num_start..offset + 1].to_string();
+                    offset += 1;
+                } else {
+                    offset = num_start;
                 }
             }
         }
 
-        while let Some(c) = chars.next() {
-            if c == ' ' || c == '\t' {
-                break;
-            }
+        while offset < len && (bytes[offset] == b' ' || bytes[offset] == b'\t') {
+            offset += 1;
         }
 
-        let remaining: String = chars.collect();
-        let rest = if remaining.starts_with("[@") {
-            // Counter set: [@N] or [@start:N]
-            if let Some(end) = remaining.find(']') {
-                let inner = &remaining[2..end];
+        let remainder = rest[offset..].trim_start();
+        let remaining = if remainder.starts_with("[@") {
+            if let Some(end) = remainder.find(']') {
+                let inner = &remainder[2..end];
                 let num_str = inner.strip_prefix("start:").unwrap_or(inner);
                 counter = num_str.parse().ok();
-                remaining[end + 1..].trim_start().to_string()
+                remainder[end + 1..].trim_start()
             } else {
-                remaining.clone()
+                remainder
             }
         } else {
-            remaining.clone()
+            remainder
         };
 
-        if rest.starts_with('[') {
-            if let Some(end) = rest.find(']') {
-                let content = &rest[1..end];
+        if remaining.starts_with('[') {
+            if let Some(end) = remaining.find(']') {
+                let content = &remaining[1..end];
                 checkbox = match content {
                     "X" => Some(CheckBox::On),
                     " " | "" => Some(CheckBox::Off),
                     "-" => Some(CheckBox::Trans),
                     _ => None,
                 };
-                let after = rest[end + 1..].trim_start();
+                let after = remaining[end + 1..].trim_start();
                 if let Some(tag_pos) = after.find("::") {
                     tag = Some(after[..tag_pos].trim().to_string());
                 }
             }
-        } else if let Some(tag_pos) = rest.find("::") {
-            tag = Some(rest[..tag_pos].trim().to_string());
+        } else if let Some(tag_pos) = remaining.find("::") {
+            tag = Some(remaining[..tag_pos].trim().to_string());
         }
 
         (bullet, counter, checkbox, tag)
