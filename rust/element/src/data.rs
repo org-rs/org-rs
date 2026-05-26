@@ -478,10 +478,7 @@ pub enum Syntax<'a> {
     StrikeThrough,
 
     /// Recursive object.
-    Subscript(Box<SubscriptData>),
-
-    /// Recursive object.
-    Superscript(Box<SuperscriptData>),
+    Script(ScriptFlags),
 
     /// Recursive object
     TableCell,
@@ -532,20 +529,20 @@ impl SyntaxT {
         use SyntaxT::*;
         matches!(self, Bold | Code | Entity | ExportSnippet | FootnoteReference | InlineBabelCall
             | InlineSrcBlock | Italic | LineBreak | LatexFragment | Link | Macro | RadioTarget
-            | StatisticsCookie | StrikeThrough | Subscript | Superscript | TableCell | Target
+            | StatisticsCookie | StrikeThrough | Script | TableCell | Target
             | Timestamp | Underline | Verbatim | PlainText | SpreadsheetCell)
     }
 
     fn is_recursive_object(self) -> bool {
         use SyntaxT::*;
-        matches!(self, Bold | FootnoteReference | Italic | Link | RadioTarget | StrikeThrough | Subscript
-            | Superscript | TableCell | Underline)
+        matches!(self, Bold | FootnoteReference | Italic | Link | RadioTarget | StrikeThrough | Script
+            | TableCell | Underline)
     }
 
     fn is_object_container(self) -> bool {
         use SyntaxT::*;
         matches!(self, Paragraph | TableRow | VerseBlock | Bold | FootnoteReference | Italic | Link
-            | RadioTarget | StrikeThrough | Subscript | Superscript | TableCell | Underline)
+            | RadioTarget | StrikeThrough | Script | TableCell | Underline)
     }
 
     fn is_container(self) -> bool {
@@ -594,8 +591,8 @@ impl SyntaxT {
             // (superscript ,@standard-set)
             //(verse-block ,@standard-set)))
             //(underline ,@standard-set)
-            Bold | Italic | FootnoteReference | Paragraph | StrikeThrough | Subscript
-            | Superscript | Underline | VerseBlock => is_from_standard_set(that),
+            Bold | Italic | FootnoteReference | Paragraph | StrikeThrough | Script
+            | Underline | VerseBlock => is_from_standard_set(that),
 
             // (headline ,@standard-set-no-line-break)
             // (inlinetask ,@standard-set-no-line-break)
@@ -616,16 +613,16 @@ impl SyntaxT {
             //       strike-through subscript superscript
             //       underline verbatim)
             Link => matches!(that, Bold | Code | Entity | ExportSnippet | InlineBabelCall | InlineSrcBlock
-                | Italic | LatexFragment | Macro | StatisticsCookie | StrikeThrough | Subscript
-                | Superscript | Underline | Verbatim),
+                | Italic | LatexFragment | Macro | StatisticsCookie | StrikeThrough | Script
+                | Underline | Verbatim),
 
             // Remove any variable object from radio target as it would
             // prevent it from being properly recognized.
             // (radio-target bold code entity italic
             //               latex-fragment strike-through
             //               subscript superscript underline)
-            RadioTarget => matches!(that, Bold | Code | Entity | Italic | LatexFragment | StrikeThrough | Subscript
-                | Superscript | Underline),
+            RadioTarget => matches!(that, Bold | Code | Entity | Italic | LatexFragment | StrikeThrough | Script
+                | Underline),
 
             // Ignore inline babel call and inline source block as formulas
             // are possible.  Also ignore line breaks and statistics
@@ -634,8 +631,8 @@ impl SyntaxT {
             //             latex-fragment link macro radio-target strike-through
             //             subscript superscript target timestamp underline verbatim)
             TableCell => matches!(that, Bold | Code | Entity | ExportSnippet | FootnoteReference | Italic
-                | LatexFragment | Link | Macro | RadioTarget | StrikeThrough | Subscript
-                | Superscript | Target | Timestamp | Underline | Verbatim),
+                | LatexFragment | Link | Macro | RadioTarget | StrikeThrough | Script
+                | Target | Timestamp | Underline | Verbatim),
 
             //(table-row table-cell)
             TableRow => matches!(that, TableCell),
@@ -1002,17 +999,48 @@ pub struct StatisticsCookieData<'a> {
     value: &'a str,
 }
 
-#[derive(Debug)]
-pub struct SubscriptData {
-    /// Non_nil if contents are enclosed in curly brackets (t, nil).
-    use_brackets_p: bool,
+/// Whether a subscript or superscript is enclosed in curly brackets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Brackets {
+    Bare,
+    Bracketed,
 }
 
-/// Recursive object.
-#[derive(Debug)]
-pub struct SuperscriptData {
-    /// Non_nil if contents are enclosed in curly brackets (t, nil).
-    use_brackets_p: bool,
+/// Subscript vs superscript.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScriptKind {
+    Sub,
+    Sup,
+}
+
+/// Packed bitflag representation of [`ScriptKind`] and [`Brackets`].
+///
+/// Bit 0 = Sup (0 = Sub, 1 = Sup)
+/// Bit 1 = Bracketed (0 = Bare, 1 = Bracketed)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScriptFlags(u8);
+
+impl ScriptFlags {
+    const SUP: u8 = 0b01;
+    const BRACKETED: u8 = 0b10;
+
+    #[inline]
+    pub fn new(kind: ScriptKind, brackets: Brackets) -> Self {
+        let mut f = 0;
+        if matches!(kind, ScriptKind::Sup) { f |= Self::SUP; }
+        if matches!(brackets, Brackets::Bracketed) { f |= Self::BRACKETED; }
+        ScriptFlags(f)
+    }
+
+    #[inline]
+    pub fn kind(self) -> ScriptKind {
+        if self.0 & Self::SUP != 0 { ScriptKind::Sup } else { ScriptKind::Sub }
+    }
+
+    #[inline]
+    pub fn brackets(self) -> Brackets {
+        if self.0 & Self::BRACKETED != 0 { Brackets::Bracketed } else { Brackets::Bare }
+    }
 }
 
 #[derive(Debug, Clone)]
