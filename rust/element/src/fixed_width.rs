@@ -14,6 +14,6 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::affiliated::AffiliatedData;
-use crate::data::SyntaxNode;
+use crate::data::{NodeId, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;

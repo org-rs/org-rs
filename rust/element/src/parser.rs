@@ -13,7 +13,6 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use memchr::{memchr, memchr2};
@@ -23,8 +22,8 @@ use crate::affiliated::ElementSpan;
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
 use crate::data::{
-    EntityData, FootnoteReferenceData, Interval, LinkData, Syntax, SyntaxNode, SyntaxT,
-    TimestampData,
+    EntityData, FootnoteReferenceData, Interval, LinkData, NodeArena, NodeId, Syntax, SyntaxNode,
+    SyntaxT, TimestampData,
 };
 use crate::environment::Environment;
 
@@ -45,7 +44,7 @@ use crate::markup::REGEX_HORIZONTAL_RULE;
 use crate::table::{REGEX_TABLE_BORDER, REGEX_TABLE_PRE_BORDER, REGEX_TABLE_RULE};
 
 /// determines the depth of the recursion.
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ParseGranularity {
     /// Only parse headlines.
     Headline,
@@ -74,21 +73,22 @@ pub enum ParserMode {
 }
 
 pub struct Parser<'a, Environment: crate::environment::Environment> {
-    pub cursor: RefCell<Cursor<'a>>,
+    pub cursor: Cursor<'a>,
     pub input: &'a str,
     pub granularity: ParseGranularity,
     pub environment: Environment,
+    pub arena: NodeArena<'a>,
 }
 
 macro_rules! looking_at {
     ($regex:ident, $parser: ident) => {
-        $parser.cursor.borrow_mut().looking_at(&*$regex)
+        $parser.cursor.looking_at(&*$regex)
     };
 }
 
 macro_rules! capturing_at {
     ($regex:ident, $parser: ident) => {
-        $parser.cursor.borrow_mut().capturing_at(&*$regex)
+        $parser.cursor.capturing_at(&*$regex)
     };
 }
 
@@ -99,10 +99,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         environment: Environment,
     ) -> Parser<Environment> {
         Parser {
-            cursor: RefCell::new(Cursor::new(input, 0)),
+            cursor: Cursor::new(input, 0),
             input,
             granularity,
             environment,
+            arena: NodeArena::new(),
         }
     }
 
@@ -140,133 +141,113 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// org-element-parse-buffer
     /// Parses input from beginning to the end
-    pub fn parse_buffer(&'a self) -> SyntaxNode {
-        self.cursor.borrow_mut().set(0);
-        self.cursor.borrow_mut().skip_whitespace();
+    pub fn parse_buffer(&mut self) -> (NodeArena<'a>, NodeId) {
+        self.cursor.set(0);
+        self.cursor.skip_whitespace();
 
         let end = self.input.len();
-        let mut root = SyntaxNode::create_root();
-        root.children = RefCell::new(self.parse_elements((0, end), ParserMode::FirstSection, None));
-        root
+        let root = self.arena.alloc(SyntaxNode::create_root());
+        let children = self.parse_elements((0, end), ParserMode::FirstSection, None);
+        self.arena.set_children(root, children);
+
+        (std::mem::take(&mut self.arena), root)
     }
 
     /// Parse elements between BEG and END positions.
-    /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4340
-    ///
-    /// MODE prioritizes some elements over the others.  It can be set to
-    /// `first-section', `section', `planning', `item', `node-property'
-    /// or `table-row'.
-    ///
-    /// When value is `item', STRUCTURE will be used as the current list
-    /// structure.
-    ///
-    /// Elements are accumulated into ACC."
-    /// (defun org-element--parse-elements
-    ///     (beg end mode structure granularity visible-only acc)
-    /// TODO do not forget to fix child-parent and parent-child links on tree updates
     pub fn parse_elements(
-        &'a self,
+        &mut self,
         span: impl Into<Interval>,
         mut mode: ParserMode,
         structure: Option<Rc<ListStruct>>,
-    ) -> Vec<Rc<SyntaxNode>> {
+    ) -> Vec<NodeId> {
         let span = span.into();
-        let pos = self.cursor.borrow_mut().pos();
-        self.cursor.borrow_mut().set(span.start);
+        let pos = self.cursor.pos();
+        self.cursor.set(span.start);
 
-        // When parsing only headlines, skip any text before first one.
-        if self.granularity == ParseGranularity::Headline && !self.cursor.borrow_mut().on_headline()
-        {
-            self.cursor.borrow_mut().next_headline();
+        if self.granularity == ParseGranularity::Headline && !self.cursor.on_headline() {
+            self.cursor.next_headline();
         }
 
-        let mut elements: Vec<Rc<SyntaxNode>> = vec![];
+        let mut elements: Vec<NodeId> = vec![];
         loop {
-            let current_pos = self.cursor.borrow().pos();
+            let current_pos = self.cursor.pos();
             if current_pos >= span.end {
                 break;
             }
 
-            // Skip blank lines between elements (they belong to post_blank, not new elements).
             {
                 let line_end = memchr(b'\n', self.input[current_pos..span.end].as_bytes())
                     .map_or(span.end, |i| current_pos + i + 1);
                 if self.input[current_pos..line_end].trim().is_empty() {
-                    self.cursor.borrow_mut().set(line_end);
+                    self.cursor.set(line_end);
                     continue;
                 }
             }
 
-            // Find current element's type and parse it accordingly to its category.
-            // (org-element--current-element end granularity mode structure))
             let list_struct = match &structure {
                 None => None,
                 Some(rc) => Some(rc.clone()),
             };
-            let element: SyntaxNode = self.current_element(span.end, mode, list_struct);
+            let element = self.current_element(span.end, mode, list_struct);
 
-            // (goto-char (org-element-property :end element))
-            self.cursor.borrow_mut().set(element.location.end);
+            let element_end;
+            let element_content;
+            {
+                let node = self.arena.get(element);
+                element_end = node.location.end;
+                element_content = node.content_location;
+            }
+            self.cursor.set(element_end);
 
-            // Recurse into element's children if it has contents
-            if element.content_location.is_some() {
-                let content_location = element.content_location.unwrap();
+            if let Some(content_location) = element_content {
+                let is_greater;
+                let data_disc;
+                {
+                    let node = self.arena.get(element);
+                    is_greater = SyntaxT::from(&node.data).is_greater_element();
+                    data_disc = SyntaxT::from(&node.data);
+                }
 
-                // If this is a Greater element:
-                // parse it between `contents_begin' and `contents_end'
-                // if one the following conditions holds:
-                // 1. This is a headline - going inside is mandatory,
-                //    in order to get sub-level headings.
-                // 2. Granularity is Element or Object
-                // 3. This is Section and Granularity is GreaterElement
-                if SyntaxT::from(&element.data).is_greater_element() {
-                    if (SyntaxT::Headline == SyntaxT::from(&element.data))
+                if is_greater {
+                    let recurse = (SyntaxT::Headline == data_disc)
                         || (self.granularity == ParseGranularity::Element
                             || self.granularity == ParseGranularity::Object)
-                        || ((SyntaxT::Section == SyntaxT::from(&element.data))
-                            && (self.granularity == ParseGranularity::GreaterElement))
-                    {
-                        // (and (memq type '(item plain-list))
-                        // (org-element-property :structure element))
-                        let list_sturct = match &element.data {
-                            Syntax::PlainList(d) => Some(d.structure.clone()),
-                            _ => None,
+                        || ((SyntaxT::Section == data_disc)
+                            && (self.granularity == ParseGranularity::GreaterElement));
+
+                    if recurse {
+                        let list_sturct = {
+                            let node = self.arena.get(element);
+                            match &node.data {
+                                Syntax::PlainList(d) => Some(d.structure.clone()),
+                                _ => None,
+                            }
                         };
 
-                        //  Possibly switch to a special mode.
-                        // (org-element--next-mode type t)
                         let new_mode =
-                            Parser::<Environment>::next_mode(SyntaxT::from(&element.data), true)
+                            Parser::<Environment>::next_mode(data_disc, true)
                                 .unwrap_or(mode);
 
-                        element.children.replace(self.parse_elements(
-                            content_location,
-                            new_mode,
-                            list_sturct,
-                        ));
+                        let children = self.parse_elements(content_location, new_mode, list_sturct);
+                        self.arena.set_children(element, children);
                     }
-                }
-                // Any other element with contents, if granularity allows it
-                else {
-                    // (org-element--parse-objects
-                    //    cbeg (org-element-property :contents-end element)
-                    //    element (org-element-restriction type))))
-                    if let ParseGranularity::Object = &self.granularity {
-                        element.children.replace(self.parse_objects(
-                            content_location,
-                            |that| SyntaxT::from(&element.data).can_contain(that),
-                        ));
-                    }
+                } else if let ParseGranularity::Object = &self.granularity {
+                    let children = self.parse_objects(
+                        content_location,
+                        |that| data_disc.can_contain(that),
+                    );
+                    self.arena.set_children(element, children);
                 }
             }
-            // For headlines, also parse the title line as a secondary string of
-            // objects (e.g. *bold* in "* *bold* heading").  These are prepended
-            // to whatever section children were set above.
+
             if self.granularity == ParseGranularity::Object {
-                let title_location = if let Syntax::Headline(ref data) = element.data {
-                    data.title_location
-                } else {
-                    None
+                let title_location = {
+                    let node = self.arena.get(element);
+                    if let Syntax::Headline(ref data) = node.data {
+                        data.title_location
+                    } else {
+                        None
+                    }
                 };
                 if let Some(loc) = title_location {
                     let title_objects = self.parse_objects(
@@ -274,108 +255,89 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                         |that| SyntaxT::Headline.can_contain(that),
                     );
                     if !title_objects.is_empty() {
-                        let mut ch = element.children.borrow_mut();
-                        let section_children: Vec<_> = ch.drain(..).collect();
-                        *ch = title_objects;
-                        ch.extend(section_children);
+                        let existing: Vec<NodeId> = {
+                            let node = self.arena.get(element);
+                            node.children.clone()
+                        };
+                        let combined: Vec<NodeId> = title_objects.into_iter()
+                            .chain(existing.into_iter())
+                            .collect();
+                        self.arena.set_children(element, combined);
                     }
                 }
             }
 
-            if let Some(m) = Parser::<Environment>::next_mode(SyntaxT::from(&element.data), false) {
-                mode = m
+            {
+                let node = self.arena.get(element);
+                if let Some(m) = Parser::<Environment>::next_mode(SyntaxT::from(&node.data), false) {
+                    mode = m
+                }
             }
-            elements.push(Rc::new(element));
+            elements.push(element);
         }
-        self.cursor.borrow_mut().set(pos);
+        self.cursor.set(pos);
         elements
     }
 
     /// Parse the element starting at cursor position (point).
-    /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L3833
-    /// (defun org-element--current-element (limit &optional granularity mode structure)
-    ///
-    /// LIMIT bounds the search.
-    ///
-    /// GRANULARITY determines the depth of the
-    /// recursion. When it is broader than `object',
-    /// secondary values will not be parsed, since they only
-    /// contain objects.
-    ///
-    /// If STRUCTURE isn't provided but MODE is set to `item', it will be
-    /// computed.
-    ///
-    /// This function assumes cursor is always at the beginning of the
-    /// element it has to parse."
     pub fn current_element(
-        &'a self,
+        &mut self,
         limit: usize,
         mode: ParserMode,
         structure: Option<Rc<ListStruct>>,
-    ) -> SyntaxNode<'a> {
-        let pos = self.cursor.borrow().pos();
+    ) -> NodeId {
+        let pos = self.cursor.pos();
 
         let raw_secondary_p = self.granularity == ParseGranularity::Object;
 
-        let get_current_element = || -> SyntaxNode<'a> {
+        let get_current_element = || -> NodeId {
             use crate::parser::ParserMode::*;
 
-            // Item
             if mode == Item {
                 return self.item_parser(structure, raw_secondary_p);
             }
 
-            // Table Row.
             if mode == TableRow {
                 return self.table_row_parser();
             }
 
-            // Node Property.
             if mode == NodeProperty {
                 return self.node_property_parser(limit);
             }
 
-            // Headline.
-            if self.cursor.borrow_mut().on_headline() {
+            if self.cursor.on_headline() {
                 return self.headline_parser();
             }
 
-            // Sections (must be checked after headline).
             if mode == Section {
                 return self.section_parser(limit);
             }
 
             if mode == FirstSection {
-                let pos = self.cursor.borrow().pos();
-                let lim = self.cursor.borrow_mut().next_headline().unwrap_or(limit);
-                self.cursor.borrow_mut().set(pos);
+                let p = self.cursor.pos();
+                let lim = self.cursor.next_headline().unwrap_or(limit);
+                self.cursor.set(p);
                 return self.section_parser(lim);
             }
 
-            // Planning.
             {
-                let mut c = self.cursor.borrow_mut();
-                let maybe_headline_offset = c.line_beginning_position(Some(0));
-                let maybe_star = c.char_after(maybe_headline_offset);
+                let maybe_headline_offset = self.cursor.line_beginning_position(Some(0));
+                let maybe_star = self.cursor.char_after(maybe_headline_offset);
                 let is_prev_line_headline = Some('*') == maybe_star;
-                let is_match_planning = c.looking_at(&*REGEX_PLANNING_LINE).is_some();
-                drop(c);
+                let is_match_planning = self.cursor.looking_at(&*REGEX_PLANNING_LINE).is_some();
 
                 if mode == Planning && is_prev_line_headline && is_match_planning {
                     return self.planning_parser(limit);
                 }
             }
 
-            // Property drawer.
             {
-                let mut c = self.cursor.borrow_mut();
                 let delta = if mode == Planning { 0 } else { -1 };
-                let maybe_headline_offset = c.line_beginning_position(Some(delta));
-                let maybe_star = c.char_after(maybe_headline_offset);
+                let maybe_headline_offset = self.cursor.line_beginning_position(Some(delta));
+                let maybe_star = self.cursor.char_after(maybe_headline_offset);
                 let is_prev_line_headline = Some('*') == maybe_star;
-
-                let is_match_property_drawer = c.looking_at(&*REGEX_PROPERTY_DRAWER).is_some();
-                drop(c);
+                let is_match_property_drawer =
+                    self.cursor.looking_at(&*REGEX_PROPERTY_DRAWER).is_some();
 
                 if (mode == Planning || mode == PropertyDrawer)
                     && is_prev_line_headline
@@ -385,158 +347,121 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 }
             }
 
-            // When not at bol, point is at the beginning of an item or
-            // a footnote definition: next item is always a paragraph.
-            if !self.cursor.borrow().is_bol() {
-                let pos = self.cursor.borrow().pos();
-                return self.paragraph_parser(ElementSpan::new((pos, limit)).build());
+            if !self.cursor.is_bol() {
+                let p = self.cursor.pos();
+                return self.paragraph_parser(ElementSpan::new((p, limit)).build());
             }
 
-            // Clock.
             if looking_at!(REGEX_CLOCK_LINE, self).is_some() {
                 return self.clock_line_parser(limit);
             }
 
-            // Inlinetask.
-            if self.cursor.borrow_mut().on_headline() {
+            if self.cursor.on_headline() {
                 return self.inlinetask_parser(limit, raw_secondary_p);
             }
 
-            // From there, elements can have affiliated keywords.
             let element_span = self.collect_affiliated_keywords(limit);
 
-            // If parsing affiliated keywords left cursor off-limits
-            // then parse them as regular keywords.
-            if element_span.affiliated.is_some() && self.cursor.borrow().pos() >= limit {
-                self.cursor.borrow_mut().set(element_span.span.start);
+            if element_span.affiliated.is_some() && self.cursor.pos() >= limit {
+                self.cursor.set(element_span.span.start);
                 return self.keyword_parser(ElementSpan::new((element_span.span.start, limit)).build());
             }
 
-            // LaTeX Environment
             if looking_at!(REGEX_LATEX_BEGIN_ENVIRIONMENT, self).is_some() {
                 return self.latex_environment_parser(element_span);
             }
 
-            // Drawer and Property Drawer.
             if looking_at!(REGEX_DRAWER, self).is_some() {
                 return self.drawer_parser(element_span);
             }
 
-            // Fixed Width
             if looking_at!(REGEX_FIXED_WIDTH, self).is_some() {
                 return self.fixed_width_parser(element_span);
             }
 
-            // Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
-            //
-            // NOTE: We extract match data into owned values before
-            // re-borrowing the cursor to avoid RefCell double-borrow panics
-            // (the `if let` temporary lifetime extends to the block end).
             let hashtag_end = looking_at!(REGEX_STARTS_WITH_HASHTAG, self).map(|m| m.end());
             if let Some(end) = hashtag_end {
-                self.cursor.borrow_mut().set(pos + end);
+                self.cursor.set(pos + end);
                 if looking_at!(REGEX_COLON_OR_EOL, self).is_some() {
-                    self.cursor.borrow_mut().goto_line_begin();
+                    self.cursor.goto_line_begin();
                     return self.comment_parser(element_span);
                 }
 
                 let block_name = capturing_at!(REGEX_BLOCK_BEGIN, self)
                     .and_then(|cap| cap.get(1).map(|m| m.as_str().to_ascii_uppercase()));
                 if let Some(name) = block_name {
-                    self.cursor.borrow_mut().goto_line_begin();
-                    match name.as_ref() {
-                        "CENTER" => return self.center_block_parser(element_span),
-                        "COMMENT" => return self.comment_block_parser(element_span),
-                        "EXAMPLE" => return self.example_block_parser(element_span),
-                        "EXPORT" => return self.export_block_parser(element_span),
-                        "QUOTE" => return self.quote_block_parser(element_span),
-                        "SRC" => return self.src_block_parser(element_span),
-                        "VERSE" => return self.verse_block_parser(element_span),
-                        _ => return self.special_block_parser(element_span),
-                    }
+                    self.cursor.goto_line_begin();
+                    return match name.as_ref() {
+                        "CENTER" => self.center_block_parser(element_span),
+                        "COMMENT" => self.comment_block_parser(element_span),
+                        "EXAMPLE" => self.example_block_parser(element_span),
+                        "EXPORT" => self.export_block_parser(element_span),
+                        "QUOTE" => self.quote_block_parser(element_span),
+                        "SRC" => self.src_block_parser(element_span),
+                        "VERSE" => self.verse_block_parser(element_span),
+                        _ => self.special_block_parser(element_span),
+                    };
                 }
 
                 if looking_at!(REGEX_BABEL_CALL, self).is_some() {
-                    self.cursor.borrow_mut().goto_line_begin();
+                    self.cursor.goto_line_begin();
                     return self.babel_call_parser(element_span);
                 }
 
                 if looking_at!(REGEX_DYNAMIC_BLOCK, self).is_some() {
-                    self.cursor.borrow_mut().goto_line_begin();
+                    self.cursor.goto_line_begin();
                     return self.dynamic_block_parser(element_span);
                 }
 
                 if looking_at!(REGEX_KEYWORD, self).is_some() {
-                    self.cursor.borrow_mut().goto_line_begin();
+                    self.cursor.goto_line_begin();
                     return self.keyword_parser(element_span);
                 }
 
-                // If none of the above fits then this is just a paragraph
-                self.cursor.borrow_mut().goto_line_begin();
+                self.cursor.goto_line_begin();
                 return self.paragraph_parser(element_span);
             }
 
-            // Footnote Definition
             if looking_at!(REGEX_FOOTNOTE_DEFINITION, self).is_some() {
                 return self.footnote_definition_parser(element_span);
             }
 
-            // Horizontal Rule.
             if looking_at!(REGEX_HORIZONTAL_RULE, self).is_some() {
                 return self.horizontal_rule_parser(element_span);
             }
 
-            // Diary Sexp.
             if looking_at!(REGEX_DIARY_SEXP, self).is_some() {
                 return self.diary_sexp_parser(element_span);
             }
 
-            // Table
-            // NB: table.el style tables are not supported
             if looking_at!(REGEX_TABLE_BORDER, self).is_some() {
                 return self.table_parser(element_span);
             }
 
-            // List.
             if looking_at!(REGEX_ITEM, self).is_some() {
                 let s = structure.unwrap_or(self.list_struct(limit));
                 return self.plain_list_parser(element_span, s.clone());
             }
 
-            // Default element: Paragraph.
             return self.paragraph_parser(element_span);
         };
 
         let current_element = get_current_element();
-        self.cursor.borrow_mut().set(pos);
-        return current_element;
+        self.cursor.set(pos);
+        current_element
     }
 
     /// Parse objects between `beg` and `end` and return recursive structure.
-    /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4515
-    ///
-    /// Objects are accumulated in ACC.  RESTRICTION is a list of object
-    /// successors which are allowed in the current object.
-    ///
-    /// ACC becomes the parent for all parsed objects.  However, if ACC
-    /// is nil (i.e., a secondary string is being parsed) and optional
-    /// argument PARENT is non-nil, use it as the parent for all objects.
-    /// Eventually, if both ACC and PARENT are nil, the common parent is
-    /// the list of objects itself."
-    /// (defun org-element--parse-objects (beg end acc restriction &optional parent)
     pub fn parse_objects(
-        &self,
+        &mut self,
         interval: impl Into<Interval>,
         restriction: impl Fn(SyntaxT) -> bool,
-    ) -> Vec<Rc<SyntaxNode<'a>>> {
+    ) -> Vec<NodeId> {
         let interval = interval.into();
-        let mut children: Vec<Rc<SyntaxNode<'a>>> = Vec::new();
+        let mut children: Vec<NodeId> = Vec::new();
         let mut pos = interval.start;
 
-        // Parse order and type tag for the restriction check.  Two entries carry
-        // SyntaxT::Link: the first handles bracket links `[[…]]`, the second plain
-        // URLs.  Both yield Link nodes, so both are gated by the same restriction.
-        let parsers: &[(SyntaxT, fn(&Parser<'a, Environment>, &'a str, usize) -> Option<(Rc<SyntaxNode<'a>>, usize)>)] = &[
+        let parsers: &[(SyntaxT, fn(&mut Parser<'a, Environment>, &'a str, usize) -> Option<(NodeId, usize)>)] = &[
             (SyntaxT::Bold,              Self::try_parse_bold),
             (SyntaxT::Italic,            Self::try_parse_italic),
             (SyntaxT::Code,              Self::try_parse_code),
@@ -598,31 +523,31 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         )
     }
 
-    fn try_parse_bold(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_bold(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         self.parse_emphasis_marker(text, start, b'*', SyntaxT::Bold)
     }
 
-    fn try_parse_italic(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_italic(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         self.parse_emphasis_marker(text, start, b'/', SyntaxT::Italic)
     }
 
-    fn try_parse_underline(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_underline(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         self.parse_emphasis_marker(text, start, b'_', SyntaxT::Underline)
     }
 
-    fn try_parse_strikethrough(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_strikethrough(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         self.parse_emphasis_marker(text, start, b'+', SyntaxT::StrikeThrough)
     }
 
-    fn try_parse_code(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_code(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         self.parse_emphasis_marker(text, start, b'~', SyntaxT::Code)
     }
 
-    fn try_parse_verbatim(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_verbatim(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         self.parse_emphasis_marker(text, start, b'=', SyntaxT::Verbatim)
     }
 
-    fn try_parse_link(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_link(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         let bytes = text.as_bytes();
         if bytes.len() < 4 || &bytes[0..2] != b"[[" {
             return None;
@@ -659,14 +584,16 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let link_data = LinkData::new(raw);
 
-        let node = SyntaxNode::new(Syntax::Link(Box::new(link_data)), (start, start + close))
-            .content((start + content_start, start + content_end))
-            .build();
+        let node = self.arena.alloc(
+            SyntaxNode::new(Syntax::Link(Box::new(link_data)), (start, start + close))
+                .content((start + content_start, start + content_end))
+                .build(),
+        );
 
-        Some((Rc::new(node), close))
+        Some((node, close))
     }
 
-    fn try_parse_target(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_target(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         let bytes = text.as_bytes();
         if bytes.len() < 4 || &bytes[0..2] != b"<<" {
             return None;
@@ -699,18 +626,20 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let close = found_close?;
         let content = &text[2..close - 2];
 
-        let node = SyntaxNode::new(Syntax::Target(content), (start, start + close)).build();
+        let node = self.arena.alloc(
+            SyntaxNode::new(Syntax::Target(content), (start, start + close)).build(),
+        );
 
-        Some((Rc::new(node), close))
+        Some((node, close))
     }
 
-    fn parse_emphasis_marker<'b>(
-        &self,
-        text: &'b str,
+    fn parse_emphasis_marker(
+        &mut self,
+        text: &str,
         start: usize,
         marker: u8,
         syntax: SyntaxT,
-    ) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    ) -> Option<(NodeId, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || bytes[0] != marker {
             return None;
@@ -781,15 +710,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             _                      => return None,
         };
 
-        let node = SyntaxNode::new(data, (start, start + close + 1))
-            .content(content_location)
-            .children(children)
-            .build();
+        let node = self.arena.alloc_with_children(
+            SyntaxNode::new(data, (start, start + close + 1))
+                .content(content_location)
+                .build(),
+            children,
+        );
 
-        Some((Rc::new(node), close + 1))
+        Some((node, close + 1))
     }
 
-    fn try_parse_plain_link(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_plain_link(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         const PROTOCOLS: &[&[u8]] = &[b"https://", b"http://", b"ftp://", b"mailto:"];
         let bytes = text.as_bytes();
         let proto_len = PROTOCOLS.iter().find_map(|&p| {
@@ -806,15 +737,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return None;
         }
         let raw = &text[..url_end];
-        let node = SyntaxNode::new(
-            Syntax::Link(Box::new(LinkData::new_plain(raw))),
-            (start, start + url_end),
-        )
-        .build();
-        Some((Rc::new(node), url_end))
+        let node = self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::Link(Box::new(LinkData::new_plain(raw))),
+                (start, start + url_end),
+            )
+            .build(),
+        );
+        Some((node, url_end))
     }
 
-    fn try_parse_footnote_reference(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_footnote_reference(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         if !text.starts_with("[fn:") {
             return None;
         }
@@ -840,15 +773,15 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let mut builder = SyntaxNode::new(
             Syntax::FootnoteReference(Box::new(FootnoteReferenceData { label, type_s })),
             (start, start + consumed),
-        )
-        .children(children);
+        );
         if let Some(loc) = definition_location {
             builder = builder.content(loc);
         }
-        Some((Rc::new(builder.build()), consumed))
+        let node = self.arena.alloc_with_children(builder.build(), children);
+        Some((node, consumed))
     }
 
-    fn try_parse_plain_text(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_plain_text(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         if text.is_empty() {
             return None;
         }
@@ -888,12 +821,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         let content = &text[..consume];
-        let node = SyntaxNode::new(Syntax::PlainText(content), (start, start + consume)).build();
+        let node = self.arena.alloc(
+            SyntaxNode::new(Syntax::PlainText(content), (start, start + consume)).build(),
+        );
 
-        Some((Rc::new(node), consume))
+        Some((node, consume))
     }
 
-    pub fn try_parse_timestamp(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    pub fn try_parse_timestamp(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || (bytes[0] != b'<' && bytes[0] != b'[') {
             return None;
@@ -927,17 +862,19 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // Try to create a valid TimestampData
         let timestamp_data = TimestampData::new(raw)?;
 
-        let node = SyntaxNode::new(
-            Syntax::Timestamp(Box::new(timestamp_data)),
-            (start, start + close + 1),
-        )
-        .content((start + 1, start + close))
-        .build();
+        let node = self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::Timestamp(Box::new(timestamp_data)),
+                (start, start + close + 1),
+            )
+            .content((start + 1, start + close))
+            .build(),
+        );
 
-        Some((Rc::new(node), close + 1))
+        Some((node, close + 1))
     }
 
-    fn try_parse_entity(&self, text: &'a str, start: usize) -> Option<(Rc<SyntaxNode<'a>>, usize)> {
+    fn try_parse_entity(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || bytes[0] != b'\\' {
             return None;
@@ -973,12 +910,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let entity_name = &text[1..end];
         let entity_data = EntityData::new(entity_name)?;
 
-        let node = SyntaxNode::new(
-            Syntax::Entity(Box::new(entity_data)),
-            (start, start + end),
-        )
-        .build();
+        let node = self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::Entity(Box::new(entity_data)),
+                (start, start + end),
+            )
+            .build(),
+        );
 
-        Some((Rc::new(node), end))
+        Some((node, end))
     }
 }

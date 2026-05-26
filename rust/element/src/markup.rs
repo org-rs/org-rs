@@ -17,7 +17,7 @@
 use std::borrow::Cow;
 
 use crate::affiliated::ElementSpan;
-use crate::data::{Interval, Syntax, SyntaxNode};
+use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use memchr::memchr;
 use regex::Regex;
@@ -99,7 +99,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     ///
     /// A comment is one or more consecutive lines starting with `# `
     /// (hash + space) or just `#` at end of line.
-    pub fn comment_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+    pub fn comment_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let span = element_span.span;
         let mut end = span.start;
 
@@ -120,17 +120,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         let value = &self.input[span.start..end];
-        SyntaxNode::new(Syntax::Comment(value), (span.start, end)).build()
+        self.arena.alloc(SyntaxNode::new(Syntax::Comment(value), (span.start, end)).build())
     }
 
     /// Parse a horizontal rule at `start`.
     ///
     /// A horizontal rule is a line containing at least five consecutive
     /// dashes and nothing else (ignoring surrounding whitespace).
-    pub fn horizontal_rule_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+    pub fn horizontal_rule_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let span = element_span.span;
         let end = memchr(b'\n', self.input[span.start..span.end].as_bytes()).map_or(span.end, |i| span.start + i + 1);
-        SyntaxNode::new(Syntax::HorizontalRule, (span.start, end)).build()
+        self.arena.alloc(SyntaxNode::new(Syntax::HorizontalRule, (span.start, end)).build())
     }
 
     /// Parse a footnote definition element.
@@ -145,18 +145,18 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Stores raw text in value field
     /// - Sets content_location for contents_begin/contents_end
     /// - Calculates pre_blank and post_blank
-    pub fn footnote_definition_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+    pub fn footnote_definition_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start: begin, end: limit }, affiliated } = element_span;
         let input_slice = &self.input[begin..limit];
 
         let label = match REGEX_FOOTNOTE_DEFINITION.captures(input_slice) {
             Some(caps) => caps.get(1).map(|m| m.as_str()).unwrap_or(""),
-            None => return SyntaxNode::fallback(self.input, begin, limit),
+            None => return self.arena.alloc(SyntaxNode::fallback(self.input, begin, limit)),
         };
 
         let label_end = match REGEX_FOOTNOTE_DEFINITION.find(input_slice) {
             Some(m) => m.end(),
-            None => return SyntaxNode::fallback(self.input, begin, limit),
+            None => return self.arena.alloc(SyntaxNode::fallback(self.input, begin, limit)),
         };
 
         let after_label = begin + label_end;
@@ -232,14 +232,16 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             0
         };
 
-        SyntaxNode::new(
-            Syntax::FootnoteDefinition(Box::new(FootnoteDefinitionData { label, pre_blank, value })),
-            (begin, end),
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::FootnoteDefinition(Box::new(FootnoteDefinitionData { label, pre_blank, value })),
+                (begin, end),
+            )
+            .content((contents_start, contents_end))
+            .post_blank(post_blank)
+            .affiliated(affiliated)
+            .build()
         )
-        .content((contents_start, contents_end))
-        .post_blank(post_blank)
-        .affiliated(affiliated)
-        .build()
     }
 
     /// Parse a fixed-width element.
@@ -253,9 +255,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Uses affiliated data from parameter
     /// - Value is stored WITHOUT colons (stripped at parse time)
     /// - Calculates post-blank
-    pub fn fixed_width_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+    pub fn fixed_width_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start: begin, end: limit }, affiliated } = element_span;
-        let content_start = self.cursor.borrow().pos();
+        let content_start = self.cursor.pos();
         let mut end_area = content_start;
 
         while end_area < limit {
@@ -317,9 +319,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             }
         }
 
-        SyntaxNode::new(Syntax::FixedWidth(value), (begin, end))
-            .post_blank(post_blank)
-            .affiliated(affiliated)
-            .build()
+        self.arena.alloc(
+            SyntaxNode::new(Syntax::FixedWidth(value), (begin, end))
+                .post_blank(post_blank)
+                .affiliated(affiliated)
+                .build()
+        )
     }
 }

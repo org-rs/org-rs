@@ -214,18 +214,18 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// objects itself." - It is hard to encode this into a type system, since in all other
     /// cases, apart from affiliated keywords, objects parents are nodes of syntax trees
     /// (ACC or PARENT)
-    pub fn collect_affiliated_keywords(&self, limit: usize) -> ElementSpan<'a> {
-        if !self.cursor.borrow().is_bol() {
-            return ElementSpan::new((self.cursor.borrow().pos(), limit)).build();
+    pub fn collect_affiliated_keywords(&mut self, limit: usize) -> ElementSpan<'a> {
+        if !self.cursor.is_bol() {
+            return ElementSpan::new((self.cursor.pos(), limit)).build();
         }
-        let origin = self.cursor.borrow().pos();
+        let origin = self.cursor.pos();
         let _restrict = |that| SyntaxT::Keyword.can_contain(that);
 
         let mut output: AffiliatedData = Default::default();
 
         loop {
             let maybe_affiliated = capturing_at!(REGEX_AFFILIATED, self);
-            let current_pos = self.cursor.borrow().pos();
+            let current_pos = self.cursor.pos();
             if current_pos >= limit || maybe_affiliated.is_none() {
                 break;
             }
@@ -240,11 +240,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 .unwrap();
 
             let value_begin = match captures.name("SECONDARY") {
-                None => self.cursor.borrow().pos() + matched.1.end() + 1,
-                Some(sec) => self.cursor.borrow().pos() + sec.end() + 2,
+                None => self.cursor.pos() + matched.1.end() + 1,
+                Some(sec) => self.cursor.pos() + sec.end() + 2,
             };
 
-            let value_end = self.cursor.borrow_mut().line_end_position(None);
+            let value_end = self.cursor.line_end_position(None);
 
             let value = Cow::from(self.input[value_begin..value_end].trim());
 
@@ -281,13 +281,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 _ => unreachable!(),
             }
 
-            self.cursor.borrow_mut().goto_next_line();
+            self.cursor.goto_next_line();
         }
 
         // If affiliated keywords are orphaned: move back to first one.
         // They will be parsed as a paragraph.
         if looking_at!(REGEX_EMPTY_LINE, self).is_some() {
-            self.cursor.borrow_mut().set(origin);
+            self.cursor.set(origin);
             return ElementSpan::new((origin, limit)).build();
         }
 
@@ -384,7 +384,7 @@ mod test {
         text.push_str(r"#+attr_html: :file filename.ext");
         text.push_str("\n\n");
         {
-            let p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
+            let mut p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
             let maybe_collected = p.collect_affiliated_keywords(text.len());
             assert_eq!(0, maybe_collected.span.start);
             assert!(maybe_collected.affiliated.is_none());
@@ -392,7 +392,7 @@ mod test {
         text.pop();
         text.push_str("#+BEGIN_SRC");
 
-        let p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
+        let mut p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
         let maybe_collected = p.collect_affiliated_keywords(text.len());
         assert_eq!(0, maybe_collected.span.start);
         assert!(maybe_collected.affiliated.is_some());

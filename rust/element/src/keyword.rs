@@ -14,7 +14,7 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::affiliated::ElementSpan;
-use crate::data::{Interval, Syntax, SyntaxNode};
+use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use memchr::memchr;
 use regex::Regex;
@@ -37,7 +37,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// A keyword follows the pattern `#+KEY: VALUE`.  `start` is the
     /// buffer position at the beginning of the first affiliated keyword
     /// (or the keyword itself when there is no affiliation).
-    pub fn keyword_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+    pub fn keyword_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let ElementSpan { span: Interval { start, end: limit }, affiliated: _ } = element_span;
         let line_end = memchr(b'\n', self.input[start..limit].as_bytes())
             .map_or(limit, |i| start + i + 1);
@@ -61,10 +61,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             &self.input[off..off + value.len()]
         };
 
-        SyntaxNode::new(
-            Syntax::Keyword(Box::new(KeywordData { key: key_ref, value: value_ref })),
-            (start, line_end),
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::Keyword(Box::new(KeywordData { key: key_ref, value: value_ref })),
+                (start, line_end),
+            )
+            .build()
         )
-        .build()
     }
 }

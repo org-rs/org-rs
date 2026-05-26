@@ -32,9 +32,7 @@
 //!
 //! TAGS is made of words separated with colons, e.g. `:tag1:tag2:`.
 
-use std::cell::RefCell;
-
-use crate::data::{Interval, Syntax, SyntaxNode, TimestampData};
+use crate::data::{Interval, NodeId, Syntax, SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use memchr::memchr;
 use regex::Regex;
@@ -146,11 +144,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Extracts the level (star count), optional TODO/DONE keyword,
     /// title text, and tags.  The headline node spans from the `*` line
     /// to the next headline at the same or higher level, or buffer end.
-    pub fn headline_parser(&self) -> SyntaxNode<'a> {
+    pub fn headline_parser(&mut self) -> NodeId {
         let begin = {
-            let mut c = self.cursor.borrow_mut();
-            c.goto_line_begin();
-            c.pos()
+            self.cursor.goto_line_begin();
+            self.cursor.pos()
         };
 
         let bytes = self.input.as_bytes();
@@ -220,9 +217,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         // 15+ stars are inline tasks, not headlines.
         if level >= 15 {
-            return SyntaxNode {
-                parent: RefCell::new(None),
-                children: RefCell::new(vec![]),
+            return self.arena.alloc(SyntaxNode {
+                parent: None,
+                children: Vec::new(),
                 data: Syntax::InlineTask(Box::new(InlineTaskData {
                     closed: None,
                     deadline: None,
@@ -241,7 +238,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 content_location: None,
                 post_blank: 0,
                 affiliated: None,
-            };
+            });
         }
 
         let data = HeadlineData {
@@ -271,33 +268,33 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             None
         };
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
+        self.arena.alloc(SyntaxNode {
+            parent: None,
+            children: Vec::new(),
             data: Syntax::Headline(Box::new(data)),
             location: Interval { start: begin, end },
             content_location,
             post_blank: 0,
             affiliated: None,
-        }
+        })
     }
 
     /// Fallback: inline task parser (not yet implemented).
-    pub fn inlinetask_parser(&self, limit: usize, _raw_secondary_p: bool) -> SyntaxNode<'a> {
-        let start = self.cursor.borrow().pos();
-        SyntaxNode::fallback(self.input, start, limit)
+    pub fn inlinetask_parser(&mut self, limit: usize, _raw_secondary_p: bool) -> NodeId {
+        let start = self.cursor.pos();
+        self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 
     /// Fallback: property drawer parser (not yet implemented).
-    pub fn property_drawer_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        let start = self.cursor.borrow().pos();
-        SyntaxNode::fallback(self.input, start, limit)
+    pub fn property_drawer_parser(&mut self, limit: usize) -> NodeId {
+        let start = self.cursor.pos();
+        self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 
     /// Fallback: node property parser (not yet implemented).
-    pub fn node_property_parser(&self, limit: usize) -> SyntaxNode<'a> {
-        let start = self.cursor.borrow().pos();
-        SyntaxNode::fallback(self.input, start, limit)
+    pub fn node_property_parser(&mut self, limit: usize) -> NodeId {
+        let start = self.cursor.pos();
+        self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 }
 

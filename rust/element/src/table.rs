@@ -14,8 +14,8 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::fmt;
-use std::rc::Rc;
 
+use crate::data::NodeId;
 use crate::prelude::*;
 use memchr::memchr;
 use regex::Regex;
@@ -89,8 +89,8 @@ pub enum TableRowType {
 }
 
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    pub fn table_row_parser(&self) -> SyntaxNode<'a> {
-        let start = self.cursor.borrow().pos();
+    pub fn table_row_parser(&mut self) -> NodeId {
+        let start = self.cursor.pos();
         let limit = self.input.len();
 
         let end = memchr(b'\n', self.input[start..limit].as_bytes())
@@ -102,28 +102,28 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             TableRowType::Standard
         };
 
-        SyntaxNode::new(Syntax::TableRow(row_type), (start, end)).build()
+        self.arena.alloc(SyntaxNode::new(Syntax::TableRow(row_type), (start, end)).build())
     }
 
-    pub fn table_parser(&self, element_span: ElementSpan<'a>) -> SyntaxNode<'a> {
+    pub fn table_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let span = element_span.span;
         let (end, children) = {
             let mut current = span.start;
-            let mut rows: Vec<Rc<SyntaxNode<'a>>> = Vec::new();
+            let mut rows: Vec<NodeId> = Vec::new();
             loop {
                 if current >= span.end { break; }
                 let line_end = memchr(b'\n', self.input[current..span.end].as_bytes())
                     .map_or(span.end, |i| current + i + 1);
                 let line = &self.input[current..line_end];
                 if line.trim().is_empty() || !REGEX_TABLE_BORDER.is_match(line) { break; }
-                rows.push(Rc::new(self.parse_table_row_at(current, line_end)));
+                rows.push(self.parse_table_row_at(current, line_end));
                 current = line_end;
             }
             (current, rows)
         };
 
         if children.is_empty() {
-            return SyntaxNode::fallback(self.input, span.start, span.end);
+            return self.arena.alloc(SyntaxNode::fallback(self.input, span.start, span.end));
         }
 
         // Look for a #+TBLFM: line immediately after the table rows.
@@ -138,31 +138,33 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         .unwrap_or(0);
 
         match formula {
-            None => SyntaxNode::new(Syntax::Table, (span.start, end))
-                .post_blank(post_blank)
-                .affiliated(element_span.affiliated)
-                .children(children)
-                .build(),
+            None => {
+                let node = SyntaxNode::new(Syntax::Table, (span.start, end))
+                    .post_blank(post_blank)
+                    .affiliated(element_span.affiliated)
+                    .build();
+                self.arena.alloc_with_children(node, children)
+            }
             Some(formula) => {
                 let row_count = Row(children.iter()
-                    .filter(|r| matches!(&r.data, Syntax::TableRow(TableRowType::Standard)))
+                    .filter(|&&r| matches!(&self.arena[r].data, Syntax::TableRow(TableRowType::Standard)))
                     .count());
                 let col_count = Col(children.first()
-                    .map(|r| r.children.borrow().len())
+                    .map(|&r| self.arena[r].children.len())
                     .unwrap_or(0));
-                SyntaxNode::new(
+                let node = SyntaxNode::new(
                     Syntax::Spreadsheet(Box::new(SpreadsheetData { formula, row_count, col_count })),
                     (span.start, end),
                 )
                 .post_blank(post_blank)
                 .affiliated(element_span.affiliated)
-                .children(children)
-                .build()
+                .build();
+                self.arena.alloc_with_children(node, children)
             }
         }
     }
 
-    fn parse_table_row_at(&self, start: usize, end: usize) -> SyntaxNode<'a> {
+    fn parse_table_row_at(&mut self, start: usize, end: usize) -> NodeId {
         let line = &self.input[start..end];
 
         let row_type = if REGEX_TABLE_RULE.is_match(line) {
@@ -179,11 +181,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             .map(|loc| self.parse_objects(loc, |that| SyntaxT::TableCell.can_contain(that)))
             .unwrap_or_default();
 
-        let mut builder = SyntaxNode::new(Syntax::TableRow(row_type), (start, end))
-            .children(children);
+        let mut builder = SyntaxNode::new(Syntax::TableRow(row_type), (start, end));
         if let Some(loc) = content_location {
             builder = builder.content(loc);
         }
-        builder.build()
+        let node = builder.build();
+        self.arena.alloc_with_children(node, children)
     }
 }

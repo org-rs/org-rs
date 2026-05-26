@@ -1,6 +1,6 @@
 use goof::Error;
 use lexpr::Value;
-use org_element::data::{Syntax, SyntaxNode, SyntaxT};
+use org_element::data::{NodeArena, NodeId, Syntax, SyntaxT};
 use org_element::environment::DefaultEnvironment;
 use org_element::parser::{ParseGranularity, Parser};
 use std::cell::RefCell;
@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::fmt;
 use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
 #[derive(Debug, Error)]
 enum CorpusError {
@@ -277,14 +276,15 @@ fn rust_type_key(syntax: &Syntax) -> TypeKey {
 
 fn compare(
     oracle: &OracleNode,
-    rust_node: &SyntaxNode,
+    arena: &NodeArena,
+    rust_id: NodeId,
     input: &str,
     file: &Path,
     path: &str,
     out: &mut Vec<Discrepancy>,
 ) {
     let emacs_key = oracle.type_key();
-    let rust_key  = rust_type_key(&rust_node.data);
+    let rust_key  = rust_type_key(&arena[rust_id].data);
 
     if let Err(mismatch) = goof::assert_eq(&rust_key, &emacs_key) {
         let (begin, end) = oracle.span();
@@ -299,12 +299,13 @@ fn compare(
         return;
     }
 
-    compare_children(&oracle.children, &rust_node.children.borrow(), input, file, path, out);
+    compare_children(&oracle.children, arena, &arena[rust_id].children, input, file, path, out);
 }
 
 fn compare_children(
     oracle_kids: &[OracleNode],
-    rust_kids: &[Rc<SyntaxNode>],
+    arena: &NodeArena,
+    rust_kids: &[NodeId],
     input: &str,
     file: &Path,
     path: &str,
@@ -317,9 +318,9 @@ fn compare_children(
         .map(|n| ((n.type_key(), n.span().0), n))
         .collect();
 
-    let rust_map: HashMap<Key, &Rc<SyntaxNode>> = rust_kids
+    let rust_map: HashMap<Key, NodeId> = rust_kids
         .iter()
-        .map(|n| ((rust_type_key(&n.data), n.location.start), n))
+        .map(|&id| ((rust_type_key(&arena[id].data), arena[id].location.start), id))
         .collect();
 
     for (&key, oracle_node) in &oracle_map {
@@ -336,22 +337,23 @@ fn compare_children(
         }
     }
 
-    for (&key, rust_node) in &rust_map {
+    for (&key, &rust_id) in &rust_map {
         if !oracle_map.contains_key(&key) {
+            let node = &arena[rust_id];
             out.push(Discrepancy {
                 file: file.to_owned(),
                 tree_path: format!("{}/{}", path, key.0),
                 oracle_key: key.0,
-                kind: DiscrepancyKind::ExtraInRust(rust_node.location.start),
-                snippet: Snippet::new(input, rust_node.location.start, rust_node.location.end),
+                kind: DiscrepancyKind::ExtraInRust(node.location.start),
+                snippet: Snippet::new(input, node.location.start, node.location.end),
                 oracle_props: String::new(),
             });
         }
     }
 
     for (&key, oracle_node) in &oracle_map {
-        if let Some(rust_node) = rust_map.get(&key) {
-            compare(oracle_node, rust_node, input, file, &format!("{}/{}", path, key.0), out);
+        if let Some(&rust_id) = rust_map.get(&key) {
+            compare(oracle_node, arena, rust_id, input, file, &format!("{}/{}", path, key.0), out);
         }
     }
 }
@@ -379,11 +381,11 @@ fn process_file(path: &Path) -> Result<Vec<Discrepancy>, CorpusError> {
     let oracle = from_value(&root)
         .ok_or_else(|| CorpusError::EmptyOracle { path: path.to_owned() })?;
 
-    let parser    = Parser::new(&input, ParseGranularity::Object, DefaultEnvironment);
-    let rust_root = parser.parse_buffer();
+    let mut parser = Parser::new(&input, ParseGranularity::Object, DefaultEnvironment);
+    let (arena, root_id) = parser.parse_buffer();
 
     let mut discrepancies = Vec::new();
-    compare(&oracle, &rust_root, &input, path, "root", &mut discrepancies);
+    compare(&oracle, &arena, root_id, &input, path, "root", &mut discrepancies);
     Ok(discrepancies)
 }
 
