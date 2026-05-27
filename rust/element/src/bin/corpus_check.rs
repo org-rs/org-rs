@@ -257,7 +257,6 @@ enum DiscrepancyKind {
 
 #[derive(Debug)]
 struct Discrepancy {
-    file: PathBuf,
     tree_path: String,
     oracle_key: TypeKey,
     kind: DiscrepancyKind,
@@ -266,37 +265,23 @@ struct Discrepancy {
 }
 
 impl Discrepancy {
-    fn print_test(&self) {
-        let stem = self.file
-            .file_stem().unwrap()
-            .to_string_lossy()
-            .replace(['-', ' ', '.'], "_");
-
+    fn print_context(&self) {
         let pos = match &self.kind {
             DiscrepancyKind::TypeMismatch(_) => 0usize,
             DiscrepancyKind::MissingInRust(at) => *at,
             DiscrepancyKind::ExtraInRust(at)   => *at,
         };
 
-        let fn_name  = format!("corpus_{}_{pos}", stem);
         let syntax_t = snake_to_pascal(&format!("{}", self.oracle_key));
         let snippet  = &self.snippet;
 
         println!(
-            r#"
-    #[test]
-    fn {fn_name}() {{
-        // Source: {}  path: {}
-        // {}  {}
-        let input = {snippet:?};
-        let count = get_type_count(input, SyntaxT::{syntax_t}, ParseGranularity::Element);
-        assert!(count > 0, "expected at least one {syntax_t} node");
-    }}"#,
-            self.file.display(),
-            self.tree_path,
-            self.kind,
-            self.oracle_props,
+            "  {} at byte {} (tree: {})",
+            self.kind, pos, self.tree_path,
         );
+        println!("    Emacs type: {}  {}", syntax_t, self.oracle_props);
+        println!("    Context: ...{}...", snippet);
+        println!();
     }
 }
 
@@ -327,7 +312,6 @@ fn compare(
     if let Err(mismatch) = goof::assert_eq(&rust_key, &emacs_key) {
         let (begin, end) = oracle.span();
         out.push(Discrepancy {
-            file: file.to_owned(),
             tree_path: path.to_owned(),
             oracle_key: emacs_key,
             kind: DiscrepancyKind::TypeMismatch(mismatch),
@@ -365,7 +349,6 @@ fn compare_children(
         if !rust_map.contains_key(&key) {
             let (begin, end) = oracle_node.span();
             out.push(Discrepancy {
-                file: file.to_owned(),
                 tree_path: format!("{}/{}", path, key.0),
                 oracle_key: key.0,
                 kind: DiscrepancyKind::MissingInRust(begin),
@@ -379,7 +362,6 @@ fn compare_children(
         if !oracle_map.contains_key(&key) {
             let node = &arena[rust_id];
             out.push(Discrepancy {
-                file: file.to_owned(),
                 tree_path: format!("{}/{}", path, key.0),
                 oracle_key: key.0,
                 kind: DiscrepancyKind::ExtraInRust(node.location.start),
@@ -452,8 +434,7 @@ fn main() {
             Ok(ds) => {
                 println!("FAIL {} ({} discrepancies)", path.display(), ds.len());
                 for d in &ds {
-                    eprintln!("  {:?}", d.kind);
-                    d.print_test();
+                    d.print_context();
                 }
                 total += ds.len();
             }
