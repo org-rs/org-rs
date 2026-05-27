@@ -842,13 +842,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     let i = search_pos + offset;
                     if i + 1 < bytes.len() && bytes[i + 1] == b']' {
                         let after = i + 2;
-                        let valid_post =
-                            after >= bytes.len() || is_post_char(bytes[after]);
-                        if valid_post {
-                            found_close = Some(after);
-                            break;
-                        }
-                        search_pos = i + 2;
+                        // Bracket links don't need post-char validation —
+                        // any character (including non-ASCII) is valid after `]]`.
+                        found_close = Some(after);
+                        break;
                     } else {
                         search_pos = i + 1;
                     }
@@ -1113,6 +1110,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     pub fn parse_timestamp(&self, text: &'a str) -> Option<(TimestampData<'a>, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || (bytes[0] != b'<' && bytes[0] != b'[') {
+            return None;
+        }
+
+        // Links [[...]] and targets <<...>> start with the same delimiter
+        // character as timestamps, so reject the double-delimiter form here.
+        if bytes.len() > 1 && bytes[0] == bytes[1] {
             return None;
         }
 
