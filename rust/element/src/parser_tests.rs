@@ -2451,4 +2451,29 @@ mod post_blank {
             "plain_text must not start at 41 (post-blank space after link), got starts: {:?}", starts
         );
     }
+
+    #[test]
+    fn bracket_not_link_does_not_split_plain_text() {
+        // "foo [bar] baz\n" — `[bar]` is not a link.
+        // `[` must not split the PlainText; byte 5 (`b`) must not be a PlainText start.
+        let input = "foo [bar] baz\n";
+        let starts = plain_text_starts(input);
+        assert!(
+            !starts.contains(&5),
+            "PlainText must not start at byte 5 (after `[`); `[` should be included in preceding PlainText. starts: {:?}", starts
+        );
+    }
+
+    #[test]
+    fn plain_link_absorbs_trailing_spaces() {
+        // "https://example.com  \nrest\n"
+        // Emacs absorbs the two trailing spaces into the link as post-blank.
+        // The PlainText for '\n' must start at byte 21 (the `\n`), not at 19 (the first space).
+        let input = "https://example.com  \nrest\n";
+        let starts = plain_text_starts(input);
+        assert!(
+            !starts.contains(&19),
+            "PlainText must not start at byte 19 (first trailing space); spaces must be absorbed by plain link. starts: {:?}", starts
+        );
+    }
 }
