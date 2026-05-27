@@ -63,6 +63,8 @@ lazy_static! {
     pub static ref REGEX_HORIZONTAL_RULE: CachedRegex =
         CachedRegex::new(Regex::new(r"[ \t]*-{5,}[ \t]*$").unwrap());
 
+
+
     /// Regular expression matching the definition of a footnote.
     /// Match group 1 contains definition's label
     pub static ref REGEX_FOOTNOTE_DEFINITION: CachedRegex =
@@ -80,6 +82,32 @@ lazy_static! {
     pub static ref REGEX_FIXED_WIDTH: CachedRegex =
         CachedRegex::new(Regex::new(r"[ \t]*:( |$)").unwrap());
 
+}
+
+/// Byte-level equivalent of `REGEX_HORIZONTAL_RULE`: check if `line`
+/// (a single line without trailing newline) is a horizontal rule.
+#[inline]
+pub fn is_horizontal_rule(line: &str) -> bool {
+    let bytes = line.as_bytes();
+    let mut i = 0;
+
+    // Skip leading whitespace
+    while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        i += 1;
+    }
+    // Count consecutive hyphens
+    let hyphen_start = i;
+    while i < bytes.len() && bytes[i] == b'-' {
+        i += 1;
+    }
+    if i - hyphen_start < 5 {
+        return false;
+    }
+    // Skip trailing whitespace; must reach end of line
+    while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        i += 1;
+    }
+    i == bytes.len()
 }
 
 /// Greater element

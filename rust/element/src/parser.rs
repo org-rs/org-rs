@@ -33,7 +33,6 @@ use crate::latex::REGEX_LATEX_BEGIN_ENVIRIONMENT;
 use crate::list::*;
 use crate::markup::REGEX_DIARY_SEXP;
 use crate::markup::REGEX_FOOTNOTE_DEFINITION;
-use crate::markup::REGEX_HORIZONTAL_RULE;
 use crate::table::REGEX_TABLE_BORDER;
 
 /// determines the depth of the recursion.
@@ -576,9 +575,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     }
                 }
                 // Horizontal rule
-                #[allow(clippy::collapsible_match)]
                 Some(b'-') => {
-                    if looking_at!(REGEX_HORIZONTAL_RULE, self).is_some() {
+                    let line = &self.input[cur2..];
+                    let line_end = memchr(b'\n', line.as_bytes()).unwrap_or(line.len());
+                    if crate::markup::is_horizontal_rule(&line[..line_end]) {
                         return self.horizontal_rule_parser(span);
                     }
                 }
