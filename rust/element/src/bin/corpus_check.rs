@@ -158,8 +158,11 @@ struct Snippet(String);
 
 impl Snippet {
     fn new(input: &str, begin: usize, end: usize) -> Self {
-        let lo = begin.saturating_sub(20);
-        let hi = (end + 20).min(input.len());
+        let lo_raw = begin.saturating_sub(20);
+        let hi_raw = (end + 20).min(input.len());
+        // Snap to valid char boundaries so we don't panic on multi-byte chars.
+        let lo = (0..=lo_raw).rev().find(|&i| input.is_char_boundary(i)).unwrap_or(0);
+        let hi = (hi_raw..=input.len()).find(|&i| input.is_char_boundary(i)).unwrap_or(input.len());
         Snippet(input[lo..hi].replace('\n', "\\n"))
     }
 }

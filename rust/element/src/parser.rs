@@ -700,7 +700,26 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             if let Some(c) = consumed {
                 pos += c;
             } else if let Some((node, c)) = self.try_parse_plain_text(remaining, pos) {
-                children.push(node);
+                // Coalesce with the previous child if it is also a PlainText
+                // ending exactly here.  This fuses the two pieces that result
+                // when scan_plain_text_end stops at a markup-potential character
+                // ('+', '/', …) whose subsequent markup parse then fails.
+                let fused = children.last().copied().and_then(|prev| {
+                    if let Syntax::PlainText(_) = &self.arena.nodes[prev].data {
+                        if self.arena.nodes[prev].location.end == pos {
+                            let new_start = self.arena.nodes[prev].location.start;
+                            let new_end   = pos + c;
+                            return Some((prev, new_start, new_end));
+                        }
+                    }
+                    None
+                });
+                if let Some((prev, new_start, new_end)) = fused {
+                    self.arena.nodes[prev].data     = Syntax::PlainText(&self.input[new_start..new_end]);
+                    self.arena.nodes[prev].location = Interval { start: new_start, end: new_end };
+                } else {
+                    children.push(node);
+                }
                 pos += c;
             } else {
                 pos += 1;
