@@ -271,14 +271,16 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         while i < items.len() {
             let item = &items[i];
             if item.indent != first_indent {
-                break;
+                i += 1;
+                continue;
             }
 
-            let end_pos = if i + 1 < items.len() && items[i + 1].indent == first_indent {
-                items[i + 1].position
-            } else {
-                structure.end
-            };
+            let next_same = items[i + 1..]
+                .iter()
+                .position(|n| n.indent == first_indent);
+            let end_pos = next_same
+                .map(|offset| items[i + 1 + offset].position)
+                .unwrap_or(structure.end);
 
             let item_node = self.item_parser_internal(item, end_pos);
             children.push(item_node);
