@@ -20,7 +20,9 @@ use org_element::markup::REGEX_FIXED_WIDTH;
 /// Old: two looking_at calls to identify `# comment` vs `#+keyword/block`.
 fn hashtag_is_comment_regex(input: &str, cur2: usize) -> bool {
     let cursor = Cursor::new(input, cur2);
-    let end = cursor.looking_at(&*REGEX_STARTS_WITH_HASHTAG).map(|m| m.end());
+    let end = cursor
+        .looking_at(&*REGEX_STARTS_WITH_HASHTAG)
+        .map(|m| m.end());
     if let Some(end) = end {
         Cursor::new(input, cur2 + end)
             .looking_at(&*REGEX_COLON_OR_EOL)

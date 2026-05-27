@@ -41,7 +41,10 @@ pub struct LatexEnvironmentData<'a> {
 impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     #[inline]
     pub fn latex_environment_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let input_slice = &self.input[start..limit];
 
         if let Some(caps) = REGEX_LATEX_BEGIN_ENVIRIONMENT.captures(input_slice) {
@@ -58,8 +61,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     if let Some(idx) = self.input[search_pos..limit].find(&end_marker) {
                         let match_start = search_pos + idx;
                         let match_end = match_start + end_marker.len();
-                        let line_start =
-                            memrchr(b'\n', &self.input.as_bytes()[..match_start]).map_or(0, |p| p + 1);
+                        let line_start = memrchr(b'\n', &self.input.as_bytes()[..match_start])
+                            .map_or(0, |p| p + 1);
                         let line = &self.input[line_start..match_start];
 
                         if line.chars().all(|c| c == ' ' || c == '\t' || c == '\n') {
@@ -80,7 +83,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 }
 
                 if !found {
-                    return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
+                    return self
+                        .arena
+                        .alloc(SyntaxNode::fallback(self.input, start, limit));
                 }
 
                 let post_blank = if end_pos < limit {
@@ -92,7 +97,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 .min(2);
 
                 let value = &self.input[start..end_pos];
-                let env_data = LatexEnvironmentData { begin: start, end: end_pos, post_blank, value };
+                let env_data = LatexEnvironmentData {
+                    begin: start,
+                    end: end_pos,
+                    post_blank,
+                    value,
+                };
 
                 return self.arena.alloc(
                     SyntaxNode::new(
@@ -101,11 +111,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     )
                     .post_blank(post_blank)
                     .affiliated(affiliated)
-                    .build()
+                    .build(),
                 );
             }
         }
 
-        self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
+        self.arena
+            .alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 }

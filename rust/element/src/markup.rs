@@ -126,7 +126,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         let value = &self.input[span.start..end];
-        self.arena.alloc(SyntaxNode::new(Syntax::Comment(value), (span.start, end)).build())
+        self.arena
+            .alloc(SyntaxNode::new(Syntax::Comment(value), (span.start, end)).build())
     }
 
     /// Parse a horizontal rule at `start`.
@@ -136,8 +137,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     #[inline]
     pub fn horizontal_rule_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
         let span = element_span.span;
-        let end = memchr(b'\n', &self.input.as_bytes()[span.start..span.end]).map_or(span.end, |i| span.start + i + 1);
-        self.arena.alloc(SyntaxNode::new(Syntax::HorizontalRule, (span.start, end)).build())
+        let end = memchr(b'\n', &self.input.as_bytes()[span.start..span.end])
+            .map_or(span.end, |i| span.start + i + 1);
+        self.arena
+            .alloc(SyntaxNode::new(Syntax::HorizontalRule, (span.start, end)).build())
     }
 
     /// Parse a footnote definition element.
@@ -154,17 +157,31 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Calculates pre_blank and post_blank
     #[inline]
     pub fn footnote_definition_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start: begin, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval {
+                start: begin,
+                end: limit,
+            },
+            affiliated,
+        } = element_span;
         let input_slice = &self.input[begin..limit];
 
         let label = match REGEX_FOOTNOTE_DEFINITION.captures(input_slice) {
             Some(caps) => caps.get(1).map(|m| m.as_str()).unwrap_or(""),
-            None => return self.arena.alloc(SyntaxNode::fallback(self.input, begin, limit)),
+            None => {
+                return self
+                    .arena
+                    .alloc(SyntaxNode::fallback(self.input, begin, limit))
+            }
         };
 
         let label_end = match REGEX_FOOTNOTE_DEFINITION.find(input_slice) {
             Some(m) => m.end(),
-            None => return self.arena.alloc(SyntaxNode::fallback(self.input, begin, limit)),
+            None => {
+                return self
+                    .arena
+                    .alloc(SyntaxNode::fallback(self.input, begin, limit))
+            }
         };
 
         let after_label = begin + label_end;
@@ -241,13 +258,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         self.arena.alloc(
             SyntaxNode::new(
-                Syntax::FootnoteDefinition(Box::new(FootnoteDefinitionData { label, pre_blank, value })),
+                Syntax::FootnoteDefinition(Box::new(FootnoteDefinitionData {
+                    label,
+                    pre_blank,
+                    value,
+                })),
                 (begin, end),
             )
             .content((contents_start, contents_end))
             .post_blank(post_blank)
             .affiliated(affiliated)
-            .build()
+            .build(),
         )
     }
 
@@ -264,7 +285,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Calculates post-blank
     #[inline]
     pub fn fixed_width_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start: begin, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval {
+                start: begin,
+                end: limit,
+            },
+            affiliated,
+        } = element_span;
         let content_start = self.cursor.pos();
         let mut end_area = content_start;
 
@@ -330,7 +357,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             SyntaxNode::new(Syntax::FixedWidth(raw_value), (begin, end))
                 .post_blank(post_blank)
                 .affiliated(affiliated)
-                .build()
+                .build(),
         )
     }
 }

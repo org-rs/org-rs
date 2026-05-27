@@ -140,7 +140,10 @@ impl<'a> Default for ListStruct<'a> {
 impl<'a> ListStruct<'a> {
     #[inline]
     pub fn new() -> Self {
-        ListStruct { items: Vec::new(), end: 0 }
+        ListStruct {
+            items: Vec::new(),
+            end: 0,
+        }
     }
 }
 
@@ -224,7 +227,7 @@ fn desc_content_start(input: &str, from: usize, limit: usize) -> Option<usize> {
     }
     best.map(|sep| {
         let after = from + sep + 2; // byte just past "::"
-        // Skip one mandatory space/tab (already verified above), plus any extras.
+                                    // Skip one mandatory space/tab (already verified above), plus any extras.
         let mut pos = after;
         while pos < limit && (bytes[pos] == b' ' || bytes[pos] == b'\t') {
             pos += 1;
@@ -246,7 +249,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         _raw_secondary_p: bool,
     ) -> NodeId {
         let start = self.cursor.pos();
-        self.arena.alloc(SyntaxNode::fallback(self.input, start, self.input.len()))
+        self.arena
+            .alloc(SyntaxNode::fallback(self.input, start, self.input.len()))
     }
 
     /// Fallback: plain list parser (not yet fully implemented).
@@ -259,7 +263,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let span = element_span.span;
         let items = &structure.items;
         if items.is_empty() {
-            return self.arena.alloc(SyntaxNode::fallback(self.input, span.start, span.end));
+            return self
+                .arena
+                .alloc(SyntaxNode::fallback(self.input, span.start, span.end));
         }
 
         let first_indent = items[0].indent;
@@ -275,9 +281,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 continue;
             }
 
-            let next_same = items[i + 1..]
-                .iter()
-                .position(|n| n.indent == first_indent);
+            let next_same = items[i + 1..].iter().position(|n| n.indent == first_indent);
             let end_pos = next_same
                 .map(|offset| items[i + 1 + offset].position)
                 .unwrap_or(structure.end);
@@ -297,11 +301,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // Item is a greater element but its children are pre-built here,
         // so the standard content_location recursion path never fires for them.
         use crate::parser::{ParseGranularity, ParserMode};
-        if matches!(self.granularity, ParseGranularity::Element | ParseGranularity::Object) {
+        if matches!(
+            self.granularity,
+            ParseGranularity::Element | ParseGranularity::Object
+        ) {
             for &item_rc in &children {
                 if let Some(loc) = self.arena[item_rc].content_location {
-                    let item_children =
-                        self.parse_elements(loc, ParserMode::Planning, None);
+                    let item_children = self.parse_elements(loc, ParserMode::Planning, None);
                     self.arena.set_children(item_rc, item_children);
                 }
             }
@@ -312,9 +318,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             type_s: list_type,
         };
 
-        self.arena.alloc_with_children(SyntaxNode::new(Syntax::PlainList(list_data), (span.start, end))
-            .affiliated(element_span.affiliated)
-            .build(), children)
+        self.arena.alloc_with_children(
+            SyntaxNode::new(Syntax::PlainList(list_data), (span.start, end))
+                .affiliated(element_span.affiliated)
+                .build(),
+            children,
+        )
     }
 
     fn get_list_type(items: &[ListItem<'a>]) -> ListKind {
@@ -354,8 +363,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             after_bullet
         };
 
-        let content_location = (content_start < end)
-            .then_some(Interval { start: content_start, end });
+        let content_location = (content_start < end).then_some(Interval {
+            start: content_start,
+            end,
+        });
 
         let item_data = ItemData {
             bullet,

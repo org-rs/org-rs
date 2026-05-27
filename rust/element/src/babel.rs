@@ -50,18 +50,29 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Case insensitive (matches CALL, call, etc.)
     #[inline]
     pub fn babel_call_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let input_slice = &self.input[start..limit];
 
         if !REGEX_BABEL_CALL.is_match(input_slice) {
-            return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
+            return self
+                .arena
+                .alloc(SyntaxNode::fallback(self.input, start, limit));
         }
 
         let line_end = memchr(b'\n', input_slice.as_bytes()).map_or(limit, |i| start + i);
         let value = &self.input[start..line_end];
 
-        let call_name = REGEX_BABEL_CALL.find(input_slice)
-            .map(|m| input_slice[m.end()..].split_whitespace().next().unwrap_or(""))
+        let call_name = REGEX_BABEL_CALL
+            .find(input_slice)
+            .map(|m| {
+                input_slice[m.end()..]
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("")
+            })
             .unwrap_or("");
 
         let post_blank = if line_end < limit {
@@ -85,7 +96,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             )
             .post_blank(post_blank)
             .affiliated(affiliated)
-            .build()
+            .build(),
         )
     }
 }

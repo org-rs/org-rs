@@ -224,7 +224,9 @@ impl<'a> NodeArena<'a> {
     /// lived contexts where you have measured a concrete win.
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
-        NodeArena { nodes: Vec::with_capacity(capacity) }
+        NodeArena {
+            nodes: Vec::with_capacity(capacity),
+        }
     }
 
     /// Allocate a leaf node (no children, no parent).
@@ -552,39 +554,125 @@ impl SyntaxT {
     #[inline]
     pub fn is_greater_element(self) -> bool {
         use SyntaxT::*;
-        matches!(self, CenterBlock | Drawer | DynamicBlock | FootnoteDefinition | Headline | InlineTask
-            | Item | PlainList | PropertyDrawer | QuoteBlock | Section | SpecialBlock | Table
-            | Spreadsheet)
+        matches!(
+            self,
+            CenterBlock
+                | Drawer
+                | DynamicBlock
+                | FootnoteDefinition
+                | Headline
+                | InlineTask
+                | Item
+                | PlainList
+                | PropertyDrawer
+                | QuoteBlock
+                | Section
+                | SpecialBlock
+                | Table
+                | Spreadsheet
+        )
     }
 
     fn is_element(self) -> bool {
         use SyntaxT::*;
-        matches!(self, BabelCall | CenterBlock | Clock | Comment | CommentBlock | DiarySexp | Drawer
-            | DynamicBlock | ExampleBlock | ExportBlock | FixedWidth | FootnoteDefinition
-            | Headline | HorizontalRule | InlineTask | Item | Keyword | LatexEnvironment
-            | NodeProperty | Paragraph | PlainList | Planning | PropertyDrawer | QuoteBlock
-            | Section | SpecialBlock | SrcBlock | Table | Spreadsheet | TableRow | SpreadsheetRow
-            | VerseBlock)
+        matches!(
+            self,
+            BabelCall
+                | CenterBlock
+                | Clock
+                | Comment
+                | CommentBlock
+                | DiarySexp
+                | Drawer
+                | DynamicBlock
+                | ExampleBlock
+                | ExportBlock
+                | FixedWidth
+                | FootnoteDefinition
+                | Headline
+                | HorizontalRule
+                | InlineTask
+                | Item
+                | Keyword
+                | LatexEnvironment
+                | NodeProperty
+                | Paragraph
+                | PlainList
+                | Planning
+                | PropertyDrawer
+                | QuoteBlock
+                | Section
+                | SpecialBlock
+                | SrcBlock
+                | Table
+                | Spreadsheet
+                | TableRow
+                | SpreadsheetRow
+                | VerseBlock
+        )
     }
 
     fn is_object(self) -> bool {
         use SyntaxT::*;
-        matches!(self, Bold | Code | Entity | ExportSnippet | FootnoteReference | InlineBabelCall
-            | InlineSrcBlock | Italic | LineBreak | LatexFragment | Link | Macro | RadioTarget
-            | StatisticsCookie | StrikeThrough | Script | TableCell | Target
-            | Timestamp | Underline | Verbatim | PlainText | SpreadsheetCell)
+        matches!(
+            self,
+            Bold | Code
+                | Entity
+                | ExportSnippet
+                | FootnoteReference
+                | InlineBabelCall
+                | InlineSrcBlock
+                | Italic
+                | LineBreak
+                | LatexFragment
+                | Link
+                | Macro
+                | RadioTarget
+                | StatisticsCookie
+                | StrikeThrough
+                | Script
+                | TableCell
+                | Target
+                | Timestamp
+                | Underline
+                | Verbatim
+                | PlainText
+                | SpreadsheetCell
+        )
     }
 
     fn is_recursive_object(self) -> bool {
         use SyntaxT::*;
-        matches!(self, Bold | FootnoteReference | Italic | Link | RadioTarget | StrikeThrough | Script
-            | TableCell | Underline)
+        matches!(
+            self,
+            Bold | FootnoteReference
+                | Italic
+                | Link
+                | RadioTarget
+                | StrikeThrough
+                | Script
+                | TableCell
+                | Underline
+        )
     }
 
     fn is_object_container(self) -> bool {
         use SyntaxT::*;
-        matches!(self, Paragraph | TableRow | VerseBlock | Bold | FootnoteReference | Italic | Link
-            | RadioTarget | StrikeThrough | Script | TableCell | Underline)
+        matches!(
+            self,
+            Paragraph
+                | TableRow
+                | VerseBlock
+                | Bold
+                | FootnoteReference
+                | Italic
+                | Link
+                | RadioTarget
+                | StrikeThrough
+                | Script
+                | TableCell
+                | Underline
+        )
     }
 
     fn is_container(self) -> bool {
@@ -633,8 +721,8 @@ impl SyntaxT {
             // (superscript ,@standard-set)
             //(verse-block ,@standard-set)))
             //(underline ,@standard-set)
-            Bold | Italic | FootnoteReference | Paragraph | StrikeThrough | Script
-            | Underline | VerseBlock => is_from_standard_set(that),
+            Bold | Italic | FootnoteReference | Paragraph | StrikeThrough | Script | Underline
+            | VerseBlock => is_from_standard_set(that),
 
             // (headline ,@standard-set-no-line-break)
             // (inlinetask ,@standard-set-no-line-break)
@@ -654,17 +742,32 @@ impl SyntaxT {
             //       latex-fragment macro statistics-cookie
             //       strike-through subscript superscript
             //       underline verbatim)
-            Link => matches!(that, Bold | Code | Entity | ExportSnippet | InlineBabelCall | InlineSrcBlock
-                | Italic | LatexFragment | Macro | StatisticsCookie | StrikeThrough | Script
-                | Underline | Verbatim),
+            Link => matches!(
+                that,
+                Bold | Code
+                    | Entity
+                    | ExportSnippet
+                    | InlineBabelCall
+                    | InlineSrcBlock
+                    | Italic
+                    | LatexFragment
+                    | Macro
+                    | StatisticsCookie
+                    | StrikeThrough
+                    | Script
+                    | Underline
+                    | Verbatim
+            ),
 
             // Remove any variable object from radio target as it would
             // prevent it from being properly recognized.
             // (radio-target bold code entity italic
             //               latex-fragment strike-through
             //               subscript superscript underline)
-            RadioTarget => matches!(that, Bold | Code | Entity | Italic | LatexFragment | StrikeThrough | Script
-                | Underline),
+            RadioTarget => matches!(
+                that,
+                Bold | Code | Entity | Italic | LatexFragment | StrikeThrough | Script | Underline
+            ),
 
             // Ignore inline babel call and inline source block as formulas
             // are possible.  Also ignore line breaks and statistics
@@ -672,9 +775,24 @@ impl SyntaxT {
             // (table-cell bold code entity export-snippet footnote-reference italic
             //             latex-fragment link macro radio-target strike-through
             //             subscript superscript target timestamp underline verbatim)
-            TableCell => matches!(that, Bold | Code | Entity | ExportSnippet | FootnoteReference | Italic
-                | LatexFragment | Link | Macro | RadioTarget | StrikeThrough | Script
-                | Target | Timestamp | Underline | Verbatim),
+            TableCell => matches!(
+                that,
+                Bold | Code
+                    | Entity
+                    | ExportSnippet
+                    | FootnoteReference
+                    | Italic
+                    | LatexFragment
+                    | Link
+                    | Macro
+                    | RadioTarget
+                    | StrikeThrough
+                    | Script
+                    | Target
+                    | Timestamp
+                    | Underline
+                    | Verbatim
+            ),
 
             //(table-row table-cell)
             TableRow => matches!(that, TableCell),
@@ -728,7 +846,11 @@ pub struct ClockData<'a> {
 impl<'a> ClockData<'a> {
     #[inline]
     pub fn new(raw: &'a str) -> Box<Self> {
-        Box::new(Self { duration: "", status: ClockStatus::Running, raw })
+        Box::new(Self {
+            duration: "",
+            status: ClockStatus::Running,
+            raw,
+        })
     }
 }
 
@@ -772,16 +894,24 @@ impl EntityFlags {
     #[inline]
     pub fn new(latex_math_p: bool, use_brackets_p: bool) -> Self {
         let mut f = 0;
-        if latex_math_p { f |= Self::LATEX_MATH_P; }
-        if use_brackets_p { f |= Self::USE_BRACKETS_P; }
+        if latex_math_p {
+            f |= Self::LATEX_MATH_P;
+        }
+        if use_brackets_p {
+            f |= Self::USE_BRACKETS_P;
+        }
         EntityFlags(f)
     }
 
     #[inline]
-    pub fn latex_math_p(self) -> bool { self.0 & Self::LATEX_MATH_P != 0 }
+    pub fn latex_math_p(self) -> bool {
+        self.0 & Self::LATEX_MATH_P != 0
+    }
 
     #[inline]
-    pub fn use_brackets_p(self) -> bool { self.0 & Self::USE_BRACKETS_P != 0 }
+    pub fn use_brackets_p(self) -> bool {
+        self.0 & Self::USE_BRACKETS_P != 0
+    }
 }
 
 #[derive(Debug)]
@@ -951,17 +1081,17 @@ impl LinkFlags {
     #[inline]
     pub fn new(format: LinkFormat, link_type: LinkType) -> Self {
         let f = match format {
-            LinkFormat::Plain  => 0,
-            LinkFormat::Angle  => 1,
+            LinkFormat::Plain => 0,
+            LinkFormat::Angle => 1,
             LinkFormat::Bracket => 2,
         };
         let t = match link_type {
-            LinkType::Coderef   => 0,
-            LinkType::CustomId  => 1,
-            LinkType::File      => 2,
-            LinkType::Fuzzy     => 3,
-            LinkType::Id        => 4,
-            LinkType::Radio     => 5,
+            LinkType::Coderef => 0,
+            LinkType::CustomId => 1,
+            LinkType::File => 2,
+            LinkType::Fuzzy => 3,
+            LinkType::Id => 4,
+            LinkType::Radio => 5,
         };
         LinkFlags(f | (t << Self::TYPE_SHIFT))
     }
@@ -1135,19 +1265,31 @@ impl ScriptFlags {
     #[inline]
     pub fn new(kind: ScriptKind, brackets: Brackets) -> Self {
         let mut f = 0;
-        if matches!(kind, ScriptKind::Sup) { f |= Self::SUP; }
-        if matches!(brackets, Brackets::Bracketed) { f |= Self::BRACKETED; }
+        if matches!(kind, ScriptKind::Sup) {
+            f |= Self::SUP;
+        }
+        if matches!(brackets, Brackets::Bracketed) {
+            f |= Self::BRACKETED;
+        }
         ScriptFlags(f)
     }
 
     #[inline]
     pub fn kind(self) -> ScriptKind {
-        if self.0 & Self::SUP != 0 { ScriptKind::Sup } else { ScriptKind::Sub }
+        if self.0 & Self::SUP != 0 {
+            ScriptKind::Sup
+        } else {
+            ScriptKind::Sub
+        }
     }
 
     #[inline]
     pub fn brackets(self) -> Brackets {
-        if self.0 & Self::BRACKETED != 0 { Brackets::Bracketed } else { Brackets::Bare }
+        if self.0 & Self::BRACKETED != 0 {
+            Brackets::Bracketed
+        } else {
+            Brackets::Bare
+        }
     }
 }
 
@@ -1265,10 +1407,7 @@ impl<'a> TimestampData<'a> {
                 let mut time_iter = start_time.split(':');
                 if let (Some(h), Some(m)) = (time_iter.next(), time_iter.next()) {
                     hour_start = h.parse().ok();
-                    minute_start = m
-                        .trim_end_matches(['>', ']'])
-                        .parse()
-                        .ok();
+                    minute_start = m.trim_end_matches(['>', ']']).parse().ok();
                 }
                 break;
             }
@@ -1349,8 +1488,6 @@ pub enum TimeUnit {
     Hour,
 }
 
-
-
 #[cfg(test)]
 mod test {
 
@@ -1406,7 +1543,12 @@ mod test {
         assert!(matches!(results[0].data, Syntax::OrgData));
         for (idx, _child) in children.iter().enumerate() {
             let result_node = results[idx + 1];
-            assert_eq!(result_node.parent, NonZeroUsize::new(parent + 1), "Parent mismatch at idx {}", idx);
+            assert_eq!(
+                result_node.parent,
+                NonZeroUsize::new(parent + 1),
+                "Parent mismatch at idx {}",
+                idx
+            );
             assert!(matches!(result_node.data, Syntax::OrgData));
         }
     }
@@ -1431,4 +1573,3 @@ mod test {
         }
     }
 }
-

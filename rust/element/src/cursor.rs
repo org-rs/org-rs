@@ -44,7 +44,10 @@ impl CachedRegex {
     #[inline]
     pub fn new(re: Regex) -> Self {
         let multiline = is_multiline_regex(re.as_str());
-        CachedRegex { regex: re, multiline }
+        CachedRegex {
+            regex: re,
+            multiline,
+        }
     }
 
     /// `true` when the wrapped pattern can match across multiple lines.

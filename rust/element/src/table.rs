@@ -53,12 +53,16 @@ impl fmt::Display for Col {
 
 impl From<usize> for Row {
     #[inline]
-    fn from(n: usize) -> Self { Row(n) }
+    fn from(n: usize) -> Self {
+        Row(n)
+    }
 }
 
 impl From<usize> for Col {
     #[inline]
-    fn from(n: usize) -> Self { Col(n) }
+    fn from(n: usize) -> Self {
+        Col(n)
+    }
 }
 
 /// Data for a `#+TBLFM` spreadsheet table.
@@ -110,7 +114,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             TableRowType::Standard
         };
 
-        self.arena.alloc(SyntaxNode::new(Syntax::TableRow(row_type), (start, end)).build())
+        self.arena
+            .alloc(SyntaxNode::new(Syntax::TableRow(row_type), (start, end)).build())
     }
 
     #[inline]
@@ -120,11 +125,15 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let mut current = span.start;
             let mut rows: Vec<NodeId> = Vec::new();
             loop {
-                if current >= span.end { break; }
+                if current >= span.end {
+                    break;
+                }
                 let line_end = memchr(b'\n', &self.input.as_bytes()[current..span.end])
                     .map_or(span.end, |i| current + i + 1);
                 let line = &self.input[current..line_end];
-                if line.trim().is_empty() || !REGEX_TABLE_BORDER.is_match(line) { break; }
+                if line.trim().is_empty() || !REGEX_TABLE_BORDER.is_match(line) {
+                    break;
+                }
                 rows.push(self.parse_table_row_at(current, line_end));
                 current = line_end;
             }
@@ -132,13 +141,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         };
 
         if children.is_empty() {
-            return self.arena.alloc(SyntaxNode::fallback(self.input, span.start, span.end));
+            return self
+                .arena
+                .alloc(SyntaxNode::fallback(self.input, span.start, span.end));
         }
 
         // Look for a #+TBLFM: line immediately after the table rows.
-        let formula = self.input[end..span.end]
-            .lines()
-            .find_map(|line| REGEX_TBLFM.captures(line).map(|c| c.get(1).map_or("", |m| m.as_str().trim())));
+        let formula = self.input[end..span.end].lines().find_map(|line| {
+            REGEX_TBLFM
+                .captures(line)
+                .map(|c| c.get(1).map_or("", |m| m.as_str().trim()))
+        });
 
         let post_blank = if end < span.end {
             let remaining = &self.input[end..span.end];
@@ -156,14 +169,25 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 self.arena.alloc_with_children(node, children)
             }
             Some(formula) => {
-                let row_count = Row(children.iter()
-                    .filter(|&&r| matches!(&self.arena[r].data, Syntax::TableRow(TableRowType::Standard)))
+                let row_count = Row(children
+                    .iter()
+                    .filter(|&&r| {
+                        matches!(
+                            &self.arena[r].data,
+                            Syntax::TableRow(TableRowType::Standard)
+                        )
+                    })
                     .count());
-                let col_count = Col(children.first()
+                let col_count = Col(children
+                    .first()
                     .map(|&r| self.arena[r].children.len())
                     .unwrap_or(0));
                 let node = SyntaxNode::new(
-                    Syntax::Spreadsheet(Box::new(SpreadsheetData { formula, row_count, col_count })),
+                    Syntax::Spreadsheet(Box::new(SpreadsheetData {
+                        formula,
+                        row_count,
+                        col_count,
+                    })),
                     (span.start, end),
                 )
                 .post_blank(post_blank)
@@ -205,7 +229,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // Skip leading whitespace then the opening '|'.
         let first_pipe = match memchr(b'|', bytes) {
             Some(i) => i,
-            None    => return cells,
+            None => return cells,
         };
         let mut cell_begin = row_start + first_pipe + 1;
 
@@ -214,17 +238,21 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let local = cell_begin - row_start;
             let pipe_rel = match memchr(b'|', &bytes[local..]) {
                 Some(i) => i,
-                None    => break,
+                None => break,
             };
-            let pipe_abs  = cell_begin + pipe_rel;
-            let cell_end  = pipe_abs + 1; // inclusive of the closing '|'
+            let pipe_abs = cell_begin + pipe_rel;
+            let cell_end = pipe_abs + 1; // inclusive of the closing '|'
 
             // Trim whitespace to get content boundaries for parse_objects.
             let raw = &self.input[cell_begin..pipe_abs];
-            let leading  = raw.bytes().take_while(|&b| b == b' ' || b == b'\t').count();
-            let trailing = raw.bytes().rev().take_while(|&b| b == b' ' || b == b'\t').count();
+            let leading = raw.bytes().take_while(|&b| b == b' ' || b == b'\t').count();
+            let trailing = raw
+                .bytes()
+                .rev()
+                .take_while(|&b| b == b' ' || b == b'\t')
+                .count();
             let contents_begin = cell_begin + leading;
-            let contents_end   = pipe_abs.saturating_sub(trailing).max(contents_begin);
+            let contents_end = pipe_abs.saturating_sub(trailing).max(contents_begin);
 
             let cell_node = self.arena.alloc(
                 SyntaxNode::new(Syntax::TableCell, (cell_begin, cell_end))
@@ -232,10 +260,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     .build(),
             );
 
-            let children = self.parse_objects(
-                (contents_begin, contents_end),
-                |that| SyntaxT::TableCell.can_contain(that),
-            );
+            let children = self.parse_objects((contents_begin, contents_end), |that| {
+                SyntaxT::TableCell.can_contain(that)
+            });
             self.arena.set_children(cell_node, children);
             cells.push(cell_node);
 

@@ -21,8 +21,7 @@ use memchr::memchr;
 use regex::Regex;
 
 lazy_static! {
-    pub static ref REGEX_KEYWORD: CachedRegex =
-        CachedRegex::new(Regex::new(r"\+\S+:").unwrap());
+    pub static ref REGEX_KEYWORD: CachedRegex = CachedRegex::new(Regex::new(r"\+\S+:").unwrap());
 }
 
 #[derive(Debug)]
@@ -41,9 +40,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// (or the keyword itself when there is no affiliation).
     #[inline]
     pub fn keyword_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated: _ } = element_span;
-        let line_end = memchr(b'\n', &self.input.as_bytes()[start..limit])
-            .map_or(limit, |i| start + i + 1);
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated: _,
+        } = element_span;
+        let line_end =
+            memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i + 1);
 
         let line = &self.input[start..line_end].trim_end();
 
@@ -51,7 +53,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let after_hash = stripped.strip_prefix("#+").unwrap_or(stripped);
 
         let (key, value) = match after_hash.find(':') {
-            Some(i) => (&after_hash[..i], after_hash.get(i + 1..).unwrap_or("").trim_start()),
+            Some(i) => (
+                &after_hash[..i],
+                after_hash.get(i + 1..).unwrap_or("").trim_start(),
+            ),
             None => (after_hash, ""),
         };
 
@@ -66,10 +71,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         self.arena.alloc(
             SyntaxNode::new(
-                Syntax::Keyword(Box::new(KeywordData { key: key_ref, value: value_ref })),
+                Syntax::Keyword(Box::new(KeywordData {
+                    key: key_ref,
+                    value: value_ref,
+                })),
                 (start, line_end),
             )
-            .build()
+            .build(),
         )
     }
 }

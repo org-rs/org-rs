@@ -53,7 +53,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         if deadline.is_none() && scheduled.is_none() && closed.is_none() {
-            return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
+            return self
+                .arena
+                .alloc(SyntaxNode::fallback(self.input, start, limit));
         }
 
         let post_blank = if end < limit {
@@ -73,7 +75,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         self.arena.alloc(
             SyntaxNode::new(Syntax::Planning(Box::new(planning_data)), (start, end))
                 .post_blank(post_blank)
-                .build()
+                .build(),
         )
     }
 
@@ -116,7 +118,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // Elisp uses org-parse-time-string which is more lenient.
         // We use strict validation to match our test expectations.
         if !Self::is_valid_clock_timestamp(value) {
-            return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
+            return self
+                .arena
+                .alloc(SyntaxNode::fallback(self.input, start, limit));
         }
 
         let end = line_end;
@@ -139,7 +143,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 (start, end),
             )
             .post_blank(post_blank)
-            .build()
+            .build(),
         )
     }
 
@@ -215,21 +219,32 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Stores affiliated data in SyntaxNode
     #[inline]
     pub fn diary_sexp_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let input_slice = &self.input[start..limit];
 
         let caps = match REGEX_DIARY_SEXP.captures(input_slice) {
             Some(c) => c,
-            None => return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit)),
+            None => {
+                return self
+                    .arena
+                    .alloc(SyntaxNode::fallback(self.input, start, limit))
+            }
         };
 
         let value = match caps.get(1) {
             Some(m) => m.as_str(),
-            None => return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit)),
+            None => {
+                return self
+                    .arena
+                    .alloc(SyntaxNode::fallback(self.input, start, limit))
+            }
         };
 
-        let line_end = memchr(b'\n', &self.input.as_bytes()[start..limit])
-            .map_or(limit, |i| start + i);
+        let line_end =
+            memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i);
 
         let end = line_end;
 
@@ -245,7 +260,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             SyntaxNode::new(Syntax::DiarySexp(value), (start, end))
                 .post_blank(post_blank)
                 .affiliated(affiliated)
-                .build()
+                .build(),
         )
     }
 }

@@ -124,7 +124,10 @@ impl<'a> ElementSpanBuilder<'a> {
 
     #[inline]
     pub fn build(self) -> ElementSpan<'a> {
-        ElementSpan { span: self.span, affiliated: self.affiliated }
+        ElementSpan {
+            span: self.span,
+            affiliated: self.affiliated,
+        }
     }
 }
 
@@ -132,7 +135,10 @@ impl<'a> ElementSpan<'a> {
     #[inline]
     #[allow(clippy::new_ret_no_self)]
     pub fn new(span: impl Into<Interval>) -> ElementSpanBuilder<'a> {
-        ElementSpanBuilder { span: span.into(), affiliated: None }
+        ElementSpanBuilder {
+            span: span.into(),
+            affiliated: None,
+        }
     }
 }
 
@@ -294,7 +300,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return ElementSpan::new((origin, limit)).build();
         }
 
-        ElementSpan::new((origin, limit)).affiliated(Some(output)).build()
+        ElementSpan::new((origin, limit))
+            .affiliated(Some(output))
+            .build()
     }
 }
 
@@ -398,10 +406,7 @@ mod test {
         assert!(maybe_collected.affiliated.is_some());
         let collected = maybe_collected.affiliated.unwrap();
         let mut test_attrs: HashMap<String, Vec<&str>> = HashMap::new();
-        test_attrs.insert(
-            "ATTR_HTML".to_string(),
-            vec![":file filename.ext"],
-        );
+        test_attrs.insert("ATTR_HTML".to_string(), vec![":file filename.ext"]);
         assert_eq!(test_attrs, collected.attr);
 
         let mut test_caption: Vec<DualVal<StringOrObject>> = vec![];
