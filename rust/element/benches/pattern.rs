@@ -13,7 +13,9 @@ use memchr::memrchr;
 use org_element::blocks::{REGEX_COLON_OR_EOL, REGEX_STARTS_WITH_HASHTAG};
 use org_element::cursor::Cursor;
 use org_element::headline::REGEX_HEADLINE_SHORT;
+use org_element::markup::is_horizontal_rule;
 use org_element::markup::REGEX_FIXED_WIDTH;
+use org_element::markup::REGEX_HORIZONTAL_RULE;
 
 // ── inline implementations ───────────────────────────────────────────────────
 
@@ -87,6 +89,23 @@ fn on_headline_byte(input: &str, pos: usize) -> bool {
     n > 0 && tail.get(n).map_or(false, |&b| b == b' ' || b == b'\t')
 }
 
+/// Old: looking_at with `[ \t]*-{5,}[ \t]*$`.
+fn horizontal_rule_regex(input: &str, pos: usize) -> bool {
+    Cursor::new(input, pos)
+        .looking_at(&*REGEX_HORIZONTAL_RULE)
+        .is_some()
+}
+
+/// New: use the shared `is_horizontal_rule` byte-level function.
+/// Slices the current line from `pos`, then delegates.
+fn horizontal_rule_byte(input: &str, pos: usize) -> bool {
+    let line_end = input[pos..]
+        .bytes()
+        .position(|b| b == b'\n')
+        .unwrap_or(input.len() - pos);
+    is_horizontal_rule(&input[pos..pos + line_end])
+}
+
 // ── test corpora ─────────────────────────────────────────────────────────────
 //
 // Each constant is a block of lines with realistic average length so that
@@ -128,6 +147,25 @@ const HEADLINE_INPUT: &str = concat!(
     "More paragraph text follows here.\n",
     "* Another top-level headline\n",
     "** Subsection under the second headline\n",
+);
+
+const HRULE_INPUT: &str = concat!(
+    "Not a rule — plain text line with some content\n",
+    "----\n",
+    "Regular paragraph text that continues here\n",
+    "  -----\n",
+    "Another descriptive line about the document\n",
+    "-----\n",
+    "Some text followed by a rule later in the file\n",
+    "----------\n",
+    "----- \n",
+    "  -----  \n",
+    "----  \n",
+    "-----x\n",
+    "  ----- text\n",
+    "text -----\n",
+    "another line of regular content here\n",
+    "  -----something\n",
 );
 
 // Collect the byte offset of every line start in `s`.
@@ -227,10 +265,45 @@ fn bench_on_headline(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_horizontal_rule(c: &mut Criterion) {
+    // Verify both implementations agree on every line
+    let input = HRULE_INPUT;
+    let positions = line_starts(input);
+    for &pos in &positions {
+        let r = horizontal_rule_regex(input, pos);
+        let b = horizontal_rule_byte(input, pos);
+        assert_eq!(r, b, "Mismatch at byte {}: regex={} byte={}", pos, r, b);
+    }
+
+    let mut group = c.benchmark_group("horizontal_rule");
+    group.sample_size(500);
+
+    group.bench_function("regex", |b| {
+        b.iter(|| {
+            positions
+                .iter()
+                .map(|&p| horizontal_rule_regex(black_box(input), p) as usize)
+                .sum::<usize>()
+        })
+    });
+
+    group.bench_function("byte", |b| {
+        b.iter(|| {
+            positions
+                .iter()
+                .map(|&p| horizontal_rule_byte(black_box(input), p) as usize)
+                .sum::<usize>()
+        })
+    });
+
+    group.finish();
+}
+
 fn main() {
     let mut c = Criterion::default().configure_from_args();
     bench_hashtag_dispatch(&mut c);
     bench_fixed_width(&mut c);
     bench_on_headline(&mut c);
+    bench_horizontal_rule(&mut c);
     c.final_summary();
 }

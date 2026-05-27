@@ -16,7 +16,6 @@
 use crate::affiliated::ElementSpan;
 use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::list::REGEX_ITEM;
-use crate::markup::REGEX_HORIZONTAL_RULE;
 use crate::parser::Parser;
 use memchr::memchr;
 
@@ -69,7 +68,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 if trimmed.starts_with("# ") || trimmed == "#" {
                     break; // comment
                 }
-                if REGEX_HORIZONTAL_RULE.is_match(trimmed) {
+                if crate::markup::is_horizontal_rule(trimmed) {
                     break; // horizontal rule
                 }
                 if let Some(m) = REGEX_ITEM.find(line) {
