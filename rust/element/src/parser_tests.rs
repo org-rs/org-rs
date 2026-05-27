@@ -164,6 +164,55 @@ mod plain_list {
             count
         );
     }
+
+    /// A SrcBlock inside a list item must be recognized even when its
+    /// body lines are indented *less* than the item's bullet.
+    /// `list_struct` terminates the list at such lines, but the item's
+    /// content must extend past them so the block parser can find the
+    /// matching `#+END_SRC`.
+    #[test]
+    fn src_block_inside_item() {
+        let input = "\
+- item
+
+    #+BEGIN_SRC sh
+body line
+    #+END_SRC
+";
+        let count = get_type_count(input, SyntaxT::SrcBlock, ParseGranularity::Element);
+        assert_eq!(
+            count, 1,
+            "Expected 1 SrcBlock inside a list item with less-indented body, found {}",
+            count
+        );
+    }
+
+    /// A SrcBlock inside a list item followed by more top-level items.
+    /// This is the exact pattern from `lanceberge_jq.org`.
+    #[test]
+    fn src_block_inside_item_with_more_items() {
+        let input = "\
+- keys
+
+    #+BEGIN_SRC sh
+jq '.fruit | keys' fruit.json
+    #+END_SRC
+
+- min, max
+";
+        let count = get_type_count(input, SyntaxT::SrcBlock, ParseGranularity::Element);
+        assert_eq!(
+            count, 1,
+            "Expected 1 SrcBlock inside a list item, found {}",
+            count
+        );
+        let item_count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
+        assert_eq!(
+            item_count, 2,
+            "Expected exactly 2 items, found {}",
+            item_count
+        );
+    }
 }
 
 mod item {
