@@ -777,10 +777,23 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             _ => return None,
         };
 
+        let (content_begin, content_end) = match brackets {
+            Brackets::Bare      => (start + 1, start + consumed),
+            Brackets::Bracketed => (start + 2, start + consumed - 1),
+        };
+
+        let plain_text = self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::PlainText(&self.input[content_begin..content_end]),
+                (content_begin, content_end),
+            )
+            .build(),
+        );
+
         let flags = ScriptFlags::new(kind, brackets);
         let node = self.arena.alloc_with_children(
             SyntaxNode::new(Syntax::Script(flags), (start, start + consumed)).build(),
-            vec![],
+            vec![plain_text],
         );
         Some((node, consumed))
     }
