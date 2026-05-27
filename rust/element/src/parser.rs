@@ -722,6 +722,35 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 }
                 pos += c;
             } else {
+                // No construct recognised and scan_plain_text_end treats this
+                // byte as an unconditional stop (e.g. `[`, `\`, `<`).
+                // Extend the previous PlainText by one byte, or start a new one,
+                // so the node boundary matches Emacs (which keeps such bytes in
+                // the surrounding PlainText rather than creating a gap).
+                let fused = children.last().copied().and_then(|prev| {
+                    if let Syntax::PlainText(_) = &self.arena.nodes[prev].data {
+                        if self.arena.nodes[prev].location.end == pos {
+                            let new_start = self.arena.nodes[prev].location.start;
+                            return Some((prev, new_start, pos + 1));
+                        }
+                    }
+                    None
+                });
+                if let Some((prev, new_start, new_end)) = fused {
+                    self.arena.nodes[prev].data =
+                        Syntax::PlainText(&self.input[new_start..new_end]);
+                    self.arena.nodes[prev].location =
+                        Interval { start: new_start, end: new_end };
+                } else {
+                    let byte_node = self.arena.alloc(
+                        SyntaxNode::new(
+                            Syntax::PlainText(&self.input[pos..pos + 1]),
+                            (pos, pos + 1),
+                        )
+                        .build(),
+                    );
+                    children.push(byte_node);
+                }
                 pos += 1;
             }
         }
@@ -1017,14 +1046,19 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return None;
         }
         let raw = &text[..url_end];
+        let post_blank = text[url_end..]
+            .bytes()
+            .take_while(|&b| b == b' ' || b == b'\t')
+            .count();
+        let consumed = url_end + post_blank;
         let node = self.arena.alloc(
             SyntaxNode::new(
                 Syntax::Link(Box::new(LinkData::new_plain(raw))),
-                (start, start + url_end),
+                (start, start + consumed),
             )
             .build(),
         );
-        Some((node, url_end))
+        Some((node, consumed))
     }
 
     fn try_parse_footnote_reference(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
