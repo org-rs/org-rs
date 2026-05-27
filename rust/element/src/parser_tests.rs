@@ -2300,6 +2300,43 @@ mod subscript_superscript {
         let scripts = find_script(&arena, root);
         assert!(!scripts.is_empty(), "expected a Script node for 'x^{{n+1}}'; got none");
     }
+
+    #[test]
+    fn bare_subscript_has_plain_text_child() {
+        // "x_foo test\n"
+        //  0 1   5
+        // Emacs: subscript at [1,6) with plain-text child "foo" at [2,5).
+        // Rust currently emits a Script node with empty children.
+        let input = "x_foo test\n";
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let scripts = find_script(&arena, root);
+        assert!(!scripts.is_empty(), "no Script node found");
+        let script_id = scripts[0];
+        let children = &arena[script_id].children;
+        assert_eq!(children.len(), 1, "Script must have exactly 1 PlainText child, got {}", children.len());
+        assert!(
+            matches!(arena[children[0]].data, Syntax::PlainText(_)),
+            "Script child must be PlainText"
+        );
+    }
+
+    #[test]
+    fn braced_subscript_has_plain_text_child() {
+        // "H_{2}O\n" — braced subscript {2} must contain a PlainText child.
+        let input = "H_{2}O\n";
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+        let scripts = find_script(&arena, root);
+        assert!(!scripts.is_empty(), "no Script node found");
+        let script_id = scripts[0];
+        let children = &arena[script_id].children;
+        assert_eq!(children.len(), 1, "Script must have exactly 1 PlainText child, got {}", children.len());
+        assert!(
+            matches!(arena[children[0]].data, Syntax::PlainText(_)),
+            "Script child must be PlainText"
+        );
+    }
 }
 
 mod post_blank {
