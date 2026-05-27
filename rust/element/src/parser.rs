@@ -992,20 +992,17 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return None;
         }
 
-        let mut newlines = 0u8;
         let mut found_close = None;
         let mut pos = 2;
 
-        // Search for closing marker
+        // Search for closing marker.  Unlike the Emacs regex-based parser
+        // this scans byte-by-byte, but like Emacs there is no limit on
+        // the number of newlines inside emphasis markers.
         while pos < text.len() {
             match memchr2(b'\n', marker, &bytes[pos..]) {
                 Some(offset) => {
                     let i = pos + offset;
                     if bytes[i] == b'\n' {
-                        newlines += 1;
-                        if newlines > 1 {
-                            break;
-                        }
                         pos = i + 1;
                     } else {
                         // Found marker - last content char must be non-whitespace
