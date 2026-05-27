@@ -113,6 +113,57 @@ mod plain_list {
             item_count
         );
     }
+
+    /// List with sub-items followed by more top-level items must not
+    /// grow the wrong kind of nesting.  Regression test for the
+    /// `lanceberge_aws.org` corpus file where `plain_list_parser` broke
+    /// at sub-items and abandoned remaining same-indent siblings,
+    /// causing `parse_elements` to re-discover them as a nested list
+    /// inside the sub-list rather than as siblings of the parent item.
+    ///
+    /// Correct structure (2 PlainLists):
+    ///   (plain-list    ← outer
+    ///     (item "a")
+    ///     (item "b"
+    ///       (plain-list  ← sub-list inside item b
+    ///         (item "c")))
+    ///     (item "d"))      ← sibling of a/b, NOT nested
+    #[test]
+    fn list_with_subitem_after_more_top_items() {
+        let input = "- a\n- b\n  - c\n- d\n";
+        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
+        assert_eq!(
+            count, 2,
+            "Expected 2 PlainLists (outer + sub-list for c), found {}",
+            count
+        );
+    }
+
+    /// List followed by a headline must not nest the headline or remaining
+    /// top-level items inside a sub-list.
+    #[test]
+    fn list_with_subitems_followed_by_headline() {
+        let input = "- item 1\n  - sub\n- item 2\n\n** Headline\n";
+        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
+        assert_eq!(
+            count, 2,
+            "Expected 2 PlainLists (outer + sub-list for sub), found {}",
+            count
+        );
+    }
+
+    /// Items after a sub-item at the same indentation as the outer list
+    /// must be siblings of their parent item, not nested.
+    #[test]
+    fn list_with_subitem_in_middle_preserves_top_level() {
+        let input = "- a\n  - b\n- c\n  - d\n- e\n";
+        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
+        assert_eq!(
+            count, 3,
+            "Expected 3 PlainLists (outer + sub for b + sub for d), found {}",
+            count
+        );
+    }
 }
 
 mod item {
