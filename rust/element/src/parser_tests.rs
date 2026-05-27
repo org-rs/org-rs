@@ -665,6 +665,43 @@ mod table {
             count
         );
     }
+
+    #[test]
+    fn table_row_children_are_cells() {
+        // "| foo | bar | baz |\n" — 3 columns → 3 TableCell children of the row.
+        // Emacs wraps each |…| segment in a table-cell element; the parser must
+        // not place raw objects (PlainText, Link, …) directly under table-row.
+        let input = "| foo | bar | baz |\n";
+        let cell_count = get_type_count(input, SyntaxT::TableCell, ParseGranularity::Object);
+        assert_eq!(cell_count, 3, "expected 3 TableCell nodes, got {}", cell_count);
+    }
+
+    #[test]
+    fn table_cell_plain_text_not_direct_child_of_row() {
+        // Plain-text inside a table cell must live under the TableCell, not the
+        // TableRow.  Rust currently skips the TableCell wrapper and puts objects
+        // directly in the row.
+        let input = "| foo | bar |\n";
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let (arena, root) = parser.parse_buffer();
+
+        fn find_first<'a>(arena: &'a crate::data::NodeArena, id: NodeId, t: SyntaxT)
+            -> Option<NodeId>
+        {
+            if SyntaxT::from(&arena[id].data) == t { return Some(id); }
+            arena[id].children.iter().find_map(|&c| find_first(arena, c, t))
+        }
+
+        let row = find_first(&arena, root, SyntaxT::TableRow).expect("TableRow not found");
+        for &child in &arena[row].children {
+            assert_eq!(
+                SyntaxT::from(&arena[child].data),
+                SyntaxT::TableCell,
+                "direct child of TableRow must be TableCell, got {:?}",
+                SyntaxT::from(&arena[child].data)
+            );
+        }
+    }
 }
 
 mod blocks {
@@ -2318,6 +2355,36 @@ mod post_blank {
         let starts = plain_text_starts("a *bold*.\n");
         assert!(starts.contains(&8),
             "expected plain_text at 8 ('.'), got starts: {:?}", starts);
+    }
+
+    #[test]
+    fn failed_strikethrough_does_not_split_plain_text() {
+        // "text + more\n"
+        //  0    5
+        //       ^-- '+': pre-char (' ') triggers scan_plain_text_end stop here,
+        //            try_parse_strikethrough fails (no closing '+'), but Rust
+        //            currently creates a second PlainText starting at 5.
+        // Emacs emits a single PlainText for the whole "text + more\n".
+        let starts = plain_text_starts("text + more\n");
+        assert!(
+            !starts.contains(&5),
+            "plain_text must not start at 5 (the bare '+'); got starts: {:?}", starts
+        );
+    }
+
+    #[test]
+    fn failed_italic_at_line_start_does_not_split_plain_text() {
+        // "foo\n/bar\n"
+        //  0   3 4
+        //        ^-- '/': pre-char ('\n') triggers stop, try_parse_italic fails
+        //             (no closing '/'), but Rust currently creates a second
+        //             PlainText starting at 4.
+        // Emacs emits a single PlainText for the whole "foo\n/bar\n".
+        let starts = plain_text_starts("foo\n/bar\n");
+        assert!(
+            !starts.contains(&4),
+            "plain_text must not start at 4 (the bare '/'); got starts: {:?}", starts
+        );
     }
 
     #[test]

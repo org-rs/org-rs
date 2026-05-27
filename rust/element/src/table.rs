@@ -183,19 +183,65 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             TableRowType::Standard
         };
 
-        let content_location = (matches!(row_type, TableRowType::Standard)
+        let cells = (matches!(row_type, TableRowType::Standard)
             && self.granularity == ParseGranularity::Object)
-            .then(|| (start, (end - 1).max(start)));
-
-        let children = content_location
-            .map(|loc| self.parse_objects(loc, |that| SyntaxT::TableCell.can_contain(that)))
+            .then(|| self.parse_table_cells(start, end))
             .unwrap_or_default();
 
-        let mut builder = SyntaxNode::new(Syntax::TableRow(row_type), (start, end));
-        if let Some(loc) = content_location {
-            builder = builder.content(loc);
+        let node = SyntaxNode::new(Syntax::TableRow(row_type), (start, end)).build();
+        self.arena.alloc_with_children(node, cells)
+    }
+
+    /// Split a standard table row into `TableCell` nodes.
+    ///
+    /// Emacs wraps each `|…|` segment in a `table-cell` element whose extent
+    /// runs from the character immediately after the preceding `|` up to and
+    /// including the following `|`.  Object content within the cell is trimmed
+    /// of leading/trailing whitespace before parsing.
+    fn parse_table_cells(&mut self, row_start: usize, row_end: usize) -> Vec<NodeId> {
+        let bytes = self.input[row_start..row_end].as_bytes();
+        let mut cells = Vec::new();
+
+        // Skip leading whitespace then the opening '|'.
+        let first_pipe = match memchr(b'|', bytes) {
+            Some(i) => i,
+            None    => return cells,
+        };
+        let mut cell_begin = row_start + first_pipe + 1;
+
+        while cell_begin < row_end {
+            // Find the '|' that closes this cell.
+            let local = cell_begin - row_start;
+            let pipe_rel = match memchr(b'|', &bytes[local..]) {
+                Some(i) => i,
+                None    => break,
+            };
+            let pipe_abs  = cell_begin + pipe_rel;
+            let cell_end  = pipe_abs + 1; // inclusive of the closing '|'
+
+            // Trim whitespace to get content boundaries for parse_objects.
+            let raw = &self.input[cell_begin..pipe_abs];
+            let leading  = raw.bytes().take_while(|&b| b == b' ' || b == b'\t').count();
+            let trailing = raw.bytes().rev().take_while(|&b| b == b' ' || b == b'\t').count();
+            let contents_begin = cell_begin + leading;
+            let contents_end   = pipe_abs.saturating_sub(trailing).max(contents_begin);
+
+            let cell_node = self.arena.alloc(
+                SyntaxNode::new(Syntax::TableCell, (cell_begin, cell_end))
+                    .content((contents_begin, contents_end))
+                    .build(),
+            );
+
+            let children = self.parse_objects(
+                (contents_begin, contents_end),
+                |that| SyntaxT::TableCell.can_contain(that),
+            );
+            self.arena.set_children(cell_node, children);
+            cells.push(cell_node);
+
+            cell_begin = cell_end;
         }
-        let node = builder.build();
-        self.arena.alloc_with_children(node, children)
+
+        cells
     }
 }
