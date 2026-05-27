@@ -20,8 +20,11 @@ fn bench_parse_sizes(c: &mut Criterion) {
         let corpus = make_corpus(n);
         group.bench_function(label, |b| {
             b.iter(|| {
-                let mut parser =
-                    Parser::new(black_box(&corpus), ParseGranularity::Object, DefaultEnvironment);
+                let mut parser = Parser::new(
+                    black_box(&corpus),
+                    ParseGranularity::Object,
+                    DefaultEnvironment,
+                );
                 parser.parse_buffer();
             })
         });
@@ -42,8 +45,7 @@ fn bench_parse_granularity(c: &mut Criterion) {
         let name = format!("{:?}", granularity);
         group.bench_function(&name, |b| {
             b.iter(|| {
-                let mut parser =
-                    Parser::new(black_box(CORPUS), *granularity, DefaultEnvironment);
+                let mut parser = Parser::new(black_box(CORPUS), *granularity, DefaultEnvironment);
                 parser.parse_buffer();
             })
         });

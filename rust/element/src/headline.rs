@@ -71,29 +71,45 @@ lazy_static! {
 pub struct HeadlineFlags(u8);
 
 impl HeadlineFlags {
-    const ARCHIVEDP: u8         = 0b0001;
-    const COMMENTEDP: u8        = 0b0010;
+    const ARCHIVEDP: u8 = 0b0001;
+    const COMMENTEDP: u8 = 0b0010;
     const FOOTNOTE_SECTION_P: u8 = 0b0100;
-    const QUOTEDP: u8           = 0b1000;
+    const QUOTEDP: u8 = 0b1000;
 
     #[inline]
     pub fn new(archivedp: bool, commentedp: bool, footnote_section_p: bool, quotedp: bool) -> Self {
         let mut f = 0;
-        if archivedp         { f |= Self::ARCHIVEDP; }
-        if commentedp        { f |= Self::COMMENTEDP; }
-        if footnote_section_p { f |= Self::FOOTNOTE_SECTION_P; }
-        if quotedp           { f |= Self::QUOTEDP; }
+        if archivedp {
+            f |= Self::ARCHIVEDP;
+        }
+        if commentedp {
+            f |= Self::COMMENTEDP;
+        }
+        if footnote_section_p {
+            f |= Self::FOOTNOTE_SECTION_P;
+        }
+        if quotedp {
+            f |= Self::QUOTEDP;
+        }
         HeadlineFlags(f)
     }
 
     #[inline]
-    pub fn archivedp(self)         -> bool { self.0 & Self::ARCHIVEDP != 0 }
+    pub fn archivedp(self) -> bool {
+        self.0 & Self::ARCHIVEDP != 0
+    }
     #[inline]
-    pub fn commentedp(self)        -> bool { self.0 & Self::COMMENTEDP != 0 }
+    pub fn commentedp(self) -> bool {
+        self.0 & Self::COMMENTEDP != 0
+    }
     #[inline]
-    pub fn footnote_section_p(self) -> bool { self.0 & Self::FOOTNOTE_SECTION_P != 0 }
+    pub fn footnote_section_p(self) -> bool {
+        self.0 & Self::FOOTNOTE_SECTION_P != 0
+    }
     #[inline]
-    pub fn quotedp(self)           -> bool { self.0 & Self::QUOTEDP != 0 }
+    pub fn quotedp(self) -> bool {
+        self.0 & Self::QUOTEDP != 0
+    }
 }
 
 #[derive(Debug)]
@@ -145,13 +161,21 @@ pub struct HeadlineData<'a> {
 
 impl<'a> HeadlineData<'a> {
     #[inline]
-    pub fn archivedp(&self) -> bool { self.flags.archivedp() }
+    pub fn archivedp(&self) -> bool {
+        self.flags.archivedp()
+    }
     #[inline]
-    pub fn commentedp(&self) -> bool { self.flags.commentedp() }
+    pub fn commentedp(&self) -> bool {
+        self.flags.commentedp()
+    }
     #[inline]
-    pub fn footnote_section_p(&self) -> bool { self.flags.footnote_section_p() }
+    pub fn footnote_section_p(&self) -> bool {
+        self.flags.footnote_section_p()
+    }
     #[inline]
-    pub fn quotedp(&self) -> bool { self.flags.quotedp() }
+    pub fn quotedp(&self) -> bool {
+        self.flags.quotedp()
+    }
 }
 
 #[derive(Debug)]
@@ -205,8 +229,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         }
 
         // Find end of the headline *line*.
-        let line_end = memchr(b'\n', &self.input.as_bytes()[begin..])
-            .map_or(self.input.len(), |i| begin + i);
+        let line_end =
+            memchr(b'\n', &self.input.as_bytes()[begin..]).map_or(self.input.len(), |i| begin + i);
 
         // The text after the stars and the space.
         let after_stars_start = (begin + level + 1).min(line_end);
@@ -225,7 +249,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let (priority, rest) = rest
             .strip_prefix("[#")
             .and_then(|s| s.split_once(']'))
-            .filter(|(cookie, _)| cookie.len() == 1 && cookie.chars().next().is_some_and(|c| c.is_ascii_alphabetic()))
+            .filter(|(cookie, _)| {
+                cookie.len() == 1
+                    && cookie
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_ascii_alphabetic())
+            })
             .map(|(cookie, after)| (cookie.chars().next().unwrap() as usize, after.trim_start()))
             .unwrap_or((0, rest));
 
@@ -247,7 +277,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let title_location = (!title.is_empty()).then(|| {
             let input_base = self.input.as_ptr() as usize;
             let start = title.as_ptr() as usize - input_base;
-            Interval { start, end: start + title.len() }
+            Interval {
+                start,
+                end: start + title.len(),
+            }
         });
 
         // Find end of headline subtree: next headline at same or higher
@@ -326,21 +359,24 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     #[inline]
     pub fn inlinetask_parser(&mut self, limit: usize, _raw_secondary_p: bool) -> NodeId {
         let start = self.cursor.pos();
-        self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
+        self.arena
+            .alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 
     /// Fallback: property drawer parser (not yet implemented).
     #[inline]
     pub fn property_drawer_parser(&mut self, limit: usize) -> NodeId {
         let start = self.cursor.pos();
-        self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
+        self.arena
+            .alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 
     /// Fallback: node property parser (not yet implemented).
     #[inline]
     pub fn node_property_parser(&mut self, limit: usize) -> NodeId {
         let start = self.cursor.pos();
-        self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
+        self.arena
+            .alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 }
 

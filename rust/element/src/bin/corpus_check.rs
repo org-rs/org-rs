@@ -12,13 +12,29 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Error)]
 enum CorpusError {
     #[error("failed to read {path:?}: {source}")]
-    ReadFile { path: PathBuf, #[source] source: std::io::Error },
+    ReadFile {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
     #[error("emacs oracle could not be launched for {path:?}: {source}")]
-    OracleExec { path: PathBuf, #[source] source: std::io::Error },
+    OracleExec {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
     #[error("oracle output for {path:?} is not valid UTF-8: {source}")]
-    OracleUtf8 { path: PathBuf, #[source] source: std::string::FromUtf8Error },
+    OracleUtf8 {
+        path: PathBuf,
+        #[source]
+        source: std::string::FromUtf8Error,
+    },
     #[error("oracle S-expression for {path:?} did not parse: {source}")]
-    OracleSexp { path: PathBuf, #[source] source: lexpr::parse::Error },
+    OracleSexp {
+        path: PathBuf,
+        #[source]
+        source: lexpr::parse::Error,
+    },
     #[error("oracle output for {path:?} did not yield a node")]
     EmptyOracle { path: PathBuf },
     #[error("emacs is not in PATH or oracle.el is missing")]
@@ -32,7 +48,10 @@ struct TypeInterner {
 
 impl TypeInterner {
     fn new() -> Self {
-        TypeInterner { strings: Vec::new(), index: HashMap::new() }
+        TypeInterner {
+            strings: Vec::new(),
+            index: HashMap::new(),
+        }
     }
 
     fn intern(&mut self, raw: &str) -> TypeKey {
@@ -95,7 +114,7 @@ fn snake_to_pascal(s: &str) -> String {
         .map(|part| {
             let mut chars = part.chars();
             match chars.next() {
-                None    => String::new(),
+                None => String::new(),
                 Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
             }
         })
@@ -125,7 +144,9 @@ struct EmacsCharPos(NonZeroU64);
 impl EmacsCharPos {
     /// 0-based character index.
     #[inline]
-    fn char_index(self) -> usize { (self.0.get() - 1) as usize }
+    fn char_index(self) -> usize {
+        (self.0.get() - 1) as usize
+    }
 }
 
 /// 0-based byte offset into the file content, as used by the Rust parser.
@@ -134,7 +155,9 @@ struct ByteOffset(usize);
 
 impl ByteOffset {
     #[inline]
-    fn as_usize(self) -> usize { self.0 }
+    fn as_usize(self) -> usize {
+        self.0
+    }
 }
 
 /// Converts Emacs character positions to byte offsets by walking the source
@@ -142,12 +165,16 @@ impl ByteOffset {
 struct CharByteTable<'a>(&'a str);
 
 impl<'a> CharByteTable<'a> {
-    fn new(s: &'a str) -> Self { CharByteTable(s) }
+    fn new(s: &'a str) -> Self {
+        CharByteTable(s)
+    }
 
     fn to_byte(&self, pos: EmacsCharPos) -> ByteOffset {
         let idx = pos.char_index();
         ByteOffset(
-            self.0.char_indices().nth(idx)
+            self.0
+                .char_indices()
+                .nth(idx)
                 .map(|(b, _)| b)
                 .unwrap_or(self.0.len()),
         )
@@ -161,8 +188,13 @@ impl Snippet {
         let lo_raw = begin.saturating_sub(20);
         let hi_raw = (end + 20).min(input.len());
         // Snap to valid char boundaries so we don't panic on multi-byte chars.
-        let lo = (0..=lo_raw).rev().find(|&i| input.is_char_boundary(i)).unwrap_or(0);
-        let hi = (hi_raw..=input.len()).find(|&i| input.is_char_boundary(i)).unwrap_or(input.len());
+        let lo = (0..=lo_raw)
+            .rev()
+            .find(|&i| input.is_char_boundary(i))
+            .unwrap_or(0);
+        let hi = (hi_raw..=input.len())
+            .find(|&i| input.is_char_boundary(i))
+            .unwrap_or(input.len());
         Snippet(input[lo..hi].replace('\n', "\\n"))
     }
 }
@@ -221,18 +253,28 @@ fn from_value(v: &Value, table: &CharByteTable<'_>) -> Option<OracleNode> {
 
     let mut props = HashMap::new();
     let mut begin = None;
-    let mut end   = None;
+    let mut end = None;
 
     if let Some(mut pl) = plist_val.list_iter() {
         while let Some(k) = pl.next() {
             let key = k.as_symbol()?.to_string();
             let val = pl.next()?.clone();
             match key.as_str() {
-                ":begin" => begin = val.as_u64().and_then(NonZeroU64::new)
-                                       .map(|n| table.to_byte(EmacsCharPos(n))),
-                ":end"   => end   = val.as_u64().and_then(NonZeroU64::new)
-                                       .map(|n| table.to_byte(EmacsCharPos(n))),
-                _        => { props.insert(key, val); }
+                ":begin" => {
+                    begin = val
+                        .as_u64()
+                        .and_then(NonZeroU64::new)
+                        .map(|n| table.to_byte(EmacsCharPos(n)))
+                }
+                ":end" => {
+                    end = val
+                        .as_u64()
+                        .and_then(NonZeroU64::new)
+                        .map(|n| table.to_byte(EmacsCharPos(n)))
+                }
+                _ => {
+                    props.insert(key, val);
+                }
             }
         }
     }
@@ -242,7 +284,13 @@ fn from_value(v: &Value, table: &CharByteTable<'_>) -> Option<OracleNode> {
         .filter_map(|v| from_value(v, table))
         .collect();
 
-    Some(OracleNode { node_type, begin, end, props, children })
+    Some(OracleNode {
+        node_type,
+        begin,
+        end,
+        props,
+        children,
+    })
 }
 
 #[derive(Debug, Error)]
@@ -269,16 +317,13 @@ impl Discrepancy {
         let pos = match &self.kind {
             DiscrepancyKind::TypeMismatch(_) => 0usize,
             DiscrepancyKind::MissingInRust(at) => *at,
-            DiscrepancyKind::ExtraInRust(at)   => *at,
+            DiscrepancyKind::ExtraInRust(at) => *at,
         };
 
         let syntax_t = snake_to_pascal(&format!("{}", self.oracle_key));
-        let snippet  = &self.snippet;
+        let snippet = &self.snippet;
 
-        println!(
-            "  {} at byte {} (tree: {})",
-            self.kind, pos, self.tree_path,
-        );
+        println!("  {} at byte {} (tree: {})", self.kind, pos, self.tree_path,);
         println!("    Emacs type: {}  {}", syntax_t, self.oracle_props);
         println!("    Context: ...{}...", snippet);
         println!();
@@ -307,7 +352,7 @@ fn compare(
     out: &mut Vec<Discrepancy>,
 ) {
     let emacs_key = oracle.type_key();
-    let rust_key  = rust_type_key(&arena[rust_id].data);
+    let rust_key = rust_type_key(&arena[rust_id].data);
 
     if let Err(mismatch) = goof::assert_eq(&rust_key, &emacs_key) {
         let (begin, end) = oracle.span();
@@ -321,7 +366,15 @@ fn compare(
         return;
     }
 
-    compare_children(&oracle.children, arena, &arena[rust_id].children, input, file, path, out);
+    compare_children(
+        &oracle.children,
+        arena,
+        &arena[rust_id].children,
+        input,
+        file,
+        path,
+        out,
+    );
 }
 
 fn compare_children(
@@ -342,7 +395,12 @@ fn compare_children(
 
     let rust_map: HashMap<Key, NodeId> = rust_kids
         .iter()
-        .map(|&id| ((rust_type_key(&arena[id].data), arena[id].location.start), id))
+        .map(|&id| {
+            (
+                (rust_type_key(&arena[id].data), arena[id].location.start),
+                id,
+            )
+        })
         .collect();
 
     for (&key, oracle_node) in &oracle_map {
@@ -373,7 +431,15 @@ fn compare_children(
 
     for (&key, oracle_node) in &oracle_map {
         if let Some(&rust_id) = rust_map.get(&key) {
-            compare(oracle_node, arena, rust_id, input, file, &format!("{}/{}", path, key.0), out);
+            compare(
+                oracle_node,
+                arena,
+                rust_id,
+                input,
+                file,
+                &format!("{}/{}", path, key.0),
+                out,
+            );
         }
     }
 }
@@ -382,37 +448,58 @@ fn run_oracle(path: &Path) -> Result<String, CorpusError> {
     let oracle_el = Path::new(env!("CARGO_MANIFEST_DIR")).join("oracle.el");
     let out = std::process::Command::new("emacs")
         .args([
-            "--batch", "-Q",
-            "--load", oracle_el.to_str().ok_or(CorpusError::EmacsUnavailable)?,
+            "--batch",
+            "-Q",
+            "--load",
+            oracle_el.to_str().ok_or(CorpusError::EmacsUnavailable)?,
             path.to_str().ok_or(CorpusError::EmacsUnavailable)?,
         ])
         .output()
-        .map_err(|source| CorpusError::OracleExec { path: path.to_owned(), source })?;
-    String::from_utf8(out.stdout)
-        .map_err(|source| CorpusError::OracleUtf8 { path: path.to_owned(), source })
+        .map_err(|source| CorpusError::OracleExec {
+            path: path.to_owned(),
+            source,
+        })?;
+    String::from_utf8(out.stdout).map_err(|source| CorpusError::OracleUtf8 {
+        path: path.to_owned(),
+        source,
+    })
 }
 
 fn process_file(path: &Path) -> Result<Vec<Discrepancy>, CorpusError> {
-    let input  = std::fs::read_to_string(path)
-        .map_err(|source| CorpusError::ReadFile { path: path.to_owned(), source })?;
-    let sexp   = run_oracle(path)?;
-    let root   = lexpr::from_str(&sexp)
-        .map_err(|source| CorpusError::OracleSexp { path: path.to_owned(), source })?;
-    let table  = CharByteTable::new(&input);
-    let oracle = from_value(&root, &table)
-        .ok_or_else(|| CorpusError::EmptyOracle { path: path.to_owned() })?;
+    let input = std::fs::read_to_string(path).map_err(|source| CorpusError::ReadFile {
+        path: path.to_owned(),
+        source,
+    })?;
+    let sexp = run_oracle(path)?;
+    let root = lexpr::from_str(&sexp).map_err(|source| CorpusError::OracleSexp {
+        path: path.to_owned(),
+        source,
+    })?;
+    let table = CharByteTable::new(&input);
+    let oracle = from_value(&root, &table).ok_or_else(|| CorpusError::EmptyOracle {
+        path: path.to_owned(),
+    })?;
 
     let mut parser = Parser::new(&input, ParseGranularity::Object, DefaultEnvironment);
     let (arena, root_id) = parser.parse_buffer();
 
     let mut discrepancies = Vec::new();
-    compare(&oracle, &arena, root_id, &input, path, "root", &mut discrepancies);
+    compare(
+        &oracle,
+        &arena,
+        root_id,
+        &input,
+        path,
+        "root",
+        &mut discrepancies,
+    );
     Ok(discrepancies)
 }
 
 fn main() {
     let corpus = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent().unwrap()
+        .parent()
+        .unwrap()
         .join("corpus");
 
     if !corpus.exists() {

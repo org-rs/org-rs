@@ -50,21 +50,23 @@ mod table;
 /// There are no name conflicts among the re-exported items: every public
 /// type in the crate has a unique name.
 pub mod prelude {
-    pub use crate::data::{Interval, NodeArena, Nodes, Syntax, SyntaxNode, SyntaxNodeBuilder, SyntaxT};
-    pub use crate::data::{
-        ClockData, ClockStatus, EntityData, EntityFlags,
-        ExportSnippetData, FootnoteReferenceData, InlineBabelCallData,
-        InlineSrcBlockData, LineNumberingMode, LinkData, LinkFlags, LinkFormat, LinkType,
-        MacroData, PlanningData, RadioTargetData, StatisticsCookieData,
-        StringOrObject, Brackets, ScriptFlags, ScriptKind,
-        TimestampData, TimestampType, RepeaterType, TimeUnit,
-        WarningType,
-    };
     pub use crate::affiliated::{AffiliatedData, DualVal, ElementSpan, ElementSpanBuilder};
     pub use crate::babel::BabelCallData;
     pub use crate::blocks::{
-        BlockFlags, DynamicBlockData, ExampleBlockData, ExportBlockData, SpecialBlockData, SrcBlockData,
+        BlockFlags, DynamicBlockData, ExampleBlockData, ExportBlockData, SpecialBlockData,
+        SrcBlockData,
     };
+    pub use crate::data::{
+        Brackets, ClockData, ClockStatus, EntityData, EntityFlags, ExportSnippetData,
+        FootnoteReferenceData, InlineBabelCallData, InlineSrcBlockData, LineNumberingMode,
+        LinkData, LinkFlags, LinkFormat, LinkType, MacroData, PlanningData, RadioTargetData,
+        RepeaterType, ScriptFlags, ScriptKind, StatisticsCookieData, StringOrObject, TimeUnit,
+        TimestampData, TimestampType, WarningType,
+    };
+    pub use crate::data::{
+        Interval, NodeArena, Nodes, Syntax, SyntaxNode, SyntaxNodeBuilder, SyntaxT,
+    };
+    pub use crate::environment::{DefaultEnvironment, Environment};
     pub use crate::headline::{
         HeadlineData, HeadlineFlags, InlineTaskData, NodePropertyData, Tag, TodoKeyword,
     };
@@ -72,11 +74,10 @@ pub mod prelude {
     pub use crate::latex::LatexEnvironmentData;
     pub use crate::list::{CheckBox, ItemData, ListItem, ListKind, ListStruct, PlainListData};
     pub use crate::markup::FootnoteDefinitionData;
+    pub use crate::parser::{ParseGranularity, Parser, ParserMode};
     pub use crate::table::{
         Col, Row, SpreadsheetCellData, SpreadsheetData, SpreadsheetRowData, TableRowType,
     };
-    pub use crate::parser::{ParseGranularity, Parser, ParserMode};
-    pub use crate::environment::{DefaultEnvironment, Environment};
 }
 
 #[cfg(test)]

@@ -60,24 +60,36 @@ pub struct BlockFlags(u8);
 
 impl BlockFlags {
     const PRESERVE_INDENT: u8 = 0b001;
-    const RETAIN_LABELS: u8  = 0b010;
-    const USE_LABELS: u8     = 0b100;
+    const RETAIN_LABELS: u8 = 0b010;
+    const USE_LABELS: u8 = 0b100;
 
     #[inline]
     pub fn new(preserve_indent: bool, retain_labels: bool, use_labels: bool) -> Self {
         let mut f = 0;
-        if preserve_indent { f |= Self::PRESERVE_INDENT; }
-        if retain_labels  { f |= Self::RETAIN_LABELS; }
-        if use_labels     { f |= Self::USE_LABELS; }
+        if preserve_indent {
+            f |= Self::PRESERVE_INDENT;
+        }
+        if retain_labels {
+            f |= Self::RETAIN_LABELS;
+        }
+        if use_labels {
+            f |= Self::USE_LABELS;
+        }
         BlockFlags(f)
     }
 
     #[inline]
-    pub fn preserve_indent(self) -> bool { self.0 & Self::PRESERVE_INDENT != 0 }
+    pub fn preserve_indent(self) -> bool {
+        self.0 & Self::PRESERVE_INDENT != 0
+    }
     #[inline]
-    pub fn retain_labels(self) -> bool  { self.0 & Self::RETAIN_LABELS != 0 }
+    pub fn retain_labels(self) -> bool {
+        self.0 & Self::RETAIN_LABELS != 0
+    }
     #[inline]
-    pub fn use_labels(self) -> bool     { self.0 & Self::USE_LABELS != 0 }
+    pub fn use_labels(self) -> bool {
+        self.0 & Self::USE_LABELS != 0
+    }
 }
 
 #[derive(Debug)]
@@ -175,8 +187,8 @@ fn find_block_bounds_impl(
     limit: usize,
     is_end: impl Fn(&str) -> bool,
 ) -> Option<BlockBounds> {
-    let content_start = memchr(b'\n', &input.as_bytes()[start..limit])
-        .map_or(limit, |i| start + i + 1);
+    let content_start =
+        memchr(b'\n', &input.as_bytes()[start..limit]).map_or(limit, |i| start + i + 1);
 
     if content_start >= limit {
         return None;
@@ -187,20 +199,34 @@ fn find_block_bounds_impl(
         let line_end = memchr(b'\n', &input.as_bytes()[pos..limit]).map_or(limit, |i| pos + i + 1);
         if is_end(&input[pos..line_end]) {
             return Some(BlockBounds {
-                location: Interval { start, end: line_end },
-                content: Interval { start: content_start, end: pos },
+                location: Interval {
+                    start,
+                    end: line_end,
+                },
+                content: Interval {
+                    start: content_start,
+                    end: pos,
+                },
             });
         }
         pos = line_end;
     }
     Some(BlockBounds {
         location: Interval { start, end: limit },
-        content: Interval { start: content_start, end: limit },
+        content: Interval {
+            start: content_start,
+            end: limit,
+        },
     })
 }
 
 /// Find the bounds of a named block (`#+BEGIN_TYPE` / `#+END_TYPE`).
-fn find_block_bounds(input: &str, start: usize, limit: usize, block_type: &str) -> Option<BlockBounds> {
+fn find_block_bounds(
+    input: &str,
+    start: usize,
+    limit: usize,
+    block_type: &str,
+) -> Option<BlockBounds> {
     let end_tag = b"#+END_";
     find_block_bounds_impl(input, start, limit, |line| {
         let trimmed = line.trim();
@@ -247,7 +273,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let end = find_block_bounds(self.input, span.start, span.end, block_type)
             .map(|b| b.location.end)
             .unwrap_or(span.end);
-        self.arena.alloc(SyntaxNode::new(Syntax::Paragraph, (span.start, end)).build())
+        self.arena
+            .alloc(SyntaxNode::new(Syntax::Paragraph, (span.start, end)).build())
     }
 
     /// Shared implementation for the three content-only blocks (CENTER, QUOTE, VERSE):
@@ -258,15 +285,20 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         tag: &str,
         syntax: Syntax<'a>,
     ) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, tag) else {
             return self.block_fallback(Interval { start, end: limit }, tag);
         };
-        self.arena.alloc(SyntaxNode::new(syntax, bounds.location)
-            .content(bounds.content)
-            .post_blank(post_blank(self.input, bounds.location.end, limit))
-            .affiliated(affiliated)
-            .build())
+        self.arena.alloc(
+            SyntaxNode::new(syntax, bounds.location)
+                .content(bounds.content)
+                .post_blank(post_blank(self.input, bounds.location.end, limit))
+                .affiliated(affiliated)
+                .build(),
+        )
     }
 
     /// Parse a center block element.
@@ -278,122 +310,161 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Parse a comment block element.
     #[inline]
     pub fn comment_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "COMMENT") else {
             return self.block_fallback(Interval { start, end: limit }, "COMMENT");
         };
         let value = &self.input[bounds.content.start..bounds.content.end];
-        self.arena.alloc(SyntaxNode::new(Syntax::CommentBlock(value), bounds.location)
-            .post_blank(post_blank(self.input, bounds.location.end, limit))
-            .affiliated(affiliated)
-            .build())
+        self.arena.alloc(
+            SyntaxNode::new(Syntax::CommentBlock(value), bounds.location)
+                .post_blank(post_blank(self.input, bounds.location.end, limit))
+                .affiliated(affiliated)
+                .build(),
+        )
     }
 
     /// Parse an example block element.
     #[inline]
     pub fn example_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "EXAMPLE") else {
             return self.block_fallback(Interval { start, end: limit }, "EXAMPLE");
         };
         let value = &self.input[bounds.content.start..bounds.content.end];
-        self.arena.alloc(SyntaxNode::new(
-            Syntax::ExampleBlock(Box::new(ExampleBlockData {
-                label_fmt: None,
-                language: None,
-                number_lines: None,
-                options: "",
-                parameters: None,
-                flags: BlockFlags::new(false, false, false),
-                switches: None,
-                value,
-            })),
-            bounds.location,
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::ExampleBlock(Box::new(ExampleBlockData {
+                    label_fmt: None,
+                    language: None,
+                    number_lines: None,
+                    options: "",
+                    parameters: None,
+                    flags: BlockFlags::new(false, false, false),
+                    switches: None,
+                    value,
+                })),
+                bounds.location,
+            )
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build(),
         )
-        .post_blank(post_blank(self.input, bounds.location.end, limit))
-        .affiliated(affiliated)
-        .build())
     }
 
     /// Parse an export block element.
     #[inline]
     pub fn export_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "EXPORT") else {
             return self.block_fallback(Interval { start, end: limit }, "EXPORT");
         };
         let value = &self.input[bounds.content.start..bounds.content.end];
-        let first_line_end = memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i);
-        let type_s = self.input[start..first_line_end].split_whitespace().nth(1).unwrap_or("html");
-        self.arena.alloc(SyntaxNode::new(
-            Syntax::ExportBlock(Box::new(ExportBlockData { type_s, value })),
-            bounds.location,
+        let first_line_end =
+            memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i);
+        let type_s = self.input[start..first_line_end]
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or("html");
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::ExportBlock(Box::new(ExportBlockData { type_s, value })),
+                bounds.location,
+            )
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build(),
         )
-        .post_blank(post_blank(self.input, bounds.location.end, limit))
-        .affiliated(affiliated)
-        .build())
     }
 
     /// Parse a quote block element.
     #[inline]
     pub fn quote_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "QUOTE") else {
             return self.block_fallback(Interval { start, end: limit }, "QUOTE");
         };
-        self.arena.alloc(SyntaxNode::new(Syntax::QuoteBlock, bounds.location)
-            .content(bounds.content)
-            .post_blank(post_blank(self.input, bounds.location.end, limit))
-            .affiliated(affiliated)
-            .build())
+        self.arena.alloc(
+            SyntaxNode::new(Syntax::QuoteBlock, bounds.location)
+                .content(bounds.content)
+                .post_blank(post_blank(self.input, bounds.location.end, limit))
+                .affiliated(affiliated)
+                .build(),
+        )
     }
 
     /// Parse a src block element.
     #[inline]
     pub fn src_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "SRC") else {
             return self.block_fallback(Interval { start, end: limit }, "SRC");
         };
         let value = &self.input[bounds.content.start..bounds.content.end];
-        let first_line_end = memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i);
+        let first_line_end =
+            memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i);
         let language = self.input[start..first_line_end].split_whitespace().nth(1);
-        self.arena.alloc(SyntaxNode::new(
-            Syntax::SrcBlock(Box::new(SrcBlockData {
-                label_fmt: None,
-                language,
-                number_lines: None,
-                parameters: None,
-                flags: BlockFlags::new(false, false, false),
-                switches: None,
-                value,
-            })),
-            bounds.location,
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::SrcBlock(Box::new(SrcBlockData {
+                    label_fmt: None,
+                    language,
+                    number_lines: None,
+                    parameters: None,
+                    flags: BlockFlags::new(false, false, false),
+                    switches: None,
+                    value,
+                })),
+                bounds.location,
+            )
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build(),
         )
-        .post_blank(post_blank(self.input, bounds.location.end, limit))
-        .affiliated(affiliated)
-        .build())
     }
 
     /// Parse a verse block element.
     #[inline]
     pub fn verse_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "VERSE") else {
             return self.block_fallback(Interval { start, end: limit }, "VERSE");
         };
-        self.arena.alloc(SyntaxNode::new(Syntax::VerseBlock, bounds.location)
-            .content(bounds.content)
-            .post_blank(post_blank(self.input, bounds.location.end, limit))
-            .affiliated(affiliated)
-            .build())
+        self.arena.alloc(
+            SyntaxNode::new(Syntax::VerseBlock, bounds.location)
+                .content(bounds.content)
+                .post_blank(post_blank(self.input, bounds.location.end, limit))
+                .affiliated(affiliated)
+                .build(),
+        )
     }
 
     /// Parse a special block element.
     #[inline]
     pub fn special_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
-        let first_line_end = memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i);
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
+        let first_line_end =
+            memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i);
         let type_s = REGEX_BLOCK_BEGIN
             .captures(&self.input[start..first_line_end])
             .and_then(|c| c.get(1))
@@ -402,34 +473,43 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return self.block_fallback(Interval { start, end: limit }, type_s);
         };
         let raw_value = &self.input[bounds.content.start..bounds.content.end];
-        self.arena.alloc(SyntaxNode::new(
-            Syntax::SpecialBlock(Box::new(SpecialBlockData { type_s, raw_value })),
-            bounds.location,
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::SpecialBlock(Box::new(SpecialBlockData { type_s, raw_value })),
+                bounds.location,
+            )
+            .content(bounds.content)
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build(),
         )
-        .content(bounds.content)
-        .post_blank(post_blank(self.input, bounds.location.end, limit))
-        .affiliated(affiliated)
-        .build())
     }
 
     /// Fallback: dynamic block parser (not yet fully implemented).
     #[inline]
     pub fn dynamic_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let Some(bounds) = find_dynamic_block_bounds(self.input, start, limit) else {
-            return self.arena.alloc(SyntaxNode::new(Syntax::Paragraph, (start, limit)).build());
+            return self
+                .arena
+                .alloc(SyntaxNode::new(Syntax::Paragraph, (start, limit)).build());
         };
-        self.arena.alloc(SyntaxNode::new(
-            Syntax::DynamicBlock(Box::new(DynamicBlockData {
-                arguments: "",
-                block_name: "",
-                drawer_name: "",
-            })),
-            bounds.location,
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::DynamicBlock(Box::new(DynamicBlockData {
+                    arguments: "",
+                    block_name: "",
+                    drawer_name: "",
+                })),
+                bounds.location,
+            )
+            .content(bounds.content)
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build(),
         )
-        .content(bounds.content)
-        .post_blank(post_blank(self.input, bounds.location.end, limit))
-        .affiliated(affiliated)
-        .build())
     }
 }

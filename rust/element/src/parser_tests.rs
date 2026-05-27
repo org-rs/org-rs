@@ -318,12 +318,14 @@ mod item {
             let (arena, root) = parser.parse_buffer();
 
             let top_hl = arena[root].children[0];
-            let section = arena[top_hl].children
+            let section = arena[top_hl]
+                .children
                 .iter()
                 .find(|&&n| matches!(arena[n].data, Syntax::Section))
                 .copied()
                 .expect("expected Section child of headline");
-            let list = arena[section].children
+            let list = arena[section]
+                .children
                 .iter()
                 .find(|&&n| matches!(arena[n].data, Syntax::PlainList(_)))
                 .copied()
@@ -346,7 +348,8 @@ mod item {
             let (arena, root) = parser.parse_buffer();
 
             let top_hl = arena[root].children[0];
-            let sub_hl_count = arena[top_hl].children
+            let sub_hl_count = arena[top_hl]
+                .children
                 .iter()
                 .filter(|&&n| matches!(arena[n].data, Syntax::Headline(_)))
                 .count();
@@ -365,12 +368,14 @@ mod item {
             let (arena, root) = parser.parse_buffer();
 
             let top_hl = arena[root].children[0];
-            let section = arena[top_hl].children
+            let section = arena[top_hl]
+                .children
                 .iter()
                 .find(|&&n| matches!(arena[n].data, Syntax::Section))
                 .copied()
                 .expect("expected Section");
-            let list = arena[section].children
+            let list = arena[section]
+                .children
                 .iter()
                 .find(|&&n| matches!(arena[n].data, Syntax::PlainList(_)))
                 .copied()
@@ -395,9 +400,13 @@ mod item {
 
             // Find the PlainList (may be inside a section or directly under root)
             fn find_list(arena: &crate::data::NodeArena, id: NodeId) -> Option<NodeId> {
-                if matches!(arena[id].data, Syntax::PlainList(_)) { return Some(id); }
+                if matches!(arena[id].data, Syntax::PlainList(_)) {
+                    return Some(id);
+                }
                 for &c in &arena[id].children {
-                    if let Some(l) = find_list(arena, c) { return Some(l); }
+                    if let Some(l) = find_list(arena, c) {
+                        return Some(l);
+                    }
                 }
                 None
             }
@@ -426,10 +435,10 @@ mod item {
             let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
             let (arena, root) = parser.parse_buffer();
             // Walk: root → section → plain_list → item → paragraph
-            let section  = arena[root].children[0];
-            let list     = arena[section].children[0];
-            let item     = arena[list].children[0];
-            let para     = arena[item].children[0];
+            let section = arena[root].children[0];
+            let list = arena[section].children[0];
+            let item = arena[list].children[0];
+            let para = arena[item].children[0];
             assert_eq!(
                 SyntaxT::from(&arena[para].data),
                 SyntaxT::Paragraph,
@@ -454,7 +463,11 @@ mod item {
             //          0123456789012345678901
             let input = "- A :: B :: C\n";
             //                       ^ offset 12
-            assert_eq!(para_start(input), 12, "greedy: last ' :: ' is the separator");
+            assert_eq!(
+                para_start(input),
+                12,
+                "greedy: last ' :: ' is the separator"
+            );
         }
 
         /// Tab after `::`: `- tag ::\tcontent` — paragraph starts at `content`.
@@ -473,7 +486,11 @@ mod item {
             //           0         1
             //           0123456789012345678
             //                    ^ offset 9 (start of "  content" line)
-            assert_eq!(para_start(input), 9, "paragraph should start at beginning of continuation line");
+            assert_eq!(
+                para_start(input),
+                9,
+                "paragraph should start at beginning of continuation line"
+            );
         }
     }
 }
@@ -616,7 +633,9 @@ mod headline {
             // root → headline (first child)
             let hl = *arena[root].children.first().expect("expected a headline");
             assert_eq!(SyntaxT::from(&arena[hl].data), SyntaxT::Headline);
-            arena[hl].children.iter()
+            arena[hl]
+                .children
+                .iter()
                 .map(|&id| SyntaxT::from(&arena[id].data))
                 .collect()
         }
@@ -659,9 +678,14 @@ mod headline {
             let input = "* Title with *bold*\nsome body text\n** Sub\n";
             let types = headline_direct_child_types(input);
             let inline_types = [
-                SyntaxT::PlainText, SyntaxT::Bold, SyntaxT::Italic,
-                SyntaxT::Underline, SyntaxT::Code, SyntaxT::Verbatim,
-                SyntaxT::Link, SyntaxT::StrikeThrough,
+                SyntaxT::PlainText,
+                SyntaxT::Bold,
+                SyntaxT::Italic,
+                SyntaxT::Underline,
+                SyntaxT::Code,
+                SyntaxT::Verbatim,
+                SyntaxT::Link,
+                SyntaxT::StrikeThrough,
             ];
             for t in inline_types {
                 assert!(
@@ -773,7 +797,11 @@ mod table {
         // not place raw objects (PlainText, Link, …) directly under table-row.
         let input = "| foo | bar | baz |\n";
         let cell_count = get_type_count(input, SyntaxT::TableCell, ParseGranularity::Object);
-        assert_eq!(cell_count, 3, "expected 3 TableCell nodes, got {}", cell_count);
+        assert_eq!(
+            cell_count, 3,
+            "expected 3 TableCell nodes, got {}",
+            cell_count
+        );
     }
 
     #[test]
@@ -785,11 +813,18 @@ mod table {
         let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
         let (arena, root) = parser.parse_buffer();
 
-        fn find_first<'a>(arena: &'a crate::data::NodeArena, id: NodeId, t: SyntaxT)
-            -> Option<NodeId>
-        {
-            if SyntaxT::from(&arena[id].data) == t { return Some(id); }
-            arena[id].children.iter().find_map(|&c| find_first(arena, c, t))
+        fn find_first<'a>(
+            arena: &'a crate::data::NodeArena,
+            id: NodeId,
+            t: SyntaxT,
+        ) -> Option<NodeId> {
+            if SyntaxT::from(&arena[id].data) == t {
+                return Some(id);
+            }
+            arena[id]
+                .children
+                .iter()
+                .find_map(|&c| find_first(arena, c, t))
         }
 
         let row = find_first(&arena, root, SyntaxT::TableRow).expect("TableRow not found");
@@ -1265,7 +1300,10 @@ mod footnote_definition {
             let content = &input[content_loc.start..content_loc.end];
             assert_eq!(content, "This is footnote content", "content should match");
         } else {
-            panic!("Expected FootnoteDefinition, got: {:?}", arena[*fn_node].data);
+            panic!(
+                "Expected FootnoteDefinition, got: {:?}",
+                arena[*fn_node].data
+            );
         }
     }
 
@@ -1452,7 +1490,10 @@ mod node_properties {
     fn end_marker_not_a_property() {
         let input = ":PROPERTIES:\n:ID: abc123\n:END:\n";
         let count = get_type_count(input, SyntaxT::NodeProperty, ParseGranularity::Element);
-        assert_eq!(count, 1, ":END: must not be parsed as a node property (got {count})");
+        assert_eq!(
+            count, 1,
+            ":END: must not be parsed as a node property (got {count})"
+        );
     }
 }
 
@@ -2014,12 +2055,22 @@ mod od1_compliance {
             let (arena, root) = parser.parse_buffer();
             // Walk to the Link node
             fn find_link<'a>(arena: &'a crate::data::NodeArena<'a>, id: NodeId) -> Option<NodeId> {
-                if SyntaxT::from(&arena[id].data) == SyntaxT::Link { return Some(id); }
-                for &child in &arena[id].children { if let Some(l) = find_link(arena, child) { return Some(l); } }
+                if SyntaxT::from(&arena[id].data) == SyntaxT::Link {
+                    return Some(id);
+                }
+                for &child in &arena[id].children {
+                    if let Some(l) = find_link(arena, child) {
+                        return Some(l);
+                    }
+                }
                 None
             }
             let link = find_link(&arena, root).expect("no Link found");
-            arena[link].children.iter().map(|&id| SyntaxT::from(&arena[id].data)).collect()
+            arena[link]
+                .children
+                .iter()
+                .map(|&id| SyntaxT::from(&arena[id].data))
+                .collect()
         }
 
         /// Plain-text description becomes a `PlainText` child of the link.
@@ -2199,7 +2250,8 @@ mod od1_compliance {
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let section = root_children.first().expect("section");
-        let para_count = arena[*section].children
+        let para_count = arena[*section]
+            .children
             .iter()
             .filter(|&&n| matches!(arena[n].data, Syntax::Paragraph))
             .count();
@@ -2233,11 +2285,18 @@ mod od1_compliance {
         let crate::data::Syntax::Headline(ref data) = arena[hl].data else {
             panic!("expected Headline");
         };
-        let has_bold = data.title_objects.iter().any(|&id| {
-            SyntaxT::from(&arena[id].data) == SyntaxT::Bold
-        });
-        assert!(has_bold, "expected Bold in title_objects; got {:?}",
-            data.title_objects.iter().map(|&id| SyntaxT::from(&arena[id].data)).collect::<Vec<_>>());
+        let has_bold = data
+            .title_objects
+            .iter()
+            .any(|&id| SyntaxT::from(&arena[id].data) == SyntaxT::Bold);
+        assert!(
+            has_bold,
+            "expected Bold in title_objects; got {:?}",
+            data.title_objects
+                .iter()
+                .map(|&id| SyntaxT::from(&arena[id].data))
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -2367,8 +2426,15 @@ mod subscript_superscript {
         let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
         let (arena, root) = parser.parse_buffer();
         let scripts = find_script(&arena, root);
-        assert!(!scripts.is_empty(), "expected a Script node for 'H_2'; got none");
-        let kind = if let Syntax::Script(f) = arena[scripts[0]].data { f.kind() } else { unreachable!() };
+        assert!(
+            !scripts.is_empty(),
+            "expected a Script node for 'H_2'; got none"
+        );
+        let kind = if let Syntax::Script(f) = arena[scripts[0]].data {
+            f.kind()
+        } else {
+            unreachable!()
+        };
         assert_eq!(kind, ScriptKind::Sub, "expected Sub, got {:?}", kind);
     }
 
@@ -2378,7 +2444,10 @@ mod subscript_superscript {
         let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
         let (arena, root) = parser.parse_buffer();
         let scripts = find_script(&arena, root);
-        assert!(!scripts.is_empty(), "expected a Script node for 'H_{{2}}O'; got none");
+        assert!(
+            !scripts.is_empty(),
+            "expected a Script node for 'H_{{2}}O'; got none"
+        );
     }
 
     #[test]
@@ -2387,8 +2456,15 @@ mod subscript_superscript {
         let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
         let (arena, root) = parser.parse_buffer();
         let scripts = find_script(&arena, root);
-        assert!(!scripts.is_empty(), "expected a Script node for 'mc^2'; got none");
-        let kind = if let Syntax::Script(f) = arena[scripts[0]].data { f.kind() } else { unreachable!() };
+        assert!(
+            !scripts.is_empty(),
+            "expected a Script node for 'mc^2'; got none"
+        );
+        let kind = if let Syntax::Script(f) = arena[scripts[0]].data {
+            f.kind()
+        } else {
+            unreachable!()
+        };
         assert_eq!(kind, ScriptKind::Sup, "expected Sup, got {:?}", kind);
     }
 
@@ -2398,7 +2474,10 @@ mod subscript_superscript {
         let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
         let (arena, root) = parser.parse_buffer();
         let scripts = find_script(&arena, root);
-        assert!(!scripts.is_empty(), "expected a Script node for 'x^{{n+1}}'; got none");
+        assert!(
+            !scripts.is_empty(),
+            "expected a Script node for 'x^{{n+1}}'; got none"
+        );
     }
 
     #[test]
@@ -2414,7 +2493,12 @@ mod subscript_superscript {
         assert!(!scripts.is_empty(), "no Script node found");
         let script_id = scripts[0];
         let children = &arena[script_id].children;
-        assert_eq!(children.len(), 1, "Script must have exactly 1 PlainText child, got {}", children.len());
+        assert_eq!(
+            children.len(),
+            1,
+            "Script must have exactly 1 PlainText child, got {}",
+            children.len()
+        );
         assert!(
             matches!(arena[children[0]].data, Syntax::PlainText(_)),
             "Script child must be PlainText"
@@ -2431,7 +2515,12 @@ mod subscript_superscript {
         assert!(!scripts.is_empty(), "no Script node found");
         let script_id = scripts[0];
         let children = &arena[script_id].children;
-        assert_eq!(children.len(), 1, "Script must have exactly 1 PlainText child, got {}", children.len());
+        assert_eq!(
+            children.len(),
+            1,
+            "Script must have exactly 1 PlainText child, got {}",
+            children.len()
+        );
         assert!(
             matches!(arena[children[0]].data, Syntax::PlainText(_)),
             "Script child must be PlainText"
@@ -2466,10 +2555,16 @@ mod post_blank {
         //               ^  ^-- 'w': Emacs plain_text begin
         //               ' ': current Rust plain_text begin (wrong)
         let starts = plain_text_starts("text *bold* word\n");
-        assert!(starts.contains(&12),
-            "expected plain_text at 12 ('w'), got starts: {:?}", starts);
-        assert!(!starts.contains(&11),
-            "plain_text must not start at 11 (the post-blank space), got starts: {:?}", starts);
+        assert!(
+            starts.contains(&12),
+            "expected plain_text at 12 ('w'), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&11),
+            "plain_text must not start at 11 (the post-blank space), got starts: {:?}",
+            starts
+        );
     }
 
     #[test]
@@ -2478,10 +2573,16 @@ mod post_blank {
         //  0   4   8 9 10
         //              ^-- 'b': Emacs plain_text begin
         let starts = plain_text_starts("see ~foo~ bar\n");
-        assert!(starts.contains(&10),
-            "expected plain_text at 10 ('b'), got starts: {:?}", starts);
-        assert!(!starts.contains(&9),
-            "plain_text must not start at 9 (post-blank space), got starts: {:?}", starts);
+        assert!(
+            starts.contains(&10),
+            "expected plain_text at 10 ('b'), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&9),
+            "plain_text must not start at 9 (post-blank space), got starts: {:?}",
+            starts
+        );
     }
 
     #[test]
@@ -2490,8 +2591,11 @@ mod post_blank {
         //  0 2      89
         //           ^-- '.': plain_text starts immediately after bold
         let starts = plain_text_starts("a *bold*.\n");
-        assert!(starts.contains(&8),
-            "expected plain_text at 8 ('.'), got starts: {:?}", starts);
+        assert!(
+            starts.contains(&8),
+            "expected plain_text at 8 ('.'), got starts: {:?}",
+            starts
+        );
     }
 
     #[test]
@@ -2505,7 +2609,8 @@ mod post_blank {
         let starts = plain_text_starts("text + more\n");
         assert!(
             !starts.contains(&5),
-            "plain_text must not start at 5 (the bare '+'); got starts: {:?}", starts
+            "plain_text must not start at 5 (the bare '+'); got starts: {:?}",
+            starts
         );
     }
 
@@ -2520,7 +2625,8 @@ mod post_blank {
         let starts = plain_text_starts("foo\n/bar\n");
         assert!(
             !starts.contains(&4),
-            "plain_text must not start at 4 (the bare '/'); got starts: {:?}", starts
+            "plain_text must not start at 4 (the bare '/'); got starts: {:?}",
+            starts
         );
     }
 
@@ -2540,15 +2646,18 @@ mod post_blank {
         // byte 41 (exclusive).  scan_plain_text_end on " / [[..." stops at index 1
         // because '/' at index 1 is preceded by ' ' (a pre-char), splitting off a
         // lone 1-char plain_text at byte 41 that Emacs does not produce.
-        let input = "[[help:consult-outline][consult-outline]] / [[help:consult-imenu][consult-imenu]].\n";
+        let input =
+            "[[help:consult-outline][consult-outline]] / [[help:consult-imenu][consult-imenu]].\n";
         let starts = plain_text_starts(input);
         assert!(
             starts.contains(&42),
-            "expected plain_text at 42 ('/'), got starts: {:?}", starts
+            "expected plain_text at 42 ('/'), got starts: {:?}",
+            starts
         );
         assert!(
             !starts.contains(&41),
-            "plain_text must not start at 41 (post-blank space after link), got starts: {:?}", starts
+            "plain_text must not start at 41 (post-blank space after link), got starts: {:?}",
+            starts
         );
     }
 

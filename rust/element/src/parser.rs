@@ -21,15 +21,13 @@ use crate::affiliated::ElementSpan;
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
 use crate::data::{
-    Brackets, EntityData, FootnoteReferenceData, Interval, LinkData, NodeArena, NodeId, ScriptFlags,
-    ScriptKind, Syntax, SyntaxNode, SyntaxT, TimestampData,
+    Brackets, EntityData, FootnoteReferenceData, Interval, LinkData, NodeArena, NodeId,
+    ScriptFlags, ScriptKind, Syntax, SyntaxNode, SyntaxT, TimestampData,
 };
 
 use crate::blocks::{REGEX_BLOCK_BEGIN, REGEX_DYNAMIC_BLOCK};
 use crate::drawer::REGEX_DRAWER;
-use crate::headline::{
-    REGEX_CLOCK_LINE, REGEX_PLANNING_LINE, REGEX_PROPERTY_DRAWER,
-};
+use crate::headline::{REGEX_CLOCK_LINE, REGEX_PLANNING_LINE, REGEX_PROPERTY_DRAWER};
 use crate::keyword::*;
 use crate::latex::REGEX_LATEX_BEGIN_ENVIRIONMENT;
 use crate::list::*;
@@ -103,8 +101,20 @@ fn is_pre_char(b: u8) -> bool {
 fn is_post_char(b: u8) -> bool {
     matches!(
         b,
-        b' ' | b'\t' | b'\n' | b'.' | b',' | b'!' | b'?' | b';' | b':'
-            | b'\'' | b')' | b'}' | b'\\' | b'[' | b'-'
+        b' ' | b'\t'
+            | b'\n'
+            | b'.'
+            | b','
+            | b'!'
+            | b'?'
+            | b';'
+            | b':'
+            | b'\''
+            | b')'
+            | b'}'
+            | b'\\'
+            | b'['
+            | b'-'
     )
 }
 
@@ -144,10 +154,7 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
         if b == b'[' {
             return i;
         }
-        if matches!(b, b'*' | b'/' | b'+' | b'=' | b'~')
-            && i > 0
-            && is_pre_char(bytes[i - 1])
-        {
+        if matches!(b, b'*' | b'/' | b'+' | b'=' | b'~') && i > 0 && is_pre_char(bytes[i - 1]) {
             return i;
         }
         if matches!(b, b'_' | b'^') && i > 0 {
@@ -308,17 +315,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                         };
 
                         let new_mode =
-                            Parser::<Environment>::next_mode(data_disc, true)
-                                .unwrap_or(mode);
+                            Parser::<Environment>::next_mode(data_disc, true).unwrap_or(mode);
 
                         let children = self.parse_elements(content_location, new_mode, list_sturct);
                         self.arena.set_children(element, children);
                     }
                 } else if let ParseGranularity::Object = &self.granularity {
-                    let children = self.parse_objects(
-                        content_location,
-                        |that| data_disc.can_contain(that),
-                    );
+                    let children =
+                        self.parse_objects(content_location, |that| data_disc.can_contain(that));
                     self.arena.set_children(element, children);
                 }
             }
@@ -333,17 +337,16 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     }
                 };
                 if let Some(loc) = title_location {
-                    let title_objects = self.parse_objects(
-                        loc,
-                        |that| SyntaxT::Headline.can_contain(that),
-                    );
+                    let title_objects =
+                        self.parse_objects(loc, |that| SyntaxT::Headline.can_contain(that));
                     self.arena.set_title_objects(element, title_objects);
                 }
             }
 
             {
                 let node = self.arena.get(element);
-                if let Some(m) = Parser::<Environment>::next_mode(SyntaxT::from(&node.data), false) {
+                if let Some(m) = Parser::<Environment>::next_mode(SyntaxT::from(&node.data), false)
+                {
                     mode = m
                 }
             }
@@ -470,9 +473,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             // they're orphaned → standalone keyword.
             if span.affiliated.is_some() && self.cursor.pos() >= limit {
                 self.cursor.set(span.span.start);
-                return self.keyword_parser(
-                    ElementSpan::new((span.span.start, limit)).build(),
-                );
+                return self.keyword_parser(ElementSpan::new((span.span.start, limit)).build());
             }
 
             // Re-check the byte at the current cursor position
@@ -485,7 +486,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let content_byte = match b2 {
                 Some(b' ' | b'\t') => {
                     let rest = &self.input.as_bytes()[cur2..];
-                    rest.iter().position(|&c| c != b' ' && c != b'\t')
+                    rest.iter()
+                        .position(|&c| c != b' ' && c != b'\t')
                         .and_then(|i| rest.get(i).copied())
                 }
                 other => other,
@@ -523,14 +525,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                             *dst = src.to_ascii_lowercase();
                         }
                         return match &buf[..len] {
-                            b"center"  => self.center_block_parser(span),
+                            b"center" => self.center_block_parser(span),
                             b"comment" => self.comment_block_parser(span),
                             b"example" => self.example_block_parser(span),
-                            b"export"  => self.export_block_parser(span),
-                            b"quote"   => self.quote_block_parser(span),
-                            b"src"     => self.src_block_parser(span),
-                            b"verse"   => self.verse_block_parser(span),
-                            _          => self.special_block_parser(span),
+                            b"export" => self.export_block_parser(span),
+                            b"quote" => self.quote_block_parser(span),
+                            b"src" => self.src_block_parser(span),
+                            b"verse" => self.verse_block_parser(span),
+                            _ => self.special_block_parser(span),
                         };
                     }
                     if looking_at!(REGEX_BABEL_CALL, self).is_some() {
@@ -625,73 +627,111 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 } else {
                     match bytes[0] {
                         b'*' => self.try_parse_bold(remaining, pos).map(|(n, c)| {
-                            if restriction(SyntaxT::Bold) { children.push(n); }
+                            if restriction(SyntaxT::Bold) {
+                                children.push(n);
+                            }
                             c
                         }),
                         b'/' => self.try_parse_italic(remaining, pos).map(|(n, c)| {
-                            if restriction(SyntaxT::Italic) { children.push(n); }
+                            if restriction(SyntaxT::Italic) {
+                                children.push(n);
+                            }
                             c
                         }),
                         b'~' => self.try_parse_code(remaining, pos).map(|(n, c)| {
-                            if restriction(SyntaxT::Code) { children.push(n); }
+                            if restriction(SyntaxT::Code) {
+                                children.push(n);
+                            }
                             c
                         }),
                         b'=' => self.try_parse_verbatim(remaining, pos).map(|(n, c)| {
-                            if restriction(SyntaxT::Verbatim) { children.push(n); }
+                            if restriction(SyntaxT::Verbatim) {
+                                children.push(n);
+                            }
                             c
                         }),
                         b'_' => {
-                            if let Some((n, c)) = self.try_parse_script(remaining, pos, ScriptKind::Sub) {
-                                if restriction(SyntaxT::Script) { children.push(n); }
+                            if let Some((n, c)) =
+                                self.try_parse_script(remaining, pos, ScriptKind::Sub)
+                            {
+                                if restriction(SyntaxT::Script) {
+                                    children.push(n);
+                                }
                                 Some(c)
                             } else {
                                 self.try_parse_underline(remaining, pos).map(|(n, c)| {
-                                    if restriction(SyntaxT::Underline) { children.push(n); }
+                                    if restriction(SyntaxT::Underline) {
+                                        children.push(n);
+                                    }
                                     c
                                 })
                             }
                         }
-                        b'^' => self.try_parse_script(remaining, pos, ScriptKind::Sup).map(|(n, c)| {
-                            if restriction(SyntaxT::Script) { children.push(n); }
-                            c
-                        }),
+                        b'^' => {
+                            self.try_parse_script(remaining, pos, ScriptKind::Sup)
+                                .map(|(n, c)| {
+                                    if restriction(SyntaxT::Script) {
+                                        children.push(n);
+                                    }
+                                    c
+                                })
+                        }
                         b'+' => self.try_parse_strikethrough(remaining, pos).map(|(n, c)| {
-                            if restriction(SyntaxT::StrikeThrough) { children.push(n); }
+                            if restriction(SyntaxT::StrikeThrough) {
+                                children.push(n);
+                            }
                             c
                         }),
                         b'[' => {
                             let mut result = None;
-                            if let Some((n, c)) = self.try_parse_footnote_reference(remaining, pos) {
-                                if restriction(SyntaxT::FootnoteReference) { children.push(n); }
+                            if let Some((n, c)) = self.try_parse_footnote_reference(remaining, pos)
+                            {
+                                if restriction(SyntaxT::FootnoteReference) {
+                                    children.push(n);
+                                }
                                 result = Some(c);
                             } else if let Some((n, c)) = self.try_parse_timestamp(remaining, pos) {
-                                if restriction(SyntaxT::Timestamp) { children.push(n); }
+                                if restriction(SyntaxT::Timestamp) {
+                                    children.push(n);
+                                }
                                 result = Some(c);
                             } else if let Some((n, c)) = self.try_parse_link(remaining, pos) {
-                                if restriction(SyntaxT::Link) { children.push(n); }
+                                if restriction(SyntaxT::Link) {
+                                    children.push(n);
+                                }
                                 result = Some(c);
                             }
                             result
                         }
                         b'\\' => self.try_parse_entity(remaining, pos).map(|(n, c)| {
-                            if restriction(SyntaxT::Entity) { children.push(n); }
+                            if restriction(SyntaxT::Entity) {
+                                children.push(n);
+                            }
                             c
                         }),
                         b'<' => {
                             let mut result = None;
                             if let Some((n, c)) = self.try_parse_timestamp(remaining, pos) {
-                                if restriction(SyntaxT::Timestamp) { children.push(n); }
+                                if restriction(SyntaxT::Timestamp) {
+                                    children.push(n);
+                                }
                                 result = Some(c);
                             } else if let Some((n, c)) = self.try_parse_target(remaining, pos) {
-                                if restriction(SyntaxT::Target) { children.push(n); }
+                                if restriction(SyntaxT::Target) {
+                                    children.push(n);
+                                }
                                 result = Some(c);
                             }
                             result
                         }
-                        b'h' | b'f' | b'm' => self.try_parse_plain_link(remaining, pos).map(|(n, c)| {
-                            if restriction(SyntaxT::Link) { children.push(n); }
-                            c
-                        }),
+                        b'h' | b'f' | b'm' => {
+                            self.try_parse_plain_link(remaining, pos).map(|(n, c)| {
+                                if restriction(SyntaxT::Link) {
+                                    children.push(n);
+                                }
+                                c
+                            })
+                        }
                         _ => None,
                     }
                 }
@@ -708,15 +748,19 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     if let Syntax::PlainText(_) = &self.arena.nodes[prev].data {
                         if self.arena.nodes[prev].location.end == pos {
                             let new_start = self.arena.nodes[prev].location.start;
-                            let new_end   = pos + c;
+                            let new_end = pos + c;
                             return Some((prev, new_start, new_end));
                         }
                     }
                     None
                 });
                 if let Some((prev, new_start, new_end)) = fused {
-                    self.arena.nodes[prev].data     = Syntax::PlainText(&self.input[new_start..new_end]);
-                    self.arena.nodes[prev].location = Interval { start: new_start, end: new_end };
+                    self.arena.nodes[prev].data =
+                        Syntax::PlainText(&self.input[new_start..new_end]);
+                    self.arena.nodes[prev].location = Interval {
+                        start: new_start,
+                        end: new_end,
+                    };
                 } else {
                     children.push(node);
                 }
@@ -739,8 +783,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 if let Some((prev, new_start, new_end)) = fused {
                     self.arena.nodes[prev].data =
                         Syntax::PlainText(&self.input[new_start..new_end]);
-                    self.arena.nodes[prev].location =
-                        Interval { start: new_start, end: new_end };
+                    self.arena.nodes[prev].location = Interval {
+                        start: new_start,
+                        end: new_end,
+                    };
                 } else {
                     let byte_node = self.arena.alloc(
                         SyntaxNode::new(
@@ -782,8 +828,14 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         self.parse_emphasis_marker(text, start, b'=', SyntaxT::Verbatim)
     }
 
-    fn try_parse_script(&mut self, text: &'a str, start: usize, kind: ScriptKind) -> Option<(NodeId, usize)> {
-        let _ = start.checked_sub(1)
+    fn try_parse_script(
+        &mut self,
+        text: &'a str,
+        start: usize,
+        kind: ScriptKind,
+    ) -> Option<(NodeId, usize)> {
+        let _ = start
+            .checked_sub(1)
             .and_then(|i| self.input.as_bytes().get(i))
             .filter(|&&b| !matches!(b, b' ' | b'\t' | b'\n'))?;
 
@@ -806,7 +858,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 let mut last_alnum = None;
                 for (i, &cb) in content.iter().enumerate() {
                     if cb == b'+' || cb == b'-' {
-                        if i != 0 { break; }
+                        if i != 0 {
+                            break;
+                        }
                         continue;
                     }
                     if cb.is_ascii_alphanumeric() {
@@ -826,7 +880,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         };
 
         let (content_begin, content_end) = match brackets {
-            Brackets::Bare      => (start + 1, start + consumed),
+            Brackets::Bare => (start + 1, start + consumed),
             Brackets::Bracketed => (start + 2, start + consumed - 1),
         };
 
@@ -847,9 +901,12 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let flags = ScriptFlags::new(kind, brackets);
         let node = self.arena.alloc_with_children(
-            SyntaxNode::new(Syntax::Script(flags), (start, start + consumed + post_blank))
-                .post_blank(post_blank)
-                .build(),
+            SyntaxNode::new(
+                Syntax::Script(flags),
+                (start, start + consumed + post_blank),
+            )
+            .post_blank(post_blank)
+            .build(),
             vec![plain_text],
         );
         Some((node, consumed + post_blank))
@@ -902,15 +959,18 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let inner = &text[2..close - 2];
         let desc_loc = memmem::find(inner.as_bytes(), b"][").map(|sep| Interval {
             start: start + 2 + sep + 2,
-            end:   start + close - 2,
+            end: start + close - 2,
         });
 
         let link_data = LinkData::new(raw);
 
         let node = self.arena.alloc(
-            SyntaxNode::new(Syntax::Link(Box::new(link_data)), (start, start + close + post_blank))
-                .content((start + 2, start + close - 2))
-                .build(),
+            SyntaxNode::new(
+                Syntax::Link(Box::new(link_data)),
+                (start, start + close + post_blank),
+            )
+            .content((start + 2, start + close - 2))
+            .build(),
         );
 
         if let Some(desc) = desc_loc {
@@ -938,8 +998,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     let i = search_pos + offset;
                     if i + 1 < bytes.len() && bytes[i + 1] == b'>' {
                         let after = i + 2;
-                        let valid_post =
-                            after >= bytes.len() || is_post_char(bytes[after]);
+                        let valid_post = after >= bytes.len() || is_post_char(bytes[after]);
                         if valid_post {
                             found_close = Some(after);
                             break;
@@ -956,9 +1015,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let close = found_close?;
         let content = &text[2..close - 2];
 
-        let node = self.arena.alloc(
-            SyntaxNode::new(Syntax::Target(content), (start, start + close)).build(),
-        );
+        let node = self
+            .arena
+            .alloc(SyntaxNode::new(Syntax::Target(content), (start, start + close)).build());
 
         Some((node, close))
     }
@@ -1008,8 +1067,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                         // Found marker - last content char must be non-whitespace
                         let prev = bytes[i - 1];
                         if prev != b' ' && prev != b'\t' && prev != b'\n' {
-                            let valid_post =
-                                i + 1 >= text.len() || is_post_char(bytes[i + 1]);
+                            let valid_post = i + 1 >= text.len() || is_post_char(bytes[i + 1]);
                             if valid_post {
                                 found_close = Some(i);
                                 break;
@@ -1024,21 +1082,38 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let close = found_close?;
 
-        let content_location = Interval { start: start + 1, end: start + close };
+        let content_location = Interval {
+            start: start + 1,
+            end: start + close,
+        };
         let content = &self.input[content_location.start..content_location.end];
 
         let (data, children) = match syntax {
-            SyntaxT::Bold          => (Syntax::Bold,              self.parse_objects(content_location, |_| true)),
-            SyntaxT::Italic        => (Syntax::Italic,            self.parse_objects(content_location, |_| true)),
-            SyntaxT::Underline     => (Syntax::Underline,         self.parse_objects(content_location, |_| true)),
-            SyntaxT::StrikeThrough => (Syntax::StrikeThrough,     self.parse_objects(content_location, |_| true)),
-            SyntaxT::Code          => (Syntax::Code(content),     vec![]),
-            SyntaxT::Verbatim      => (Syntax::Verbatim(content), vec![]),
-            _                      => return None,
+            SyntaxT::Bold => (Syntax::Bold, self.parse_objects(content_location, |_| true)),
+            SyntaxT::Italic => (
+                Syntax::Italic,
+                self.parse_objects(content_location, |_| true),
+            ),
+            SyntaxT::Underline => (
+                Syntax::Underline,
+                self.parse_objects(content_location, |_| true),
+            ),
+            SyntaxT::StrikeThrough => (
+                Syntax::StrikeThrough,
+                self.parse_objects(content_location, |_| true),
+            ),
+            SyntaxT::Code => (Syntax::Code(content), vec![]),
+            SyntaxT::Verbatim => (Syntax::Verbatim(content), vec![]),
+            _ => return None,
         };
 
-        let post_blank = bytes.get(close + 1..)
-            .map(|rest| rest.iter().take_while(|&&b| b == b' ' || b == b'\t').count())
+        let post_blank = bytes
+            .get(close + 1..)
+            .map(|rest| {
+                rest.iter()
+                    .take_while(|&&b| b == b' ' || b == b'\t')
+                    .count()
+            })
             .unwrap_or(0);
 
         let node = self.arena.alloc_with_children(
@@ -1083,7 +1158,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         Some((node, consumed))
     }
 
-    fn try_parse_footnote_reference(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
+    fn try_parse_footnote_reference(
+        &mut self,
+        text: &'a str,
+        start: usize,
+    ) -> Option<(NodeId, usize)> {
         if !text.starts_with("[fn:") {
             return None;
         }
@@ -1123,7 +1202,11 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return None;
         }
         let node = self.arena.alloc(
-            SyntaxNode::new(Syntax::PlainText(&text[..consume]), (start, start + consume)).build(),
+            SyntaxNode::new(
+                Syntax::PlainText(&text[..consume]),
+                (start, start + consume),
+            )
+            .build(),
         );
         Some((node, consume))
     }
@@ -1223,11 +1306,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let entity_data = EntityData::new(entity_name)?;
 
         let node = self.arena.alloc(
-            SyntaxNode::new(
-                Syntax::Entity(Box::new(entity_data)),
-                (start, start + end),
-            )
-            .build(),
+            SyntaxNode::new(Syntax::Entity(Box::new(entity_data)), (start, start + end)).build(),
         );
 
         Some((node, end))

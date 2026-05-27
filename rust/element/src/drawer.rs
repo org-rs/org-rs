@@ -18,7 +18,7 @@ use crate::cursor::CachedRegex;
 use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use lazy_static::lazy_static;
-use memchr::{memchr, memrchr, memmem};
+use memchr::{memchr, memmem, memrchr};
 use regex::Regex;
 
 lazy_static! {
@@ -39,18 +39,26 @@ lazy_static! {
 fn find_end_memmem(bytes: &[u8], start: usize, limit: usize) -> Option<usize> {
     for off in memmem::find_iter(&bytes[start..limit], b":END:") {
         let pos = start + off;
-        let line_start = memrchr(b'\n', &bytes[start..pos])
-            .map_or(start, |i| start + i + 1);
-        if !bytes[line_start..pos].iter().all(|&b| b == b' ' || b == b'\t') {
+        let line_start = memrchr(b'\n', &bytes[start..pos]).map_or(start, |i| start + i + 1);
+        if !bytes[line_start..pos]
+            .iter()
+            .all(|&b| b == b' ' || b == b'\t')
+        {
             continue;
         }
         let after = pos + 5;
-        let line_end = memchr(b'\n', &bytes[after..limit])
-            .map_or(limit, |i| after + i);
-        if !bytes[after..line_end].iter().all(|&b| b == b' ' || b == b'\t') {
+        let line_end = memchr(b'\n', &bytes[after..limit]).map_or(limit, |i| after + i);
+        if !bytes[after..line_end]
+            .iter()
+            .all(|&b| b == b' ' || b == b'\t')
+        {
             continue;
         }
-        return Some(if line_end < limit { line_end + 1 } else { line_end });
+        return Some(if line_end < limit {
+            line_end + 1
+        } else {
+            line_end
+        });
     }
     None
 }
@@ -66,9 +74,17 @@ fn find_end_linewise(input: &str, start: usize, limit: usize) -> Option<usize> {
         let line_end = memchr(b'\n', &bytes[pos..limit]).map_or(limit, |i| pos + i);
         let line = &input[pos..line_end];
         if is_end_line(line) {
-            return Some(if line_end < limit { line_end + 1 } else { line_end });
+            return Some(if line_end < limit {
+                line_end + 1
+            } else {
+                line_end
+            });
         }
-        pos = if line_end < limit { line_end + 1 } else { limit };
+        pos = if line_end < limit {
+            line_end + 1
+        } else {
+            limit
+        };
     }
     None
 }
@@ -93,14 +109,19 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// Case insensitive (matches :NAME: and :END:)
     #[inline]
     pub fn drawer_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let input_slice = &self.input[start..limit];
 
         if let Some(caps) = REGEX_DRAWER.captures(input_slice) {
             let name = caps.get(1).map_or("", |m| m.as_str());
 
             if name.eq_ignore_ascii_case("END") {
-                return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
+                return self
+                    .arena
+                    .alloc(SyntaxNode::fallback(self.input, start, limit));
             }
 
             let bytes = self.input.as_bytes();
@@ -113,7 +134,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             };
 
             if !found_end {
-                return self.arena.alloc(SyntaxNode::fallback(self.input, start, limit));
+                return self
+                    .arena
+                    .alloc(SyntaxNode::fallback(self.input, start, limit));
             }
 
             let post_blank = if end < limit {
@@ -145,7 +168,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             );
         }
 
-        self.arena.alloc(SyntaxNode::fallback(self.input, start, limit))
+        self.arena
+            .alloc(SyntaxNode::fallback(self.input, start, limit))
     }
 
     fn parse_property_drawer_contents(&mut self, start: usize, end: usize) -> Vec<NodeId> {
@@ -190,18 +214,28 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
             if let Some((key, value)) = Self::parse_node_property_line(line) {
                 let prop_start = first_line_end + pos;
-                let prop_end = if line_end < content.len() { line_end + 1 } else { line_end };
+                let prop_end = if line_end < content.len() {
+                    line_end + 1
+                } else {
+                    line_end
+                };
                 let node_data = crate::headline::NodePropertyData { key, value };
-                children.push(self.arena.alloc(
-                    SyntaxNode::new(
-                        Syntax::NodeProperty(Box::new(node_data)),
-                        (prop_start, prop_end),
-                    )
-                    .build(),
-                ));
+                children.push(
+                    self.arena.alloc(
+                        SyntaxNode::new(
+                            Syntax::NodeProperty(Box::new(node_data)),
+                            (prop_start, prop_end),
+                        )
+                        .build(),
+                    ),
+                );
             }
 
-            pos = if line_end < content.len() { line_end + 1 } else { content.len() };
+            pos = if line_end < content.len() {
+                line_end + 1
+            } else {
+                content.len()
+            };
         }
 
         children

@@ -28,15 +28,18 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// (headline, keyword, block, etc.), whichever comes first.
     #[inline]
     pub fn paragraph_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
-        let ElementSpan { span: Interval { start, end: limit }, affiliated } = element_span;
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+        } = element_span;
         let mut end = start;
 
         // Advance line by line until we hit a blank line, an element
         // start pattern, or the limit.
         while end < limit {
             // Find end of current line.
-            let line_end = memchr(b'\n', &self.input.as_bytes()[end..limit])
-                .map_or(limit, |i| end + i + 1);
+            let line_end =
+                memchr(b'\n', &self.input.as_bytes()[end..limit]).map_or(limit, |i| end + i + 1);
 
             // Check if this line is blank (only whitespace).
             let line = &self.input[end..line_end];
