@@ -382,7 +382,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     /// Scan input for list items at current indentation level
-    /// This matches Elisp's org-element--list-struct
+    /// Matches Elisp's org-element--list-struct
     #[inline]
     pub fn list_struct(&self, limit: usize) -> Rc<ListStruct<'a>> {
         let mut items = Vec::new();
@@ -394,6 +394,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         // the scan only if it is at the same-or-lower indent level).
         let mut first_indent: Option<usize> = None;
 
+        // Track whether we are inside a #+BEGIN_ / #+END_ block so that
+        // body lines at any indent are not mistaken for list terminators.
+        let mut in_block: bool = false;
+
         while pos < limit {
             let (line, next_pos) = match memchr(b'\n', &input.as_bytes()[pos..]) {
                 Some(nl_pos) => (&input[pos..pos + nl_pos], pos + nl_pos + 1),
@@ -401,6 +405,33 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             };
 
             let (indent, rest) = Self::get_indent(line);
+
+            // Block-aware skipping: lines between #+BEGIN_ and #+END_
+            // at any indentation must not terminate the list.
+            let rest_bytes = rest.as_bytes();
+            if !in_block
+                && rest_bytes.len() >= 7
+                && rest_bytes[0] == b'#'
+                && rest_bytes[1] == b'+'
+                && (&rest_bytes[2..7]).eq_ignore_ascii_case(b"BEGIN")
+            {
+                in_block = true;
+                pos = next_pos;
+                continue;
+            }
+
+            if in_block {
+                if rest_bytes.len() >= 5
+                    && rest_bytes[0] == b'#'
+                    && rest_bytes[1] == b'+'
+                    && (&rest_bytes[2..5]).eq_ignore_ascii_case(b"END")
+                {
+                    in_block = false;
+                }
+                pos = next_pos;
+                continue;
+            }
+
             if rest.is_empty() {
                 pos = next_pos;
                 continue;
