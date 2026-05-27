@@ -798,10 +798,29 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             }
             b'*' => (Brackets::Bare, 2),
             &b if b.is_ascii_alphanumeric() => {
-                let len = bytes[1..].iter()
-                    .take_while(|&&b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'+' | b'.' | b','))
-                    .count();
-                (Brackets::Bare, 1 + len)
+                // Bare subscript: matches Emacs regex
+                //   [+-]?[[:alnum:].,\\]*[[:alnum:]]
+                // The content may include `.`, `,`, `\` but MUST end with
+                // an alphanumeric character (backtracking if necessary).
+                let content = &bytes[1..];
+                let mut last_alnum = None;
+                for (i, &cb) in content.iter().enumerate() {
+                    if cb == b'+' || cb == b'-' {
+                        if i != 0 { break; }
+                        continue;
+                    }
+                    if cb.is_ascii_alphanumeric() {
+                        last_alnum = Some(i + 1);
+                    } else if matches!(cb, b'.' | b',') {
+                        // continue scanning — may or may not be followed by alnum
+                    } else {
+                        break;
+                    }
+                }
+                match last_alnum {
+                    Some(len) => (Brackets::Bare, 1 + len),
+                    None => return None,
+                }
             }
             _ => return None,
         };
@@ -819,12 +838,21 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             .build(),
         );
 
+        // Absorb trailing whitespace as post-blank, matching Emacs
+        // org-element behaviour for bare sub/superscripts.
+        let post_blank = bytes[consumed..]
+            .iter()
+            .take_while(|&&b| b == b' ' || b == b'\t')
+            .count();
+
         let flags = ScriptFlags::new(kind, brackets);
         let node = self.arena.alloc_with_children(
-            SyntaxNode::new(Syntax::Script(flags), (start, start + consumed)).build(),
+            SyntaxNode::new(Syntax::Script(flags), (start, start + consumed + post_blank))
+                .post_blank(post_blank)
+                .build(),
             vec![plain_text],
         );
-        Some((node, consumed))
+        Some((node, consumed + post_blank))
     }
 
     fn try_parse_link(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
