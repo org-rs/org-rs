@@ -21,7 +21,8 @@ fn main() {
     eprintln!("Corpus: {:.1} MB ({:.0} files)", size_mb, repeats);
 
     // Warmup
-    let mut parser = Parser::new(&corpus, ParseGranularity::Element, DefaultEnvironment);
+    let bump = bumpalo::Bump::new();
+    let mut parser = Parser::new(&corpus, ParseGranularity::Element, DefaultEnvironment, &bump);
     parser.parse_buffer();
 
     let granularities = [
@@ -35,7 +36,8 @@ fn main() {
         let start = Instant::now();
         let mut iters = 0u64;
         while start.elapsed().as_secs_f64() < 3.0 {
-            let mut parser = Parser::new(&corpus, *granularity, DefaultEnvironment);
+            let bump = bumpalo::Bump::new();
+            let mut parser = Parser::new(&corpus, *granularity, DefaultEnvironment, &bump);
             parser.parse_buffer();
             iters += 1;
         }

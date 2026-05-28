@@ -66,12 +66,13 @@ pub enum ParserMode {
     PropertyDrawer,
 }
 
-pub struct Parser<'a, Environment: crate::environment::Environment> {
+pub struct Parser<'a, 'b, Environment: crate::environment::Environment> {
     pub cursor: Cursor<'a>,
     pub input: &'a str,
     pub granularity: ParseGranularity,
     pub environment: Environment,
-    pub arena: NodeArena<'a>,
+    pub arena: NodeArena<'a, 'b>,
+    pub bump: &'b bumpalo::Bump,
 }
 
 macro_rules! looking_at {
@@ -181,19 +182,21 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
     }
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     #[inline]
     pub fn new(
         input: &'a str,
         granularity: ParseGranularity,
         environment: Environment,
-    ) -> Parser<'a, Environment> {
+        bump: &'b bumpalo::Bump,
+    ) -> Parser<'a, 'b, Environment> {
         Parser {
             cursor: Cursor::new(input, 0),
             input,
             granularity,
             environment,
             arena: NodeArena::new(),
+            bump,
         }
     }
 
@@ -232,7 +235,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// org-element-parse-buffer
     /// Parses input from beginning to the end
     #[inline]
-    pub fn parse_buffer(&mut self) -> (NodeArena<'a>, NodeId) {
+    pub fn parse_buffer(&mut self) -> (NodeArena<'a, 'b>, NodeId) {
         self.cursor.set(0);
         self.cursor.skip_whitespace();
 
@@ -968,7 +971,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let node = self.arena.alloc(
             SyntaxNode::new(
-                Syntax::Link(Box::new(link_data)),
+                Syntax::Link(self.bump.alloc(link_data)),
                 (start, start + close + post_blank),
             )
             .content((start + 2, start + close - 2))
@@ -1152,7 +1155,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let consumed = url_end + post_blank;
         let node = self.arena.alloc(
             SyntaxNode::new(
-                Syntax::Link(Box::new(LinkData::new_plain(raw))),
+                Syntax::Link(self.bump.alloc(LinkData::new_plain(raw))),
                 (start, start + consumed),
             )
             .build(),
@@ -1188,7 +1191,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let consumed = close + 1;
         let mut builder = SyntaxNode::new(
-            Syntax::FootnoteReference(Box::new(FootnoteReferenceData { label, type_s })),
+            Syntax::FootnoteReference(self.bump.alloc(FootnoteReferenceData { label, type_s })),
             (start, start + consumed),
         );
         if let Some(loc) = definition_location {
@@ -1261,7 +1264,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         let node = self.arena.alloc(
             SyntaxNode::new(
-                Syntax::Timestamp(Box::new(timestamp_data)),
+                Syntax::Timestamp(self.bump.alloc(timestamp_data)),
                 (start, start + consumed),
             )
             .content((start + 1, start + consumed - 1))
@@ -1308,7 +1311,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let entity_data = EntityData::new(entity_name)?;
 
         let node = self.arena.alloc(
-            SyntaxNode::new(Syntax::Entity(Box::new(entity_data)), (start, start + end)).build(),
+            SyntaxNode::new(Syntax::Entity(self.bump.alloc(entity_data)), (start, start + end)).build(),
         );
 
         Some((node, end))

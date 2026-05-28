@@ -480,7 +480,8 @@ fn process_file(path: &Path) -> Result<Vec<Discrepancy>, CorpusError> {
         path: path.to_owned(),
     })?;
 
-    let mut parser = Parser::new(&input, ParseGranularity::Object, DefaultEnvironment);
+    let bump = bumpalo::Bump::new();
+    let mut parser = Parser::new(&input, ParseGranularity::Object, DefaultEnvironment, &bump);
     let (arena, root_id) = parser.parse_buffer();
 
     let mut discrepancies = Vec::new();

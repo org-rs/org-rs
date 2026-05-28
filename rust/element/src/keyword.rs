@@ -32,14 +32,14 @@ pub struct KeywordData<'a> {
     pub value: &'a str,
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Parse a keyword at point.
     ///
     /// A keyword follows the pattern `#+KEY: VALUE`.  `start` is the
     /// buffer position at the beginning of the first affiliated keyword
     /// (or the keyword itself when there is no affiliation).
     #[inline]
-    pub fn keyword_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn keyword_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated: _,
@@ -71,7 +71,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         self.arena.alloc(
             SyntaxNode::new(
-                Syntax::Keyword(Box::new(KeywordData {
+                Syntax::Keyword(self.bump.alloc(KeywordData {
                     key: key_ref,
                     value: value_ref,
                 })),

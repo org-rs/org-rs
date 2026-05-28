@@ -1,4 +1,5 @@
 use criterion::{black_box, Criterion};
+use bumpalo::Bump;
 
 use org_element::prelude::*;
 
@@ -20,10 +21,12 @@ fn bench_parse_sizes(c: &mut Criterion) {
         let corpus = make_corpus(n);
         group.bench_function(label, |b| {
             b.iter(|| {
+                let bump = Bump::new();
                 let mut parser = Parser::new(
                     black_box(&corpus),
                     ParseGranularity::Object,
                     DefaultEnvironment,
+                    &bump,
                 );
                 parser.parse_buffer();
             })
@@ -45,7 +48,9 @@ fn bench_parse_granularity(c: &mut Criterion) {
         let name = format!("{:?}", granularity);
         group.bench_function(&name, |b| {
             b.iter(|| {
-                let mut parser = Parser::new(black_box(CORPUS), *granularity, DefaultEnvironment);
+                let bump = Bump::new();
+                let mut parser =
+                    Parser::new(black_box(CORPUS), *granularity, DefaultEnvironment, &bump);
                 parser.parse_buffer();
             })
         });
@@ -83,10 +88,12 @@ fn bench_parse_viewport(c: &mut Criterion) {
 
         group.bench_function(label, |b| {
             b.iter(|| {
+                let bump = Bump::new();
                 let mut parser = Parser::new(
                     black_box(slice),
                     ParseGranularity::Element,
                     DefaultEnvironment,
+                    &bump,
                 );
                 parser.parse_buffer();
             })

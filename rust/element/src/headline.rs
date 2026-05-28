@@ -207,7 +207,7 @@ pub enum TodoKeyword {
     DONE,
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Parse a headline at the current cursor position.
     ///
     /// Extracts the level (star count), optional TODO/DONE keyword,
@@ -293,7 +293,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             return self.arena.alloc(SyntaxNode {
                 parent: None,
                 children: Vec::new(),
-                data: Syntax::InlineTask(Box::new(InlineTaskData {
+                data: Syntax::InlineTask(self.bump.alloc(InlineTaskData {
                     closed: None,
                     deadline: None,
                     level,
@@ -347,7 +347,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         self.arena.alloc(SyntaxNode {
             parent: None,
             children: Vec::new(),
-            data: Syntax::Headline(Box::new(data)),
+            data: Syntax::Headline(self.bump.alloc(data)),
             location: Interval { start: begin, end },
             content_location,
             post_blank: 0,

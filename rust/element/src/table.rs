@@ -99,7 +99,7 @@ pub enum TableRowType {
     Rule,
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     #[inline]
     pub fn table_row_parser(&mut self) -> NodeId {
         let start = self.cursor.pos();
@@ -119,7 +119,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     }
 
     #[inline]
-    pub fn table_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn table_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let span = element_span.span;
         let (end, children) = {
             let mut current = span.start;
@@ -183,7 +183,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                     .map(|&r| self.arena[r].children.len())
                     .unwrap_or(0));
                 let node = SyntaxNode::new(
-                    Syntax::Spreadsheet(Box::new(SpreadsheetData {
+                    Syntax::Spreadsheet(self.bump.alloc(SpreadsheetData {
                         formula,
                         row_count,
                         col_count,

@@ -23,26 +23,26 @@
 //! Items, Table Rows , Node Properties, Headlines
 //! Sections, Planning lines, Property Drawers, Clocks and Inlinetasks
 //!
-//! This is done by adding specific keywords, named “affiliated keywords”,
+//! This is done by adding specific keywords, named "affiliated keywords",
 //! just above the element considered, no blank line allowed.
 //!
 //! Affiliated keywords are built upon one of the following patterns:
 //!
-//! “#+KEY: VALUE” - Regular
-//! “#+KEY[OPTIONAL]: VALUE” - Dual
-//! “#+ATTR_BACKEND: VALUE”  - Exported Attribute
+//! "#+KEY: VALUE" - Regular
+//! "#+KEY[OPTIONAL]: VALUE" - Dual
+//! "#+ATTR_BACKEND: VALUE"  - Exported Attribute
 //!
-//! KEY is either  “CAPTION”, “HEADER”, “NAME”, “PLOT” or “RESULTS” string.
+//! KEY is either  "CAPTION", "HEADER", "NAME", "PLOT" or "RESULTS" string.
 //!
 //! BACKEND is a string constituted of alpha-numeric characters, hyphens or underscores.
 //!
 //! OPTIONAL and VALUE can contain any character but a new line.
-//! Only “CAPTION” and “RESULTS” keywords can have an optional value.
+//! Only "CAPTION" and "RESULTS" keywords can have an optional value.
 //!
-//! An affiliated keyword can appear more than once if KEY is either “CAPTION” or “HEADER”
-//! or if its pattern is “#+ATTR_BACKEND: VALUE”.
+//! An affiliated keyword can appear more than once if KEY is either "CAPTION" or "HEADER"
+//! or if its pattern is "#+ATTR_BACKEND: VALUE".
 //!
-//! “CAPTION” keyword can contain objects in both VALUE and OPTIONAL fileds.
+//! "CAPTION" keyword can contain objects in both VALUE and OPTIONAL fileds.
 
 use crate::cursor::CachedRegex;
 use crate::cursor::REGEX_EMPTY_LINE;
@@ -104,26 +104,26 @@ lazy_static! {
 /// itself when there are none), `span.end` is the parse limit.  Produced by
 /// [`Parser::collect_affiliated_keywords`] and consumed by every element parser
 /// that can carry affiliated keywords.
-pub struct ElementSpan<'a> {
+pub struct ElementSpan<'a, 'b> {
     pub span: Interval,
-    pub affiliated: Option<AffiliatedData<'a>>,
+    pub affiliated: Option<AffiliatedData<'a, 'b>>,
 }
 
 /// Builder for [`ElementSpan`], obtained via [`ElementSpan::new`].
-pub struct ElementSpanBuilder<'a> {
+pub struct ElementSpanBuilder<'a, 'b> {
     span: Interval,
-    affiliated: Option<AffiliatedData<'a>>,
+    affiliated: Option<AffiliatedData<'a, 'b>>,
 }
 
-impl<'a> ElementSpanBuilder<'a> {
+impl<'a, 'b> ElementSpanBuilder<'a, 'b> {
     #[inline]
-    pub fn affiliated(mut self, aff: Option<AffiliatedData<'a>>) -> Self {
+    pub fn affiliated(mut self, aff: Option<AffiliatedData<'a, 'b>>) -> Self {
         self.affiliated = aff;
         self
     }
 
     #[inline]
-    pub fn build(self) -> ElementSpan<'a> {
+    pub fn build(self) -> ElementSpan<'a, 'b> {
         ElementSpan {
             span: self.span,
             affiliated: self.affiliated,
@@ -131,10 +131,10 @@ impl<'a> ElementSpanBuilder<'a> {
     }
 }
 
-impl<'a> ElementSpan<'a> {
+impl<'a, 'b> ElementSpan<'a, 'b> {
     #[inline]
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(span: impl Into<Interval>) -> ElementSpanBuilder<'a> {
+    pub fn new(span: impl Into<Interval>) -> ElementSpanBuilder<'a, 'b> {
         ElementSpanBuilder {
             span: span.into(),
             affiliated: None,
@@ -157,9 +157,9 @@ pub struct DualVal<T> {
 /// MULTI: can occur more than once in an element.
 
 #[derive(Debug, PartialEq)]
-pub struct AffiliatedData<'a> {
+pub struct AffiliatedData<'a, 'b> {
     /// DUAL, PARSED, MULTI
-    pub caption: Vec<DualVal<StringOrObject<'a>>>,
+    pub caption: Vec<DualVal<StringOrObject<'a, 'b>>>,
     /// MULTI
     pub header: Vec<&'a str>,
 
@@ -176,9 +176,9 @@ pub struct AffiliatedData<'a> {
     pub attr: HashMap<String, Vec<&'a str>>,
 }
 
-impl<'a> Default for AffiliatedData<'a> {
+impl<'a, 'b> Default for AffiliatedData<'a, 'b> {
     #[inline]
-    fn default() -> AffiliatedData<'a> {
+    fn default() -> AffiliatedData<'a, 'b> {
         AffiliatedData {
             caption: vec![],
             header: vec![],
@@ -190,7 +190,7 @@ impl<'a> Default for AffiliatedData<'a> {
     }
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Collect affiliated keywords from point down to LIMIT.
     ///
     /// Most elements can have affiliated keywords.  When looking for an
@@ -226,7 +226,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     ///   cases, apart from affiliated keywords, objects parents are nodes of syntax trees
     ///   (ACC or PARENT)
     #[inline]
-    pub fn collect_affiliated_keywords(&mut self, limit: usize) -> ElementSpan<'a> {
+    pub fn collect_affiliated_keywords(&mut self, limit: usize) -> ElementSpan<'a, 'b> {
         if !self.cursor.is_bol() {
             return ElementSpan::new((self.cursor.pos(), limit)).build();
         }
@@ -392,7 +392,8 @@ mod test {
         text.push_str(r"#+attr_html: :file filename.ext");
         text.push_str("\n\n");
         {
-            let mut p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
+            let bump = bumpalo::Bump::new();
+            let mut p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment, &bump);
             let maybe_collected = p.collect_affiliated_keywords(text.len());
             assert_eq!(0, maybe_collected.span.start);
             assert!(maybe_collected.affiliated.is_none());
@@ -400,7 +401,8 @@ mod test {
         text.pop();
         text.push_str("#+BEGIN_SRC");
 
-        let mut p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
+        let bump = bumpalo::Bump::new();
+        let mut p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment, &bump);
         let maybe_collected = p.collect_affiliated_keywords(text.len());
         assert_eq!(0, maybe_collected.span.start);
         assert!(maybe_collected.affiliated.is_some());
