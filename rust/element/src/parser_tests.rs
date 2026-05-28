@@ -233,15 +233,14 @@ mod item {
         let list_children = &arena[*list_node].children;
         let first_item = list_children.first().expect("Expected first item");
 
-        if let Syntax::Item(data) = &arena[*first_item].data {
-            assert_eq!(
-                data.counter, 3,
-                "Item counter should be 3 from [@3], got {}",
-                data.counter
-            );
-        } else {
+        let Syntax::Item(data) = &arena[*first_item].data else {
             panic!("Expected Item, got: {:?}", arena[*first_item].data);
-        }
+        };
+        assert_eq!(
+            data.counter, 3,
+            "Item counter should be 3 from [@3], got {}",
+            data.counter
+        );
     }
 
     /// A headline following a plain list (after a blank line) must NOT be
@@ -478,21 +477,20 @@ mod headline {
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let h = root_children.first().expect("Expected headline");
-        if let Syntax::Headline(data) = &arena[*h].data {
-            let tag_strs: Vec<&str> = data.tags.iter().map(|t| t.0).collect();
-            assert!(
-                tag_strs.contains(&"café"),
-                "Tags should include unicode 'café', got {:?}",
-                tag_strs
-            );
-            assert!(
-                tag_strs.contains(&"标签"),
-                "Tags should include CJK '标签', got {:?}",
-                tag_strs
-            );
-        } else {
+        let Syntax::Headline(data) = &arena[*h].data else {
             panic!("Expected Headline");
-        }
+        };
+        let tag_strs: Vec<&str> = data.tags.iter().map(|t| t.0).collect();
+        assert!(
+            tag_strs.contains(&"café"),
+            "Tags should include unicode 'café', got {:?}",
+            tag_strs
+        );
+        assert!(
+            tag_strs.contains(&"标签"),
+            "Tags should include CJK '标签', got {:?}",
+            tag_strs
+        );
     }
 
     #[test]
@@ -503,15 +501,14 @@ mod headline {
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let h = root_children.first().expect("Expected headline");
-        if let Syntax::Headline(data) = &arena[*h].data {
-            assert!(
-                !data.title.starts_with("COMMENT"),
-                "Title should not include COMMENT keyword, got: {:?}",
-                data.title
-            );
-        } else {
+        let Syntax::Headline(data) = &arena[*h].data else {
             panic!("Expected Headline");
-        }
+        };
+        assert!(
+            !data.title.starts_with("COMMENT"),
+            "Title should not include COMMENT keyword, got: {:?}",
+            data.title
+        );
     }
 
     /// Headline title text is a secondary string in Emacs org-element and is
@@ -620,15 +617,14 @@ mod table {
         let rule_row = table_children
             .get(1)
             .expect("Expected second table row (hline)");
-        if let Syntax::TableRow(row_type) = &arena[*rule_row].data {
-            assert!(
-                matches!(row_type, crate::table::TableRowType::Rule),
-                "Expected hline row to be Rule, got {:?}",
-                row_type
-            );
-        } else {
+        let Syntax::TableRow(row_type) = &arena[*rule_row].data else {
             panic!("Expected TableRow, got: {:?}", arena[*rule_row].data);
-        }
+        };
+        assert!(
+            matches!(row_type, crate::table::TableRowType::Rule),
+            "Expected hline row to be Rule, got {:?}",
+            row_type
+        );
     }
 
     #[test]
@@ -733,15 +729,14 @@ mod blocks {
         let section_children = &arena[*section].children;
         let block = section_children.first().expect("Expected export block");
 
-        if let Syntax::ExportBlock(data) = &arena[*block].data {
-            assert_eq!(
-                data.type_s, "html",
-                "Expected export type_s 'html', got {:?}",
-                data.type_s
-            );
-        } else {
+        let Syntax::ExportBlock(data) = &arena[*block].data else {
             panic!("Expected ExportBlock, got: {:?}", arena[*block].data);
-        }
+        };
+        assert_eq!(
+            data.type_s, "html",
+            "Expected export type_s 'html', got {:?}",
+            data.type_s
+        );
     }
 
     #[test]
@@ -756,16 +751,15 @@ mod blocks {
         let section_children = &arena[*section].children;
         let block = section_children.first().expect("Expected src block");
 
-        if let Syntax::SrcBlock(data) = &arena[*block].data {
-            assert_eq!(
-                data.language,
-                Some("python"),
-                "Expected language 'python', got {:?}",
-                data.language
-            );
-        } else {
+        let Syntax::SrcBlock(data) = &arena[*block].data else {
             panic!("Expected SrcBlock, got: {:?}", arena[*block].data);
-        }
+        };
+        assert_eq!(
+            data.language,
+            Some("python"),
+            "Expected language 'python', got {:?}",
+            data.language
+        );
     }
 
 }
@@ -964,24 +958,18 @@ mod footnote_definition {
             .first()
             .expect("Expected footnote in section");
 
-        if let Syntax::FootnoteDefinition(_) = &arena[*fn_node].data {
-            let content_loc = &arena[*fn_node]
-                .content_location
-                .expect("Footnote definition should have content_location");
-
-            assert_eq!(
-                content_loc.start, 7,
-                "contents-begin should be after [fn:1] and space"
-            );
-
-            let content = &input[content_loc.start..content_loc.end];
-            assert_eq!(content, "This is footnote content", "content should match");
-        } else {
-            panic!(
-                "Expected FootnoteDefinition, got: {:?}",
-                arena[*fn_node].data
-            );
-        }
+        let Syntax::FootnoteDefinition(_) = &arena[*fn_node].data else {
+            panic!("Expected FootnoteDefinition, got: {:?}", arena[*fn_node].data);
+        };
+        let content_loc = &arena[*fn_node]
+            .content_location
+            .expect("Footnote definition should have content_location");
+        assert_eq!(
+            content_loc.start, 7,
+            "contents-begin should be after [fn:1] and space"
+        );
+        let content = &input[content_loc.start..content_loc.end];
+        assert_eq!(content, "This is footnote content", "content should match");
     }
 
     #[test]
@@ -998,19 +986,18 @@ mod footnote_definition {
             .first()
             .expect("Expected footnote in section");
 
-        if let Syntax::FootnoteDefinition(data) = &arena[*fn_node].data {
-            assert_eq!(data.label, "my-label", "Label should be extracted");
-            assert_eq!(data.value, "Some content", "Value should be raw text");
-        } else {
+        let Syntax::FootnoteDefinition(data) = &arena[*fn_node].data else {
             panic!("Expected FootnoteDefinition syntax type");
-        }
+        };
+        assert_eq!(data.label, "my-label", "Label should be extracted");
+        assert_eq!(data.value, "Some content", "Value should be raw text");
     }
 
     #[test]
     fn footnote_reference_inline() {
         let input = "Paragraph with reference[fn:1] and another[fn:inline:inline note]\n";
         let count = get_type_count(input, SyntaxT::FootnoteReference, ParseGranularity::Object);
-        assert!(count >= 2, "Expected footnotes, found {}", count);
+        assert_eq!(count, 2, "Expected 2 footnote references, found {}", count);
     }
 }
 
@@ -1043,26 +1030,25 @@ mod fixed_width {
         let section_children = &arena[*section].children;
         let fw_node = section_children.first().expect("Expected fixed-width node");
 
-        if let Syntax::FixedWidth(raw) = &arena[*fw_node].data {
-            let value = strip_fixed_width_colons(raw);
-            assert!(
-                !value.contains(':'),
-                "Fixed-width value should not contain colons, got: {:?}",
-                value
-            );
-            assert!(
-                value.contains("Line 1"),
-                "Fixed-width value should contain 'Line 1', got: {:?}",
-                value
-            );
-            assert!(
-                value.contains("Line 2"),
-                "Fixed-width value should contain 'Line 2', got: {:?}",
-                value
-            );
-        } else {
+        let Syntax::FixedWidth(raw) = &arena[*fw_node].data else {
             panic!("Expected FixedWidth, got: {:?}", arena[*fw_node].data);
-        }
+        };
+        let value = strip_fixed_width_colons(raw);
+        assert!(
+            !value.contains(':'),
+            "Fixed-width value should not contain colons, got: {:?}",
+            value
+        );
+        assert!(
+            value.contains("Line 1"),
+            "Fixed-width value should contain 'Line 1', got: {:?}",
+            value
+        );
+        assert!(
+            value.contains("Line 2"),
+            "Fixed-width value should contain 'Line 2', got: {:?}",
+            value
+        );
     }
 
 }
@@ -1091,11 +1077,7 @@ mod node_properties {
     fn multiple_node_properties() {
         let input = ":PROPERTIES:\n:CUSTOM_ID: my-id\n:PRIORITY: A\n: tags: :foo:bar:\n:END:\n";
         let count = get_type_count(input, SyntaxT::NodeProperty, ParseGranularity::Element);
-        assert!(
-            count >= 3,
-            "Expected at least 3 node properties, found {}",
-            count
-        );
+        assert_eq!(count, 3, "Expected 3 node properties, found {}", count);
     }
 
     /// `:END:` closes the drawer and must not be parsed as a `NodeProperty`
@@ -1254,22 +1236,21 @@ mod object_parsing {
         let para_children = &arena[*para].children;
         let ts_node = para_children.first().expect("Expected timestamp");
 
-        if let Syntax::Timestamp(data) = &arena[*ts_node].data {
-            assert_eq!(
-                data.hour_end,
-                Some(11),
-                "Expected hour_end 11 from time range 10:15-11:30, got {:?}",
-                data.hour_end
-            );
-            assert_eq!(
-                data.minute_end,
-                Some(30),
-                "Expected minute_end 30 from time range 10:15-11:30, got {:?}",
-                data.minute_end
-            );
-        } else {
+        let Syntax::Timestamp(data) = &arena[*ts_node].data else {
             panic!("Expected Timestamp, got: {:?}", arena[*ts_node].data);
-        }
+        };
+        assert_eq!(
+            data.hour_end,
+            Some(11),
+            "Expected hour_end 11 from time range 10:15-11:30, got {:?}",
+            data.hour_end
+        );
+        assert_eq!(
+            data.minute_end,
+            Some(30),
+            "Expected minute_end 30 from time range 10:15-11:30, got {:?}",
+            data.minute_end
+        );
     }
 
     #[test]
@@ -1285,15 +1266,14 @@ mod object_parsing {
         let para = section_children.first().expect("Expected paragraph");
         let para_children = &arena[*para].children;
         let link_node = para_children.first().expect("Expected link");
-        if let Syntax::Link(data) = &arena[*link_node].data {
-            assert!(
-                matches!(data.link_type(), LinkType::File),
-                "Expected LinkType::File for https link, got {:?}",
-                data.link_type()
-            );
-        } else {
+        let Syntax::Link(data) = &arena[*link_node].data else {
             panic!("Expected Link, got: {:?}", arena[*link_node].data);
-        }
+        };
+        assert!(
+            matches!(data.link_type(), LinkType::File),
+            "Expected LinkType::File for https link, got {:?}",
+            data.link_type()
+        );
     }
 }
 
@@ -1315,9 +1295,9 @@ mod paragraph_edge_cases {
     fn paragraph_contains_list_item() {
         let input = "before\n- item\nafter\n";
         let list_count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert!(
-            list_count >= 1,
-            "Expected at least 1 list when '- item' is mid-paragraph, found {}",
+        assert_eq!(
+            list_count, 1,
+            "Expected 1 list when '- item' is mid-paragraph, found {}",
             list_count
         );
     }
@@ -1335,7 +1315,7 @@ mod granularity {
             ("Paragraph with *bold* text\n", SyntaxT::Bold, ParseGranularity::Object, "object"),
         ] {
             let count = get_type_count(input, *typ, *granularity);
-            assert!(count >= 1, "Expected at least 1 node at {} granularity, found {}", desc, count);
+            assert_eq!(count, 1, "Expected 1 node at {} granularity, found {}", desc, count);
         }
     }
 }
@@ -1395,22 +1375,21 @@ mod od1_compliance {
         let section = root_children.first().expect("section node");
         let section_ch = &arena[*section].children;
         let list = section_ch.first().expect("list node");
-        if let Syntax::PlainList(data) = &arena[*list].data {
-            assert!(
-                matches!(data.type_s, ListKind::Descriptive),
-                "Expected Descriptive list type, got {:?}",
-                data.type_s
-            );
-            let tag = &data.structure.items[0].tag;
-            assert_eq!(
-                *tag,
-                Some("term"),
-                "Item tag should be the term before '::' (got {:?})",
-                tag
-            );
-        } else {
+        let Syntax::PlainList(data) = &arena[*list].data else {
             panic!("Expected PlainList, got {:?}", arena[*list].data);
-        }
+        };
+        assert!(
+            matches!(data.type_s, ListKind::Descriptive),
+            "Expected Descriptive list type, got {:?}",
+            data.type_s
+        );
+        let tag = &data.structure.items[0].tag;
+        assert_eq!(
+            *tag,
+            Some("term"),
+            "Item tag should be the term before '::' (got {:?})",
+            tag
+        );
     }
 
     #[test]
@@ -1514,11 +1493,7 @@ mod od1_compliance {
     fn nested_list_inner_list_parsed() {
         let input = "- outer\n  - inner\n";
         let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert!(
-            count >= 2,
-            "Expected outer and inner PlainList, found {}",
-            count
-        );
+        assert_eq!(count, 2, "Expected outer and inner PlainList, found {}", count);
     }
 
     #[test]
@@ -1543,20 +1518,19 @@ mod od1_compliance {
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let headline = root_children.first().expect("headline");
-        if let Syntax::Headline(data) = &arena[*headline].data {
-            assert!(
-                data.priority > 0,
-                "Expected non-zero priority from [#A], got {}",
-                data.priority
-            );
-            assert!(
-                !data.title.contains("[#A]"),
-                "Priority cookie should not appear in title, got {:?}",
-                data.title
-            );
-        } else {
+        let Syntax::Headline(data) = &arena[*headline].data else {
             panic!("Expected Headline, got {:?}", arena[*headline].data);
-        }
+        };
+        assert!(
+            data.priority > 0,
+            "Expected non-zero priority from [#A], got {}",
+            data.priority
+        );
+        assert!(
+            !data.title.contains("[#A]"),
+            "Priority cookie should not appear in title, got {:?}",
+            data.title
+        );
     }
 
     #[test]
@@ -1635,11 +1609,7 @@ mod od1_compliance {
     fn bold_in_footnote_reference_inline_definition() {
         let input = "text [fn::*bold* note] end\n";
         let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
-        assert!(
-            count >= 1,
-            "Expected bold inside footnote inline definition, found {}",
-            count
-        );
+        assert_eq!(count, 1, "Expected 1 bold inside footnote inline definition, found {}", count);
     }
 
     #[test]
@@ -1657,16 +1627,15 @@ mod od1_compliance {
             .iter()
             .find(|&&n| matches!(arena[n].data, Syntax::Timestamp(_)))
             .expect("timestamp");
-        if let Syntax::Timestamp(data) = &arena[*ts].data {
-            assert_eq!(
-                data.hour_start,
-                Some(10),
-                "Expected hour 10 from '<2023-12-31 Sun 10:30>', got {:?}",
-                data.hour_start
-            );
-        } else {
+        let Syntax::Timestamp(data) = &arena[*ts].data else {
             panic!("Expected Timestamp");
-        }
+        };
+        assert_eq!(
+            data.hour_start,
+            Some(10),
+            "Expected hour 10 from '<2023-12-31 Sun 10:30>', got {:?}",
+            data.hour_start
+        );
     }
 
     #[test]
