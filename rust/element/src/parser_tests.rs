@@ -45,40 +45,17 @@ mod plain_list {
     use super::*;
 
     #[test]
-    fn unordered_list() {
-        let count = get_type_count(
-            "- item 1\n- item 2\n- item 3\n",
-            SyntaxT::PlainList,
-            ParseGranularity::Element,
-        );
-        assert_eq!(count, 1, "Expected 1 plain list (3 items), found {}", count);
-        let count2 = get_type_count(
-            "- item 1\n- item 2\n",
-            SyntaxT::PlainList,
-            ParseGranularity::Element,
-        );
-        assert_eq!(count2, 1, "Expected 1 plain list (2 items), found {}", count2);
-    }
-
-    #[test]
-    fn ordered_list() {
-        let input = "1. item 1\n2. item 2\n3. item 3\n";
-        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 plain list, found {}", count);
-    }
-
-    #[test]
-    fn descriptive_list() {
-        let input = "- term 1 :: description 1\n- term 2 :: description 2\n";
-        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 plain list, found {}", count);
-    }
-
-    #[test]
-    fn list_with_checkbox() {
-        let input = "- [X] checked item\n- [ ] unchecked item\n- [-] partially checked\n";
-        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 plain list, found {}", count);
+    fn plain_list_kinds() {
+        for (input, desc) in &[
+            ("- item 1\n- item 2\n- item 3\n", "unordered 3-item"),
+            ("- item 1\n- item 2\n", "unordered 2-item"),
+            ("1. item 1\n2. item 2\n3. item 3\n", "ordered"),
+            ("- term 1 :: description 1\n- term 2 :: description 2\n", "descriptive"),
+            ("- [X] checked item\n- [ ] unchecked item\n- [-] partially checked\n", "with checkboxes"),
+        ] {
+            let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 plain list ({}), found {}", desc, count);
+        }
     }
 
     #[test]
@@ -499,31 +476,13 @@ mod headline {
             ("* \n", "minimal"),
             ("****  \n", "four stars"),
             ("* title\n", "with title"),
+            ("* TODO [#A] title\n", "with priority"),
+            ("* title :tag1:tag2:\n", "with tags"),
+            ("* TODO title\n", "with keyword"),
         ] {
             let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
             assert_eq!(count, 1, "Expected 1 headline ({}), found {}", desc, count);
         }
-    }
-
-    #[test]
-    fn headline_with_priority() {
-        let input = "* TODO [#A] title\n";
-        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
-    }
-
-    #[test]
-    fn headline_with_tags() {
-        let input = "* title :tag1:tag2:\n";
-        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
-    }
-
-    #[test]
-    fn headline_with_keyword() {
-        let input = "* TODO title\n";
-        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
     }
 
     #[test]
@@ -624,38 +583,33 @@ mod headline {
                 .collect()
         }
 
-        /// Plain-text title: `* foo bar` — no PlainText child of Headline.
+        /// Title objects must not appear as direct Headline children regardless
+        /// of what markup the title contains.
         #[test]
-        fn plain_text_title() {
-            let types = headline_direct_child_types("* foo bar\n");
-            assert!(
-                !types.contains(&SyntaxT::PlainText),
-                "{}",
-                "PlainText must not be a direct child of Headline; got {types:?}"
-            );
-        }
-
-        /// Title with bold markup: `* foo *bold* bar` — no Bold or PlainText
-        /// child of Headline.
-        #[test]
-        fn title_with_markup() {
-            let types = headline_direct_child_types("* foo *bold* bar\n");
-            assert!(
-                !types.contains(&SyntaxT::PlainText) && !types.contains(&SyntaxT::Bold),
-                "{}",
-                "Title markup must not be a direct child of Headline; got {types:?}"
-            );
-        }
-
-        /// Title with a link: `* See [[url][text]]` — no Link child of Headline.
-        #[test]
-        fn title_with_link() {
-            let types = headline_direct_child_types("* See [[https://example.com][text]]\n");
-            assert!(
-                !types.contains(&SyntaxT::Link),
-                "{}",
-                "Link from title must not be a direct child of Headline; got {types:?}"
-            );
+        fn title_objects_not_direct_children() {
+            let inline_types = [
+                SyntaxT::PlainText,
+                SyntaxT::Bold,
+                SyntaxT::Italic,
+                SyntaxT::Underline,
+                SyntaxT::Code,
+                SyntaxT::Verbatim,
+                SyntaxT::Link,
+                SyntaxT::StrikeThrough,
+            ];
+            for (input, desc) in &[
+                ("* foo bar\n", "plain text title"),
+                ("* foo *bold* bar\n", "title with markup"),
+                ("* See [[https://example.com][text]]\n", "title with link"),
+            ] {
+                let types = headline_direct_child_types(input);
+                for t in inline_types {
+                    assert!(
+                        !types.contains(&t),
+                        "{t:?} must not be a direct child of Headline ({desc}); got {types:?}"
+                    );
+                }
+            }
         }
 
         /// Headline with a body section: children should only be Section (and
@@ -1016,16 +970,13 @@ mod clock {
 
     #[test]
     fn must_be_bol() {
-        let input = "   CLOCK: [2023-10-13 Fri 14:40]\n";
-        let count = get_type_count(input, SyntaxT::Clock, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 clock with leading spaces, found {}",
-            count
-        );
-        let input2 = "\tCLOCK: [2023-10-13 Fri 14:40]\n";
-        let count2 = get_type_count(input2, SyntaxT::Clock, ParseGranularity::Element);
-        assert_eq!(count2, 1, "Expected 1 clock with leading tab, found {}", count2);
+        for (input, desc) in &[
+            ("   CLOCK: [2023-10-13 Fri 14:40]\n", "leading spaces"),
+            ("\tCLOCK: [2023-10-13 Fri 14:40]\n", "leading tab"),
+        ] {
+            let count = get_type_count(input, SyntaxT::Clock, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 clock with {}, found {}", desc, count);
+        }
     }
 
     #[test]
@@ -1174,28 +1125,12 @@ mod fixed_width {
         for (input, desc) in &[
             (": Fixed width line\n", "basic"),
             ("  : Indented fixed width\n", "indented"),
+            ("#+NAME: my-fixed\n: Fixed width line\n", "with name affiliated"),
+            (": Line 1\n: Line 2\n: Line 3\n", "multiple lines"),
         ] {
             let count = get_type_count(input, SyntaxT::FixedWidth, ParseGranularity::Element);
             assert_eq!(count, 1, "Expected 1 fixed width ({}), found {}", desc, count);
         }
-    }
-
-    #[test]
-    fn with_name_affiliated() {
-        let input = "#+NAME: my-fixed\n: Fixed width line\n";
-        let count = get_type_count(input, SyntaxT::FixedWidth, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 fixed width with name, found {}",
-            count
-        );
-    }
-
-    #[test]
-    fn multiple_lines() {
-        let input = ": Line 1\n: Line 2\n: Line 3\n";
-        let count = get_type_count(input, SyntaxT::FixedWidth, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 fixed width region, found {}", count);
     }
 
     #[test]
@@ -1342,19 +1277,6 @@ mod horizontal_rule {
 
 mod inlinetask {
     use super::*;
-
-    #[test]
-    fn basic() {
-        let input = "*************** Inlinetask content\n";
-        let count = get_type_count(input, SyntaxT::InlineTask, ParseGranularity::Element);
-        let headline_count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
-        assert!(
-            headline_count >= 1 || count >= 1,
-            "Expected headline or inlinetask, found headline: {}, inlinetask: {}",
-            headline_count,
-            count
-        );
-    }
 
     #[test]
     fn fifteen_stars_is_not_headline() {
@@ -2058,29 +1980,18 @@ mod post_blank {
     }
 
     #[test]
-    fn failed_strikethrough_does_not_split_plain_text() {
-        // "text + more\n"
+    fn failed_markup_does_not_split_plain_text() {
+        // "text + more\n": bare '+' at 5 with no closer must not start a new PlainText.
         //  0    5
-        //       ^-- '+': pre-char (' ') triggers scan_plain_text_end stop here,
-        //            try_parse_strikethrough fails (no closing '+'), but Rust
-        //            currently creates a second PlainText starting at 5.
-        // Emacs emits a single PlainText for the whole "text + more\n".
         let starts = plain_text_starts("text + more\n");
         assert!(
             !starts.contains(&5),
             "plain_text must not start at 5 (the bare '+'); got starts: {:?}",
             starts
         );
-    }
 
-    #[test]
-    fn failed_italic_at_line_start_does_not_split_plain_text() {
-        // "foo\n/bar\n"
+        // "foo\n/bar\n": bare '/' at 4 with no closer must not start a new PlainText.
         //  0   3 4
-        //        ^-- '/': pre-char ('\n') triggers stop, try_parse_italic fails
-        //             (no closing '/'), but Rust currently creates a second
-        //             PlainText starting at 4.
-        // Emacs emits a single PlainText for the whole "foo\n/bar\n".
         let starts = plain_text_starts("foo\n/bar\n");
         assert!(
             !starts.contains(&4),
