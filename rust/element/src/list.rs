@@ -105,7 +105,46 @@ lazy_static! {
 
     pub static ref REGEX_ITEM : CachedRegex =
         CachedRegex::new(Regex::new(r"([ \t]*([-+]|(([0-9]+)[.)]))|[ \t]+\*)([ \t]|$)").unwrap());
+}
 
+/// Byte-level equivalent of `REGEX_ITEM`: check if `line` (a single line
+/// without trailing newline) starts with an Org list item pattern.
+#[inline]
+pub(crate) fn starts_with_item(line: &str) -> bool {
+    let bytes = line.as_bytes();
+    let mut i = 0;
+
+    // Leading whitespace
+    while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        i += 1;
+    }
+    if i >= bytes.len() {
+        return false;
+    }
+
+    match bytes[i] {
+        b'-' | b'+' => i += 1,
+        b'*' => {
+            // Bare '*' at the start of line is never an item.
+            if i == 0 {
+                return false;
+            }
+            i += 1;
+        }
+        _ if bytes[i].is_ascii_digit() => {
+            while i < bytes.len() && bytes[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i >= bytes.len() || (bytes[i] != b'.' && bytes[i] != b')') {
+                return false;
+            }
+            i += 1;
+        }
+        _ => return false,
+    }
+
+    // Must be followed by whitespace or end of line
+    i >= bytes.len() || bytes[i] == b' ' || bytes[i] == b'\t'
 }
 
 /// List structure - tracks items during list parsing

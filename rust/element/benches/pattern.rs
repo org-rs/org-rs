@@ -15,6 +15,9 @@ use org_element::cursor::Cursor;
 use org_element::headline::REGEX_HEADLINE_SHORT;
 use org_element::markup::is_horizontal_rule;
 use org_element::markup::REGEX_FIXED_WIDTH;
+use regex::Regex;
+
+const ITEM_RE: &str = r"([ \t]*([-+]|(([0-9]+)[.)]))|[ \t]+\*)([ \t]|$)";
 use org_element::markup::REGEX_HORIZONTAL_RULE;
 
 // ── inline implementations ───────────────────────────────────────────────────
@@ -106,6 +109,58 @@ fn horizontal_rule_byte(input: &str, pos: usize) -> bool {
     is_horizontal_rule(&input[pos..pos + line_end])
 }
 
+/// Old: Cursor::looking_at with REGEX_ITEM.
+fn item_regex(input: &str, pos: usize, re: &Regex) -> bool {
+    let end = input[pos..]
+        .find('\n')
+        .map(|p| pos + p)
+        .unwrap_or(input.len());
+    re.find(&input[pos..end])
+        .is_some_and(|m| m.start() == 0)
+}
+
+/// New: scan the line — non-whitespace → bullet type → post-bullet space/EOL.
+fn item_byte(input: &str, pos: usize) -> bool {
+    let bytes = &input.as_bytes()[pos..];
+    let line_end = bytes.iter().position(|&b| b == b'\n').unwrap_or(bytes.len());
+    let line = &bytes[..line_end];
+    let mut i = 0;
+
+    // Leading whitespace
+    while i < line.len() && (line[i] == b' ' || line[i] == b'\t') {
+        i += 1;
+    }
+    if i >= line.len() {
+        return false;
+    }
+
+    // Bullet
+    match line[i] {
+        b'-' | b'+' => i += 1,
+        b'*' => {
+            // Must have at least one leading space to be a list item
+            if i == 0 {
+                return false;
+            }
+            i += 1;
+        }
+        _ if line[i].is_ascii_digit() => {
+            // Numbered list: digits then '.' or ')'
+            while i < line.len() && line[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i >= line.len() || (line[i] != b'.' && line[i] != b')') {
+                return false;
+            }
+            i += 1;
+        }
+        _ => return false,
+    }
+
+    // Must be followed by whitespace or end of line
+    i >= line.len() || line[i] == b' ' || line[i] == b'\t'
+}
+
 // ── test corpora ─────────────────────────────────────────────────────────────
 //
 // Each constant is a block of lines with realistic average length so that
@@ -166,6 +221,24 @@ const HRULE_INPUT: &str = concat!(
     "text -----\n",
     "another line of regular content here\n",
     "  -----something\n",
+);
+
+const ITEM_INPUT: &str = concat!(
+    "- a simple list item with some descriptive text\n",
+    "  - indented item under the previous one\n",
+    "+ a plus-bullet item\n",
+    "1. ordered list item\n",
+    "10) another ordered item with a closing paren\n",
+    "regular paragraph text that should not match\n",
+    "  * asterisk item with leading space\n",
+    "* bare asterisk at start of line is not an item\n",
+    "  5. indented ordered item\n",
+    "-----\n",
+    "another paragraph line for non-match testing\n",
+    "  + indented plus item\n",
+    "100. deeply numbered item for edge case testing\n",
+    "text with - dash in middle\n",
+    "  *\n",
 );
 
 // Collect the byte offset of every line start in `s`.
@@ -299,11 +372,48 @@ fn bench_horizontal_rule(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_item(c: &mut Criterion) {
+    let re = Regex::new(ITEM_RE).unwrap();
+    let input = ITEM_INPUT;
+    let positions = line_starts(input);
+
+    // Verify agreement
+    for &pos in &positions {
+        let r = item_regex(input, pos, &re);
+        let b = item_byte(input, pos);
+        assert_eq!(r, b, "Mismatch at byte {}: regex={} byte={}", pos, r, b);
+    }
+
+    let mut group = c.benchmark_group("item_dispatch");
+    group.sample_size(500);
+
+    group.bench_function("regex", |b| {
+        b.iter(|| {
+            positions
+                .iter()
+                .map(|&p| item_regex(black_box(input), p, &re) as usize)
+                .sum::<usize>()
+        })
+    });
+
+    group.bench_function("byte", |b| {
+        b.iter(|| {
+            positions
+                .iter()
+                .map(|&p| item_byte(black_box(input), p) as usize)
+                .sum::<usize>()
+        })
+    });
+
+    group.finish();
+}
+
 fn main() {
     let mut c = Criterion::default().configure_from_args();
     bench_hashtag_dispatch(&mut c);
     bench_fixed_width(&mut c);
     bench_on_headline(&mut c);
     bench_horizontal_rule(&mut c);
+    bench_item(&mut c);
     c.final_summary();
 }

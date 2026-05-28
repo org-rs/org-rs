@@ -15,7 +15,6 @@
 
 use crate::affiliated::ElementSpan;
 use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
-use crate::list::REGEX_ITEM;
 use crate::parser::Parser;
 use memchr::memchr;
 
@@ -71,10 +70,8 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 if crate::markup::is_horizontal_rule(trimmed) {
                     break; // horizontal rule
                 }
-                if let Some(m) = REGEX_ITEM.find(line) {
-                    if m.start() == 0 {
-                        break; // list item
-                    }
+                if crate::list::starts_with_item(line) {
+                    break; // list item
                 }
             }
 
