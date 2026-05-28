@@ -121,8 +121,8 @@ mod plain_list {
 
     /// List with sub-items followed by more top-level items must not
     /// grow the wrong kind of nesting.  Regression test for the
-    /// `lanceberge_aws.org` corpus file where `plain_list_parser` broke
-    /// at sub-items and abandoned remaining same-indent siblings,
+    /// corpus file where `plain_list_parser` broke at sub-items and
+    /// abandoned remaining same-indent siblings,
     /// causing `parse_elements` to re-discover them as a nested list
     /// inside the sub-list rather than as siblings of the parent item.
     ///
@@ -193,7 +193,7 @@ body line
     }
 
     /// A SrcBlock inside a list item followed by more top-level items.
-    /// This is the exact pattern from `lanceberge_jq.org`.
+    /// Regression test for SrcBlock inside a list item with more items.
     #[test]
     fn src_block_inside_item_with_more_items() {
         let input = "\
