@@ -39,39 +39,52 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             let line_end =
                 memchr(b'\n', &self.input.as_bytes()[end..limit]).map_or(limit, |i| end + i + 1);
 
-            // Check if this line is blank (only whitespace).
+            // Inspect the current line (which includes the trailing newline).
             let line = &self.input[end..line_end];
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                // Include the blank line in post_blank but stop content here.
+            let bytes = line.as_bytes();
+
+            // Blank line detection: no content bytes before the trailing `\n`.
+            let line_len = if bytes.last() == Some(&b'\n') {
+                bytes.len() - 1
+            } else {
+                bytes.len()
+            };
+            let content_start = bytes[..line_len]
+                .iter()
+                .position(|&b| b != b' ' && b != b'\t');
+
+            // Blank line — terminate the paragraph.
+            let Some(i) = content_start else {
                 end = line_end;
                 break;
-            }
+            };
 
             // Check if this line starts a new element (only on the
             // second line onwards — the first line is always part of
             // this paragraph).
             if end > start {
-                if trimmed.starts_with('*')
-                    && trimmed.len() > 1
-                    && trimmed
-                        .as_bytes()
-                        .get(1)
-                        .is_some_and(|&b| b == b' ' || b == b'*')
-                {
-                    break; // headline
-                }
-                if trimmed.starts_with("#+") {
-                    break; // keyword or block
-                }
-                if trimmed.starts_with("# ") || trimmed == "#" {
-                    break; // comment
-                }
-                if crate::markup::is_horizontal_rule(trimmed) {
-                    break; // horizontal rule
-                }
-                if crate::list::starts_with_item(line) {
-                    break; // list item
+                match bytes[i] {
+                    // Headline: leading `*` followed by space or more `*`
+                    b'*' if bytes.get(i + 1).is_some_and(|&b| b == b' ' || b == b'*') => break,
+                    // Keyword / block / comment
+                    b'#' => {
+                        if i + 1 < bytes.len() && bytes[i + 1] == b'+' { break; }
+                        if bytes.get(i + 1).is_none_or(|&b| b == b' ') { break; }
+                    }
+                    // List item or horizontal rule
+                    b'-' | b'+' => {
+                        match bytes.get(i + 1) {
+                            // Bullet followed by space / tab / EOL → list item
+                            Some(b' ' | b'\t') | None => break,
+                            // Could be a horizontal rule if 5+ hyphens
+                            _ if crate::markup::is_horizontal_rule(&line[i..]) => break,
+                            _ => {}
+                        }
+                    }
+                    // Numbered list item
+                    _ if bytes[i].is_ascii_digit()
+                        && crate::list::starts_with_item(line) => break,
+                    _ => {}
                 }
             }
 
