@@ -69,7 +69,7 @@ pub struct SyntaxNode<'a, 'b> {
     pub post_blank: usize,
 
     /// Affiliated keywords
-    pub affiliated: Option<AffiliatedData<'a, 'b>>,
+    pub affiliated: Option<&'b AffiliatedData<'a, 'b>>,
 }
 
 /// Builder for [`SyntaxNode`], obtained via [`SyntaxNode::new`].
@@ -89,7 +89,7 @@ pub struct SyntaxNodeBuilder<'a, 'b> {
     location: Interval,
     content_location: Option<Interval>,
     post_blank: usize,
-    affiliated: Option<AffiliatedData<'a, 'b>>,
+    affiliated: Option<&'b AffiliatedData<'a, 'b>>,
     bump: &'b bumpalo::Bump,
 }
 
@@ -108,7 +108,7 @@ impl<'a, 'b> SyntaxNodeBuilder<'a, 'b> {
 
     #[inline]
     pub fn affiliated(mut self, aff: Option<AffiliatedData<'a, 'b>>) -> Self {
-        self.affiliated = aff;
+        self.affiliated = aff.map(|a| &*self.bump.alloc(a));
         self
     }
 
