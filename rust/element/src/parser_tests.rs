@@ -50,11 +50,21 @@ mod plain_list {
             ("- item 1\n- item 2\n- item 3\n", "unordered 3-item"),
             ("- item 1\n- item 2\n", "unordered 2-item"),
             ("1. item 1\n2. item 2\n3. item 3\n", "ordered"),
-            ("- term 1 :: description 1\n- term 2 :: description 2\n", "descriptive"),
-            ("- [X] checked item\n- [ ] unchecked item\n- [-] partially checked\n", "with checkboxes"),
+            (
+                "- term 1 :: description 1\n- term 2 :: description 2\n",
+                "descriptive",
+            ),
+            (
+                "- [X] checked item\n- [ ] unchecked item\n- [-] partially checked\n",
+                "with checkboxes",
+            ),
         ] {
             let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-            assert_eq!(count, 1, "Expected 1 plain list ({}), found {}", desc, count);
+            assert_eq!(
+                count, 1,
+                "Expected 1 plain list ({}), found {}",
+                desc, count
+            );
         }
     }
 
@@ -66,15 +76,27 @@ mod plain_list {
         let (arena, root) = parser.parse_buffer();
         let count = count_type(&arena, root, SyntaxT::PlainList);
         let item_count = count_type(&arena, root, SyntaxT::Item);
-        assert!(count >= 2, "Expected at least 2 PlainLists (outer + inner), found {}", count);
-        assert!(item_count >= 3, "Expected at least 3 items, found {}", item_count);
+        assert!(
+            count >= 2,
+            "Expected at least 2 PlainLists (outer + inner), found {}",
+            count
+        );
+        assert!(
+            item_count >= 3,
+            "Expected at least 3 items, found {}",
+            item_count
+        );
     }
 
     #[test]
     fn list_empty() {
         let input = "- \n";
         let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 plain list for empty item, found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 plain list for empty item, found {}",
+            count
+        );
     }
 
     #[test]
@@ -85,8 +107,16 @@ mod plain_list {
         let (arena, root) = parser.parse_buffer();
         let count = count_type(&arena, root, SyntaxT::PlainList);
         let item_count = count_type(&arena, root, SyntaxT::Item);
-        assert_eq!(count, 1, "Expected 1 plain list with items >=10, found {}", count);
-        assert!(item_count >= 3, "Expected at least 3 items for list items >=10, found {}", item_count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 plain list with items >=10, found {}",
+            count
+        );
+        assert!(
+            item_count >= 3,
+            "Expected at least 3 items for list items >=10, found {}",
+            item_count
+        );
     }
 
     /// List with sub-items followed by more top-level items must not
@@ -179,9 +209,17 @@ jq '.fruit | keys' fruit.json
         let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let count = count_type(&arena, root, SyntaxT::SrcBlock);
-        assert_eq!(count, 1, "Expected 1 SrcBlock inside a list item, found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 SrcBlock inside a list item, found {}",
+            count
+        );
         let item_count = count_type(&arena, root, SyntaxT::Item);
-        assert_eq!(item_count, 2, "Expected exactly 2 items, found {}", item_count);
+        assert_eq!(
+            item_count, 2,
+            "Expected exactly 2 items, found {}",
+            item_count
+        );
     }
 }
 
@@ -208,7 +246,11 @@ mod item {
             ("- [ ] unchecked item\n", "[ ]"),
         ] {
             let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-            assert_eq!(count, 1, "Expected 1 item with {} checkbox, found {}", desc, count);
+            assert_eq!(
+                count, 1,
+                "Expected 1 item with {} checkbox, found {}",
+                desc, count
+            );
         }
     }
 
@@ -409,7 +451,11 @@ mod item {
             for (input, expected, desc) in &[
                 //   0123456789
                 ("- tag :: content\n", 9_usize, "basic ' :: ' separator"),
-                ("- A :: B :: C\n", 12, "greedy: last ' :: ' is the separator"),
+                (
+                    "- A :: B :: C\n",
+                    12,
+                    "greedy: last ' :: ' is the separator",
+                ),
                 ("- tag ::\tcontent\n", 9, "tab after '::'"),
                 ("- tag ::\n  content\n", 9, "content on next line"),
             ] {
@@ -456,7 +502,9 @@ mod headline {
             panic!("Expected Headline for h1, got {:?}", arena[*h1].data);
         };
         let h1_end = arena[*h1].location.end;
-        let h2 = root_children.get(1).expect("Expected second top-level headline");
+        let h2 = root_children
+            .get(1)
+            .expect("Expected second top-level headline");
         let Syntax::Headline(_) = &arena[*h2].data else {
             panic!("Expected Headline for h2, got {:?}", arena[*h2].data);
         };
@@ -553,7 +601,10 @@ mod headline {
                 ("* foo bar\n", "plain text title"),
                 ("* foo *bold* bar\n", "title with markup"),
                 ("* See [[https://example.com][text]]\n", "title with link"),
-                ("* Title with *bold*\nsome body text\n** Sub\n", "headline with body and sub"),
+                (
+                    "* Title with *bold*\nsome body text\n** Sub\n",
+                    "headline with body and sub",
+                ),
             ] {
                 let types = headline_direct_child_types(input);
                 for t in inline_types {
@@ -573,9 +624,15 @@ mod table {
     #[test]
     fn simple_table() {
         for (input, desc) in &[
-            ("| col 1 | col 2 |\n|-----|-----|\n| a | b |\n| c | d |\n", "rows + hline"),
+            (
+                "| col 1 | col 2 |\n|-----|-----|\n| a | b |\n| c | d |\n",
+                "rows + hline",
+            ),
             ("| a | b |\n| c | d |\n", "data only"),
-            ("| head1 | head2 |\n|--------|--------|\n| body1 | body2 |\n", "header + hline"),
+            (
+                "| head1 | head2 |\n|--------|--------|\n| body1 | body2 |\n",
+                "header + hline",
+            ),
         ] {
             let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
             assert_eq!(count, 1, "Expected 1 table ({}), found {}", desc, count);
@@ -694,12 +751,36 @@ mod blocks {
     #[test]
     fn block_types() {
         for (input, typ, desc) in &[
-            ("#+BEGIN_CENTER\nCentered text\n#+END_CENTER\n", SyntaxT::CenterBlock, "center"),
-            ("#+BEGIN_VERSE\nVerse line 1\nVerse line 2\n#+END_VERSE\n", SyntaxT::VerseBlock, "verse"),
-            ("#+BEGIN_SPECIAL\nCustom block content\n#+END_SPECIAL\n", SyntaxT::SpecialBlock, "special"),
-            ("#+BEGIN: my-block :param value\nBlock content\n#+END:\n", SyntaxT::DynamicBlock, "dynamic"),
-            ("#+begin_center\nCentered\n#+end_center\n", SyntaxT::CenterBlock, "center lowercase"),
-            ("#+BEGIN_CENTER\ncenter\n#+end_center \n", SyntaxT::CenterBlock, "center trailing space on END"),
+            (
+                "#+BEGIN_CENTER\nCentered text\n#+END_CENTER\n",
+                SyntaxT::CenterBlock,
+                "center",
+            ),
+            (
+                "#+BEGIN_VERSE\nVerse line 1\nVerse line 2\n#+END_VERSE\n",
+                SyntaxT::VerseBlock,
+                "verse",
+            ),
+            (
+                "#+BEGIN_SPECIAL\nCustom block content\n#+END_SPECIAL\n",
+                SyntaxT::SpecialBlock,
+                "special",
+            ),
+            (
+                "#+BEGIN: my-block :param value\nBlock content\n#+END:\n",
+                SyntaxT::DynamicBlock,
+                "dynamic",
+            ),
+            (
+                "#+begin_center\nCentered\n#+end_center\n",
+                SyntaxT::CenterBlock,
+                "center lowercase",
+            ),
+            (
+                "#+BEGIN_CENTER\ncenter\n#+end_center \n",
+                SyntaxT::CenterBlock,
+                "center trailing space on END",
+            ),
         ] {
             let count = get_type_count(input, *typ, ParseGranularity::Element);
             assert_eq!(count, 1, "Expected 1 {} block, found {}", desc, count);
@@ -761,7 +842,6 @@ mod blocks {
             data.language
         );
     }
-
 }
 
 mod drawer {
@@ -781,14 +861,25 @@ mod drawer {
     #[test]
     fn property_drawer_and_node_properties() {
         for (input, expected_props, desc) in &[
-            (":PROPERTIES:\n:CUSTOM_ID: my-id\n:END:\n", 1_usize, "single property"),
-            (":PROPERTIES:\n:ID: test-id\n:CUSTOM_ID: custom-id\n:END:\n", 2, "two properties"),
+            (
+                ":PROPERTIES:\n:CUSTOM_ID: my-id\n:END:\n",
+                1_usize,
+                "single property",
+            ),
+            (
+                ":PROPERTIES:\n:ID: test-id\n:CUSTOM_ID: custom-id\n:END:\n",
+                2,
+                "two properties",
+            ),
         ] {
             let pd_count =
                 get_type_count(input, SyntaxT::PropertyDrawer, ParseGranularity::Element);
-            assert_eq!(pd_count, 1, "Expected 1 property drawer ({}), found {}", desc, pd_count);
-            let np_count =
-                get_type_count(input, SyntaxT::NodeProperty, ParseGranularity::Element);
+            assert_eq!(
+                pd_count, 1,
+                "Expected 1 property drawer ({}), found {}",
+                desc, pd_count
+            );
+            let np_count = get_type_count(input, SyntaxT::NodeProperty, ParseGranularity::Element);
             assert_eq!(
                 np_count, *expected_props,
                 "Expected {} node properties ({}), found {}",
@@ -807,7 +898,6 @@ mod drawer {
             count
         );
     }
-
 }
 
 mod planning {
@@ -841,7 +931,6 @@ mod comment {
             assert_eq!(count, 1, "Expected 1 comment ({}), found {}", desc, count);
         }
     }
-
 }
 
 mod clock {
@@ -851,7 +940,10 @@ mod clock {
     fn clock_variants() {
         for (input, desc) in &[
             ("CLOCK: [2023-10-13 Fri 14:40]\n", "running"),
-            ("CLOCK: [2023-10-13 Fri 14:40]--[2023-10-13 Fri 14:51] => 0:11\n", "closed"),
+            (
+                "CLOCK: [2023-10-13 Fri 14:40]--[2023-10-13 Fri 14:51] => 0:11\n",
+                "closed",
+            ),
             ("Clock: [2023-10-13 Fri 14:40]\n", "case insensitive"),
             ("CLOCK: => 0:11\n", "duration only"),
         ] {
@@ -889,11 +981,18 @@ mod diary_sexp {
     #[test]
     fn diary_sexp() {
         for (input, desc) in &[
-            ("%%(org-anniversary 1956 5 14) Arthur Dent is %d years old\n", "full"),
+            (
+                "%%(org-anniversary 1956 5 14) Arthur Dent is %d years old\n",
+                "full",
+            ),
             ("%%(diary-sexp)\n", "minimal"),
         ] {
             let count = get_type_count(input, SyntaxT::DiarySexp, ParseGranularity::Element);
-            assert_eq!(count, 1, "Expected 1 diary sexp ({}), found {}", desc, count);
+            assert_eq!(
+                count, 1,
+                "Expected 1 diary sexp ({}), found {}",
+                desc, count
+            );
         }
     }
 
@@ -915,12 +1014,25 @@ mod latex_environment {
     #[test]
     fn latex_environment() {
         for (input, desc) in &[
-            ("\\begin{equation}\nE = mc^2\n\\end{equation}\n", "basic equation"),
-            ("\\begin{equation}\n\\frac{a}{b}\n\\end{equation}\n", "equation with frac"),
-            ("\\begin{aligned}\na &= b \\\\\nc &= d\n\\end{aligned}\n", "aligned"),
+            (
+                "\\begin{equation}\nE = mc^2\n\\end{equation}\n",
+                "basic equation",
+            ),
+            (
+                "\\begin{equation}\n\\frac{a}{b}\n\\end{equation}\n",
+                "equation with frac",
+            ),
+            (
+                "\\begin{aligned}\na &= b \\\\\nc &= d\n\\end{aligned}\n",
+                "aligned",
+            ),
         ] {
             let count = get_type_count(input, SyntaxT::LatexEnvironment, ParseGranularity::Element);
-            assert_eq!(count, 1, "Expected 1 latex environment ({}), found {}", desc, count);
+            assert_eq!(
+                count, 1,
+                "Expected 1 latex environment ({}), found {}",
+                desc, count
+            );
         }
     }
 }
@@ -940,7 +1052,11 @@ mod footnote_definition {
                 SyntaxT::FootnoteDefinition,
                 ParseGranularity::Element,
             );
-            assert_eq!(count, 1, "Expected 1 footnote definition ({}), found {}", desc, count);
+            assert_eq!(
+                count, 1,
+                "Expected 1 footnote definition ({}), found {}",
+                desc, count
+            );
         }
     }
 
@@ -959,7 +1075,10 @@ mod footnote_definition {
             .expect("Expected footnote in section");
 
         let Syntax::FootnoteDefinition(_) = &arena[*fn_node].data else {
-            panic!("Expected FootnoteDefinition, got: {:?}", arena[*fn_node].data);
+            panic!(
+                "Expected FootnoteDefinition, got: {:?}",
+                arena[*fn_node].data
+            );
         };
         let content_loc = &arena[*fn_node]
             .content_location
@@ -1010,11 +1129,18 @@ mod fixed_width {
         for (input, desc) in &[
             (": Fixed width line\n", "basic"),
             ("  : Indented fixed width\n", "indented"),
-            ("#+NAME: my-fixed\n: Fixed width line\n", "with name affiliated"),
+            (
+                "#+NAME: my-fixed\n: Fixed width line\n",
+                "with name affiliated",
+            ),
             (": Line 1\n: Line 2\n: Line 3\n", "multiple lines"),
         ] {
             let count = get_type_count(input, SyntaxT::FixedWidth, ParseGranularity::Element);
-            assert_eq!(count, 1, "Expected 1 fixed width ({}), found {}", desc, count);
+            assert_eq!(
+                count, 1,
+                "Expected 1 fixed width ({}), found {}",
+                desc, count
+            );
         }
     }
 
@@ -1050,7 +1176,6 @@ mod fixed_width {
             value
         );
     }
-
 }
 
 mod babel_call {
@@ -1065,7 +1190,11 @@ mod babel_call {
             ("#+CALL: test(n=4)\n", "with arguments"),
         ] {
             let count = get_type_count(input, SyntaxT::BabelCall, ParseGranularity::Element);
-            assert_eq!(count, 1, "Expected 1 babel call ({}), found {}", desc, count);
+            assert_eq!(
+                count, 1,
+                "Expected 1 babel call ({}), found {}",
+                desc, count
+            );
         }
     }
 }
@@ -1144,7 +1273,11 @@ mod horizontal_rule {
     fn horizontal_rule_basic_and_with_spaces() {
         for (input, desc) in &[("-----\n", "basic"), ("   -----   \n", "with spaces")] {
             let count = get_type_count(input, SyntaxT::HorizontalRule, ParseGranularity::Element);
-            assert_eq!(count, 1, "Expected 1 horizontal rule ({}), found {}", desc, count);
+            assert_eq!(
+                count, 1,
+                "Expected 1 horizontal rule ({}), found {}",
+                desc, count
+            );
         }
     }
 }
@@ -1188,12 +1321,16 @@ mod object_parsing {
 
     #[test]
     fn single_char_markup() {
-        for (input, typ) in &[
-            ("*a*\n", SyntaxT::Bold),
-            ("/a/\n", SyntaxT::Italic),
-        ] {
+        for (input, typ) in &[("*a*\n", SyntaxT::Bold), ("/a/\n", SyntaxT::Italic)] {
             let count = get_type_count(input, *typ, ParseGranularity::Object);
-            assert_eq!(count, 1, "Expected 1 {:?} from single-char input '{}', found {}", typ, input.trim(), count);
+            assert_eq!(
+                count,
+                1,
+                "Expected 1 {:?} from single-char input '{}', found {}",
+                typ,
+                input.trim(),
+                count
+            );
         }
     }
 
@@ -1309,13 +1446,37 @@ mod granularity {
     #[test]
     fn granularity_levels() {
         for (input, typ, granularity, desc) in &[
-            ("* Headline\n\nSome paragraph\n", SyntaxT::Headline, ParseGranularity::Headline, "headline"),
-            ("* Headline\n\n#+BEGIN_CENTER\nCenter\n#+END_CENTER\n", SyntaxT::CenterBlock, ParseGranularity::GreaterElement, "greater element"),
-            ("* Headline\n\nParagraph text\n", SyntaxT::Paragraph, ParseGranularity::Element, "element"),
-            ("Paragraph with *bold* text\n", SyntaxT::Bold, ParseGranularity::Object, "object"),
+            (
+                "* Headline\n\nSome paragraph\n",
+                SyntaxT::Headline,
+                ParseGranularity::Headline,
+                "headline",
+            ),
+            (
+                "* Headline\n\n#+BEGIN_CENTER\nCenter\n#+END_CENTER\n",
+                SyntaxT::CenterBlock,
+                ParseGranularity::GreaterElement,
+                "greater element",
+            ),
+            (
+                "* Headline\n\nParagraph text\n",
+                SyntaxT::Paragraph,
+                ParseGranularity::Element,
+                "element",
+            ),
+            (
+                "Paragraph with *bold* text\n",
+                SyntaxT::Bold,
+                ParseGranularity::Object,
+                "object",
+            ),
         ] {
             let count = get_type_count(input, *typ, *granularity);
-            assert_eq!(count, 1, "Expected 1 node at {} granularity, found {}", desc, count);
+            assert_eq!(
+                count, 1,
+                "Expected 1 node at {} granularity, found {}",
+                desc, count
+            );
         }
     }
 }
@@ -1410,9 +1571,17 @@ mod od1_compliance {
     #[test]
     fn links_bare_bracketed_with_and_without_description() {
         for (input, desc, count) in &[
-            ("Visit https://example.com today\n", "bare https URL", 1_usize),
+            (
+                "Visit https://example.com today\n",
+                "bare https URL",
+                1_usize,
+            ),
             ("[[https://example.com]]\n", "bracketed no description", 1),
-            ("[[https://example.com][visit here]]\n", "bracketed with description", 1),
+            (
+                "[[https://example.com][visit here]]\n",
+                "bracketed with description",
+                1,
+            ),
         ] {
             let found = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
             assert_eq!(
@@ -1493,7 +1662,11 @@ mod od1_compliance {
     fn nested_list_inner_list_parsed() {
         let input = "- outer\n  - inner\n";
         let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert_eq!(count, 2, "Expected outer and inner PlainList, found {}", count);
+        assert_eq!(
+            count, 2,
+            "Expected outer and inner PlainList, found {}",
+            count
+        );
     }
 
     #[test]
@@ -1609,7 +1782,11 @@ mod od1_compliance {
     fn bold_in_footnote_reference_inline_definition() {
         let input = "text [fn::*bold* note] end\n";
         let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
-        assert_eq!(count, 1, "Expected 1 bold inside footnote inline definition, found {}", count);
+        assert_eq!(
+            count, 1,
+            "Expected 1 bold inside footnote inline definition, found {}",
+            count
+        );
     }
 
     #[test]
@@ -1725,14 +1902,22 @@ mod subscript_superscript {
                 Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
             let scripts = find_script(&arena, root);
-            assert!(!scripts.is_empty(), "expected a Script node for {}; got none", desc);
+            assert!(
+                !scripts.is_empty(),
+                "expected a Script node for {}; got none",
+                desc
+            );
             if let Some(kind) = expected_kind {
                 let actual = if let Syntax::Script(f) = arena[scripts[0]].data {
                     f.kind()
                 } else {
                     unreachable!()
                 };
-                assert_eq!(actual, *kind, "expected {:?} for {}, got {:?}", kind, desc, actual);
+                assert_eq!(
+                    actual, *kind,
+                    "expected {:?} for {}, got {:?}",
+                    kind, desc, actual
+                );
             }
         }
     }
@@ -1747,7 +1932,11 @@ mod subscript_superscript {
                 Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
             let scripts = find_script(&arena, root);
-            assert!(!scripts.is_empty(), "no Script node found for {} subscript", desc);
+            assert!(
+                !scripts.is_empty(),
+                "no Script node found for {} subscript",
+                desc
+            );
             let script_id = scripts[0];
             let children = &arena[script_id].children;
             assert_eq!(

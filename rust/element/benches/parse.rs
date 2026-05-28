@@ -123,7 +123,10 @@ fn make_list_heavy(items_per_list: usize) -> String {
     for _ in 0..3 {
         for i in 0..items_per_list {
             if i % 10 == 5 {
-                s.push_str(&format!("- outer item {}\n  - nested item {}\n  - nested item {} b\n", i, i, i));
+                s.push_str(&format!(
+                    "- outer item {}\n  - nested item {}\n  - nested item {} b\n",
+                    i, i, i
+                ));
             } else {
                 s.push_str(&format!("- list item {}\n", i));
             }
@@ -223,8 +226,7 @@ fn bench_traverse(c: &mut Criterion) {
     for (label, n) in [("3k", 1), ("34k", 10), ("340k", 100)] {
         let corpus = make_corpus(n);
         let bump = Bump::new();
-        let mut parser =
-            Parser::new(&corpus, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let mut parser = Parser::new(&corpus, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
         group.bench_function(label, |b| {
