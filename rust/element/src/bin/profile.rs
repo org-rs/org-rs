@@ -1,10 +1,14 @@
+use org_element::prelude::*;
 use std::fs;
 use std::time::Instant;
-use org_element::prelude::*;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let path = if args.len() > 1 { &args[1] } else { "benches/corpus/large.org" };
+    let path = if args.len() > 1 {
+        &args[1]
+    } else {
+        "benches/corpus/large.org"
+    };
 
     let input = fs::read_to_string(path).expect("read corpus file");
 
@@ -22,7 +26,12 @@ fn main() {
 
     // Warmup
     let bump = bumpalo::Bump::new();
-    let mut parser = Parser::new(&corpus, ParseGranularity::Element, DefaultEnvironment, &bump);
+    let mut parser = Parser::new(
+        &corpus,
+        ParseGranularity::Element,
+        DefaultEnvironment,
+        &bump,
+    );
     parser.parse_buffer();
 
     let granularities = [

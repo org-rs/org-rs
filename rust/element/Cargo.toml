@@ -14,7 +14,7 @@ strum = "0.28"
 strum_macros = "0.28"
 lexpr = "0.2"
 goof = "0.3"
-bumpalo = "3"
+bumpalo = { version = "3", features = ["collections"] }
 
 [dev-dependencies]
 criterion = "0.5"

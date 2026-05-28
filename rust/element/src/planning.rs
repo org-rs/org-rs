@@ -55,7 +55,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         if deadline.is_none() && scheduled.is_none() && closed.is_none() {
             return self
                 .arena
-                .alloc(SyntaxNode::fallback(self.input, start, limit));
+                .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump));
         }
 
         let post_blank = if end < limit {
@@ -73,9 +73,13 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         };
 
         self.arena.alloc(
-            SyntaxNode::new(Syntax::Planning(self.bump.alloc(planning_data)), (start, end))
-                .post_blank(post_blank)
-                .build(),
+            SyntaxNode::new(
+                Syntax::Planning(self.bump.alloc(planning_data)),
+                (start, end),
+                self.bump,
+            )
+            .post_blank(post_blank)
+            .build(),
         )
     }
 
@@ -120,7 +124,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         if !Self::is_valid_clock_timestamp(value) {
             return self
                 .arena
-                .alloc(SyntaxNode::fallback(self.input, start, limit));
+                .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump));
         }
 
         let end = line_end;
@@ -137,6 +141,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             SyntaxNode::new(
                 Syntax::Clock(self.bump.alloc(crate::data::ClockData::new(value))),
                 (start, end),
+                self.bump,
             )
             .post_blank(post_blank)
             .build(),
@@ -226,7 +231,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             None => {
                 return self
                     .arena
-                    .alloc(SyntaxNode::fallback(self.input, start, limit))
+                    .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump))
             }
         };
 
@@ -235,7 +240,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             None => {
                 return self
                     .arena
-                    .alloc(SyntaxNode::fallback(self.input, start, limit))
+                    .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump))
             }
         };
 
@@ -253,7 +258,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         };
 
         self.arena.alloc(
-            SyntaxNode::new(Syntax::DiarySexp(value), (start, end))
+            SyntaxNode::new(Syntax::DiarySexp(value), (start, end), self.bump)
                 .post_blank(post_blank)
                 .affiliated(affiliated)
                 .build(),

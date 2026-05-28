@@ -59,7 +59,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         if !REGEX_BABEL_CALL.is_match(input_slice) {
             return self
                 .arena
-                .alloc(SyntaxNode::fallback(self.input, start, limit));
+                .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump));
         }
 
         let line_end = memchr(b'\n', input_slice.as_bytes()).map_or(limit, |i| start + i);
@@ -93,6 +93,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     value,
                 })),
                 (start, line_end),
+                self.bump,
             )
             .post_blank(post_blank)
             .affiliated(affiliated)

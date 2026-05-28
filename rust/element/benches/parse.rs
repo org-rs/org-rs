@@ -1,5 +1,5 @@
-use criterion::{black_box, Criterion};
 use bumpalo::Bump;
+use criterion::{black_box, Criterion};
 
 use org_element::prelude::*;
 
