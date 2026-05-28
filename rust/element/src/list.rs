@@ -62,8 +62,6 @@
 //!     (item))))
 //!
 
-use std::rc::Rc;
-
 use crate::affiliated::ElementSpan;
 use crate::data::{BumpVec, Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
@@ -111,10 +109,10 @@ pub(crate) fn starts_with_item(line: &str) -> bool {
 
 /// List structure - tracks items during list parsing
 /// Used to compute list boundaries and parent-child relationships
-#[derive(Debug, Clone)]
-pub struct ListStruct<'a> {
+#[derive(Debug)]
+pub struct ListStruct<'a, 'b> {
     /// Items found so far: (position, indent, bullet, counter, checkbox, tag)
-    pub items: Vec<ListItem<'a>>,
+    pub items: BumpVec<'b, ListItem<'a>>,
     /// Byte position at which the list ends — the first line that is not part
     /// of the list (a headline, a less-indented line, or end of input).
     /// Set by `list_struct` when the scan terminates.
@@ -131,18 +129,11 @@ pub struct ListItem<'a> {
     pub tag: Option<&'a str>,
 }
 
-impl<'a> Default for ListStruct<'a> {
+impl<'a, 'b> ListStruct<'a, 'b> {
     #[inline]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<'a> ListStruct<'a> {
-    #[inline]
-    pub fn new() -> Self {
+    pub fn new_in(bump: &'b bumpalo::Bump) -> Self {
         ListStruct {
-            items: Vec::new(),
+            items: BumpVec::new_in(bump),
             end: 0,
         }
     }
@@ -163,15 +154,12 @@ pub struct ItemData<'rope> {
     raw_tag: Option<&'rope str>,
     /// Parsed item's tag, if any (secondary string or nil).
     tag: Option<&'rope str>,
-    // TODO figure out what is list structure
-    // /// Full list's structure, as returned by org_list_struct (alist).
-    structure: ListStruct<'rope>,
 }
 
 #[derive(Debug)]
-pub struct PlainListData<'a> {
+pub struct PlainListData<'a, 'b> {
     /// Full list's structure, as returned by org_list_struct (alist).
-    pub structure: Rc<ListStruct<'a>>,
+    pub structure: &'b ListStruct<'a, 'b>,
 
     ///List's type (symbol descriptive, ordered, unordered).
     pub type_s: ListKind,
@@ -244,11 +232,7 @@ fn desc_content_start(input: &str, from: usize, limit: usize) -> Option<usize> {
 impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Fallback: item parser (not yet fully implemented).
     #[inline]
-    pub fn item_parser(
-        &mut self,
-        _structure: Option<Rc<ListStruct<'a>>>,
-        _raw_secondary_p: bool,
-    ) -> NodeId {
+    pub fn item_parser(&mut self) -> NodeId {
         let start = self.cursor.pos();
         self.arena.alloc(SyntaxNode::fallback(
             self.input,
@@ -263,7 +247,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     pub fn plain_list_parser(
         &mut self,
         element_span: ElementSpan<'a, 'b>,
-        structure: Rc<ListStruct<'a>>,
+        structure: &'b ListStruct<'a, 'b>,
     ) -> NodeId {
         let span = element_span.span;
         let items = &structure.items;
@@ -319,7 +303,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         }
 
         let list_data = PlainListData {
-            structure: structure.clone(),
+            structure,
             type_s: list_type,
         };
 
@@ -380,7 +364,6 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             pre_blank: 0,
             raw_tag: tag,
             tag,
-            structure: ListStruct::new(),
         };
 
         let mut node = SyntaxNode::new(
@@ -397,8 +380,9 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     /// Scan input for list items at current indentation level
     /// Matches Elisp's org-element--list-struct
     #[inline]
-    pub fn list_struct(&self, limit: usize) -> Rc<ListStruct<'a>> {
-        let mut items = Vec::new();
+    pub fn list_struct(&self, limit: usize) -> &'b ListStruct<'a, 'b> {
+        let bump = self.bump;
+        let mut items = BumpVec::new_in(bump);
         let mut pos = self.cursor.pos();
         let input = self.input;
 
@@ -490,7 +474,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             pos = next_pos;
         }
 
-        Rc::new(ListStruct { items, end: pos })
+        bump.alloc(ListStruct { items, end: pos })
     }
 
     fn get_indent(line: &str) -> (usize, &str) {

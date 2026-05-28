@@ -103,10 +103,88 @@ fn bench_parse_viewport(c: &mut Criterion) {
     group.finish();
 }
 
+/// 500 headlines each carrying 3 tags, separated by 8 lines of body text.
+/// Stresses: tag-Vec allocation per headline (#1) and find_headline_end (#5).
+fn make_headline_heavy(count: usize) -> String {
+    let mut s = String::with_capacity(count * 120);
+    for i in 0..count {
+        s.push_str(&format!(
+            "* Headline {} :alpha:beta:gamma:\nSome body text on line one.\nLine two of body.\nLine three.\nLine four.\nLine five.\nLine six.\nLine seven.\nLine eight.\n",
+            i
+        ));
+    }
+    s
+}
+
+/// 3 lists each with `items_per_list` items, some nested two levels deep.
+/// Stresses: Rc<ListStruct> cloning per item (#3).
+fn make_list_heavy(items_per_list: usize) -> String {
+    let mut s = String::with_capacity(items_per_list * 40);
+    for _ in 0..3 {
+        for i in 0..items_per_list {
+            if i % 10 == 5 {
+                s.push_str(&format!("- outer item {}\n  - nested item {}\n  - nested item {} b\n", i, i, i));
+            } else {
+                s.push_str(&format!("- list item {}\n", i));
+            }
+        }
+        s.push('\n');
+    }
+    s
+}
+
+fn bench_headline_heavy(c: &mut Criterion) {
+    let mut group = c.benchmark_group("headline_heavy");
+    group.sample_size(100);
+
+    for (label, n) in [("50", 50), ("200", 200), ("1000", 1000)] {
+        let corpus = make_headline_heavy(n);
+        group.bench_function(label, |b| {
+            b.iter(|| {
+                let bump = Bump::new();
+                let mut parser = Parser::new(
+                    black_box(&corpus),
+                    ParseGranularity::Object,
+                    DefaultEnvironment,
+                    &bump,
+                );
+                parser.parse_buffer();
+            })
+        });
+    }
+
+    group.finish();
+}
+
+fn bench_list_heavy(c: &mut Criterion) {
+    let mut group = c.benchmark_group("list_heavy");
+    group.sample_size(100);
+
+    for (label, n) in [("50", 50), ("200", 200), ("1000", 1000)] {
+        let corpus = make_list_heavy(n);
+        group.bench_function(label, |b| {
+            b.iter(|| {
+                let bump = Bump::new();
+                let mut parser = Parser::new(
+                    black_box(&corpus),
+                    ParseGranularity::Object,
+                    DefaultEnvironment,
+                    &bump,
+                );
+                parser.parse_buffer();
+            })
+        });
+    }
+
+    group.finish();
+}
+
 fn main() {
     let mut c = Criterion::default().configure_from_args();
     bench_parse_sizes(&mut c);
     bench_parse_granularity(&mut c);
     bench_parse_viewport(&mut c);
+    bench_headline_heavy(&mut c);
+    bench_list_heavy(&mut c);
     c.final_summary();
 }
