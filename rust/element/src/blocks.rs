@@ -21,14 +21,6 @@ use memchr::memchr;
 use regex::Regex;
 
 lazy_static! {
-    /// Used to identify the  Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
-    pub static ref REGEX_STARTS_WITH_HASHTAG: CachedRegex =
-        CachedRegex::new(Regex::new(r"[ \t]*#").unwrap());
-
-    /// Used to identify Comments. Used together with REGEX_STARTS_WITH_HASHTAG
-    pub static ref REGEX_COLON_OR_EOL: CachedRegex =
-        CachedRegex::new(Regex::new(r"(?: |$)").unwrap());
-
     /// Used to identify center, comment, example, export, quote, source, verse
     /// and special blocks. Used together with REGEX_STARTS_WITH_HASHTAG
     /// Case insensitive to match #+BEGIN_CENTER and #+begin_center

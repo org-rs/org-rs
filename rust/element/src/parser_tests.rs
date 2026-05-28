@@ -664,6 +664,7 @@ mod headline {
             let types = headline_direct_child_types("* foo bar\n");
             assert!(
                 !types.contains(&SyntaxT::PlainText),
+                "{}",
                 "PlainText must not be a direct child of Headline; got {types:?}"
             );
         }
@@ -675,6 +676,7 @@ mod headline {
             let types = headline_direct_child_types("* foo *bold* bar\n");
             assert!(
                 !types.contains(&SyntaxT::PlainText) && !types.contains(&SyntaxT::Bold),
+                "{}",
                 "Title markup must not be a direct child of Headline; got {types:?}"
             );
         }
@@ -685,6 +687,7 @@ mod headline {
             let types = headline_direct_child_types("* See [[https://example.com][text]]\n");
             assert!(
                 !types.contains(&SyntaxT::Link),
+                "{}",
                 "Link from title must not be a direct child of Headline; got {types:?}"
             );
         }
@@ -708,6 +711,7 @@ mod headline {
             for t in inline_types {
                 assert!(
                     !types.contains(&t),
+                    "{}",
                     "{t:?} must not be a direct child of Headline; children: {types:?}"
                 );
             }
@@ -2115,6 +2119,7 @@ mod od1_compliance {
             let children = link_children("[[https://example.com][OpenPGP]]\n");
             assert!(
                 children.contains(&SyntaxT::PlainText),
+                "{}",
                 "expected PlainText child for link description; got {children:?}"
             );
         }
@@ -2125,6 +2130,7 @@ mod od1_compliance {
             let children = link_children("[[https://example.com]]\n");
             assert!(
                 children.is_empty(),
+                "{}",
                 "link without description should have no children; got {children:?}"
             );
         }
@@ -2135,6 +2141,7 @@ mod od1_compliance {
             let children = link_children("[[https://example.com][*bold*]]\n");
             assert!(
                 children.contains(&SyntaxT::Bold),
+                "{}",
                 "expected Bold child for bold link description; got {children:?}"
             );
         }
@@ -2490,6 +2497,7 @@ mod subscript_superscript {
         let scripts = find_script(&arena, root);
         assert!(
             !scripts.is_empty(),
+            "{}",
             "expected a Script node for 'H_{{2}}O'; got none"
         );
     }
@@ -2522,6 +2530,7 @@ mod subscript_superscript {
         let scripts = find_script(&arena, root);
         assert!(
             !scripts.is_empty(),
+            "{}",
             "expected a Script node for 'x^{{n+1}}'; got none"
         );
     }

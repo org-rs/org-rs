@@ -65,47 +65,9 @@
 use std::rc::Rc;
 
 use crate::affiliated::ElementSpan;
-use crate::cursor::CachedRegex;
 use crate::data::{BumpVec, Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use memchr::{memchr, memmem};
-use regex::Regex;
-
-lazy_static! {
-
-//TODO implement all regexes
-// (defconst org-list-end-re "^[ \t]*\n[ \t]*\n"
-//   "Regex matching the end of a plain list.")
-//
-// (defconst org-list-full-item-re
-//   (concat "^[ \t]*\\(\\(?:[-+*]\\|\\(?:[0-9]+\\|[A-Za-z]\\)[.)]\\)\\(?:[ \t]+\\|$\\)\\)"
-// 	  "\\(?:\\[@\\(?:start:\\)?\\([0-9]+\\|[A-Za-z]\\)\\][ \t]*\\)?"
-// 	  "\\(?:\\(\\[[ X-]\\]\\)\\(?:[ \t]+\\|$\\)\\)?"
-// 	  "\\(?:\\(.*\\)[ \t]+::\\(?:[ \t]+\\|$\\)\\)?")
-//   "Matches a list item and puts everything into groups:
-// group 1: bullet
-// group 2: counter
-// group 3: checkbox
-// group 4: description tag")
-//
-// (defun org-item-re ()
-//   "Return the correct regular expression for plain lists."
-//   (let ((term (cond
-// 	       ((eq org-plain-list-ordered-item-terminator t) "[.)]")
-// 	       ((=  org-plain-list-ordered-item-terminator ?\)) ")")
-// 	       ((=  org-plain-list-ordered-item-terminator ?.) "\\.")
-// 	       (t "[.)]")))
-// 	(alpha (if org-list-allow-alphabetical "\\|[A-Za-z]" "")))
-//     (concat "\\([ \t]*\\([-+]\\|\\(\\([0-9]+" alpha "\\)" term
-// 	    "\\)\\)\\|[ \t]+\\*\\)\\([ \t]+\\|$\\)")))
-//
-// (defsubst org-item-beginning-re ()
-//   "Regexp matching the beginning of a plain list item."
-//   (concat "^" (org-item-re)))
-
-    pub static ref REGEX_ITEM : CachedRegex =
-        CachedRegex::new(Regex::new(r"([ \t]*([-+]|(([0-9]+)[.)]))|[ \t]+\*)([ \t]|$)").unwrap());
-}
 
 /// Byte-level equivalent of `REGEX_ITEM`: check if `line` (a single line
 /// without trailing newline) starts with an Org list item pattern.
