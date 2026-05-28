@@ -60,10 +60,6 @@ pub fn strip_fixed_width_colons(input: &str) -> Cow<'_, str> {
 }
 
 lazy_static! {
-    pub static ref REGEX_HORIZONTAL_RULE: CachedRegex =
-        CachedRegex::new(Regex::new(r"[ \t]*-{5,}[ \t]*$").unwrap());
-
-
 
     /// Regular expression matching the definition of a footnote.
     /// Match group 1 contains definition's label
@@ -75,13 +71,6 @@ lazy_static! {
     /// Note: No ^ anchor needed - parser ensures we're at the right position
     pub static ref REGEX_DIARY_SEXP: CachedRegex =
         CachedRegex::new(Regex::new(r"%%\((.*)").unwrap());
-
-    /// Fixed Width Areas
-    /// A "fixed-width line" start with a colon character and a whitespace or an end of line.
-    /// Fixed width areas can contain any number of consecutive fixed-width lines.
-    pub static ref REGEX_FIXED_WIDTH: CachedRegex =
-        CachedRegex::new(Regex::new(r"[ \t]*:( |$)").unwrap());
-
 }
 
 /// Byte-level equivalent of `REGEX_HORIZONTAL_RULE`: check if `line`
