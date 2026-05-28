@@ -13,8 +13,6 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::rc::Rc;
-
 use memchr::{memchr, memchr2, memchr3, memmem};
 
 use crate::affiliated::ElementSpan;
@@ -258,7 +256,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         &mut self,
         span: impl Into<Interval>,
         mut mode: ParserMode,
-        structure: Option<Rc<ListStruct<'a>>>,
+        structure: Option<&'b ListStruct<'a, 'b>>,
     ) -> BumpVec<'b, NodeId> {
         let span = span.into();
         let pos = self.cursor.pos();
@@ -284,8 +282,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 }
             }
 
-            let list_struct = structure.as_ref().map(|rc| rc.clone());
-            let element = self.current_element(span.end, mode, list_struct);
+            let element = self.current_element(span.end, mode, structure);
 
             let element_end;
             let element_content;
@@ -316,7 +313,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                         let list_sturct = {
                             let node = self.arena.get(element);
                             match &node.data {
-                                Syntax::PlainList(d) => Some(d.structure.clone()),
+                                Syntax::PlainList(d) => Some(d.structure),
                                 _ => None,
                             }
                         };
@@ -369,17 +366,17 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         &mut self,
         limit: usize,
         mode: ParserMode,
-        structure: Option<Rc<ListStruct<'a>>>,
+        structure: Option<&'b ListStruct<'a, 'b>>,
     ) -> NodeId {
         let pos = self.cursor.pos();
 
         let raw_secondary_p = self.granularity == ParseGranularity::Object;
 
-        let get_current_element = || -> NodeId {
+        let mut get_current_element = || -> NodeId {
             use crate::parser::ParserMode::*;
 
             if mode == Item {
-                return self.item_parser(structure, raw_secondary_p);
+                return self.item_parser();
             }
 
             if mode == TableRow {
@@ -604,8 +601,8 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             let line = &self.input[cur2..];
             let line_end = memchr(b'\n', line.as_bytes()).unwrap_or(line.len());
             if crate::list::starts_with_item(&line[..line_end]) {
-                let s = structure.unwrap_or(self.list_struct(limit));
-                return self.plain_list_parser(span, s.clone());
+                let s = structure.unwrap_or_else(|| self.list_struct(limit));
+                return self.plain_list_parser(span, s);
             }
 
             self.paragraph_parser(span)

@@ -427,7 +427,7 @@ pub enum Syntax<'a, 'b> {
     /// in a property drawer attached to the headline
     /// will be accessible as an attribute
     /// (with an uppercase name, e.g. CUSTOM_ID).
-    InlineTask(&'b mut InlineTaskData<'a>),
+    InlineTask(&'b mut InlineTaskData<'a, 'b>),
 
     /// Greater element
     Item(&'b mut ItemData<'a>),
@@ -454,7 +454,7 @@ pub enum Syntax<'a, 'b> {
     Paragraph,
 
     /// Greater element
-    PlainList(PlainListData<'a>),
+    PlainList(PlainListData<'a, 'b>),
 
     /// Element
     Planning(&'b mut PlanningData<'a>),

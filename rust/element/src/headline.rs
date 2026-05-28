@@ -35,7 +35,7 @@
 use crate::cursor::CachedRegex;
 use crate::data::{BumpVec, Interval, NodeId, Syntax, SyntaxNode, TimestampData};
 use crate::parser::Parser;
-use memchr::memchr;
+use memchr::{memchr, memmem};
 use regex::Regex;
 
 const ORG_CLOSED_STRING: &str = "CLOSED";
@@ -139,7 +139,7 @@ pub struct HeadlineData<'a, 'b> {
     pub scheduled: Option<TimestampData<'a>>,
 
     /// Headline's tags, if any.
-    pub tags: Vec<Tag<'a>>,
+    pub tags: BumpVec<'b, Tag<'a>>,
 
     /// Parsed headline text, without the stars and the tags.
     pub title: &'a str,
@@ -179,14 +179,14 @@ impl<'a, 'b> HeadlineData<'a, 'b> {
 }
 
 #[derive(Debug)]
-pub struct InlineTaskData<'a> {
+pub struct InlineTaskData<'a, 'b> {
     pub closed: Option<TimestampData<'a>>,
     pub deadline: Option<TimestampData<'a>>,
     pub level: usize,
     pub priority: usize,
     pub raw_value: &'a str,
     pub scheduled: Option<TimestampData<'a>>,
-    pub tags: Vec<Tag<'a>>,
+    pub tags: BumpVec<'b, Tag<'a>>,
     pub title: &'a str,
     pub todo_keyword: Option<TodoKeyword>,
 }
@@ -261,7 +261,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
         // Parse tags at end of line: look for `:tag1:tag2:` pattern.
         let rest_trimmed = rest.trim_end();
-        let (raw_title, tags) = parse_headline_tags(rest_trimmed);
+        let (raw_title, tags) = parse_headline_tags(rest_trimmed, self.bump);
 
         // Strip COMMENT keyword from title if present.
         let commentedp = raw_title.starts_with("COMMENT ") || raw_title == "COMMENT";
@@ -384,28 +384,36 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 /// headline at the same or higher level, or the end of the buffer.
 fn find_headline_end(input: &str, from: usize, level: usize) -> usize {
     let bytes = input.as_bytes();
-    let mut pos = from;
-    while pos < input.len() {
-        // Check if this line starts a headline.
-        if bytes[pos] == b'*' {
-            let mut stars = 0;
-            while pos + stars < input.len() && bytes[pos + stars] == b'*' {
-                stars += 1;
-            }
-            // A headline at same or higher level ends this subtree.
-            if stars <= level
-                && pos + stars < input.len()
-                && (bytes[pos + stars] == b' ' || bytes[pos + stars] == b'\t')
-            {
-                return pos;
-            }
-        }
-        // Advance to next line.
-        match memchr(b'\n', &bytes[pos..]) {
-            Some(i) => pos += i + 1,
-            None => return input.len(),
+
+    // `from` is always content_start = line_end + 1, so bytes[from-1] == b'\n'.
+    // Check if `from` itself opens a sibling/parent headline.
+    if let Some(&b'*') = bytes.get(from) {
+        let stars = bytes[from..].iter().take_while(|&&b| b == b'*').count();
+        if stars <= level
+            && bytes
+                .get(from + stars)
+                .is_some_and(|&b| b == b' ' || b == b'\t')
+        {
+            return from;
         }
     }
+
+    // Jump directly to every "\n*" candidate using SIMD search.
+    for offset in memmem::find_iter(&bytes[from..], b"\n*") {
+        let line_start = from + offset + 1;
+        let stars = bytes[line_start..]
+            .iter()
+            .take_while(|&&b| b == b'*')
+            .count();
+        if stars <= level
+            && bytes
+                .get(line_start + stars)
+                .is_some_and(|&b| b == b' ' || b == b'\t')
+        {
+            return line_start;
+        }
+    }
+
     input.len()
 }
 
@@ -416,17 +424,19 @@ fn is_valid_tag_char(c: char) -> bool {
 /// Parse tags from the end of a headline title string.
 ///
 /// Returns `(title_without_tags, vec_of_tags)`.
-fn parse_headline_tags<'a>(line: &'a str) -> (&'a str, Vec<Tag<'a>>) {
+fn parse_headline_tags<'a, 'b>(
+    line: &'a str,
+    bump: &'b bumpalo::Bump,
+) -> (&'a str, BumpVec<'b, Tag<'a>>) {
     if !line.ends_with(':') {
-        return (line, vec![]);
+        return (line, BumpVec::new_in(bump));
     }
 
     let mut rev_iter = line.char_indices().rev();
 
-    // Skip past the trailing ':'.
     match rev_iter.next() {
         Some((_, ':')) => {}
-        _ => return (line, vec![]),
+        _ => return (line, BumpVec::new_in(bump)),
     }
 
     let mut rev_iter = rev_iter.peekable();
@@ -436,23 +446,22 @@ fn parse_headline_tags<'a>(line: &'a str) -> (&'a str, Vec<Tag<'a>>) {
                 Some((_, prev_c)) if prev_c.is_whitespace() => {
                     let tag_start = byte_pos + 1;
                     let tag_str = &line[tag_start..line.len() - 1];
-                    let tags: Vec<Tag<'a>> = tag_str
-                        .split(':')
-                        .filter(|s| !s.is_empty())
-                        .map(Tag)
-                        .collect();
+                    let mut tags: BumpVec<'b, Tag<'a>> = BumpVec::new_in(bump);
+                    for s in tag_str.split(':').filter(|s| !s.is_empty()) {
+                        tags.push(Tag(s));
+                    }
                     if !tags.is_empty() {
                         let title = line[..byte_pos].trim_end();
                         return (title, tags);
                     }
-                    return (line, vec![]);
+                    return (line, BumpVec::new_in(bump));
                 }
                 _ => {}
             }
         } else if !is_valid_tag_char(c) {
-            return (line, vec![]);
+            return (line, BumpVec::new_in(bump));
         }
     }
 
-    (line, vec![])
+    (line, BumpVec::new_in(bump))
 }
