@@ -592,8 +592,10 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 _ => {}
             }
 
-            // Item (handles leading whitespace via its own regex)
-            if looking_at!(REGEX_ITEM, self).is_some() {
+            // Item (handles leading whitespace via its own check)
+            let line = &self.input[cur2..];
+            let line_end = memchr(b'\n', line.as_bytes()).unwrap_or(line.len());
+            if crate::list::starts_with_item(&line[..line_end]) {
                 let s = structure.unwrap_or(self.list_struct(limit));
                 return self.plain_list_parser(span, s.clone());
             }
