@@ -61,38 +61,32 @@ mod plain_list {
     #[test]
     fn nested_list() {
         let input = "- item 1\n  - subitem 1\n  - subitem 2\n- item 2\n";
-        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        let item_count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert!(
-            item_count >= 1 || count >= 1,
-            "Expected list or items, found list: {}, items: {}",
-            count,
-            item_count
-        );
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        let count = count_type(&arena, root, SyntaxT::PlainList);
+        let item_count = count_type(&arena, root, SyntaxT::Item);
+        assert!(count >= 2, "Expected at least 2 PlainLists (outer + inner), found {}", count);
+        assert!(item_count >= 3, "Expected at least 3 items, found {}", item_count);
     }
 
     #[test]
     fn list_empty() {
         let input = "- \n";
         let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert!(count > 0, "Plain list count: {}", count);
+        assert_eq!(count, 1, "Expected 1 plain list for empty item, found {}", count);
     }
 
     #[test]
     fn numbered_list_over_ten() {
         let input = "10. item\n11. another\n12. yet another\n";
-        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 plain list with items >=10, found {}",
-            count
-        );
-        let item_count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert!(
-            item_count >= 3,
-            "Expected at least 3 items for list items >=10, found {}",
-            item_count
-        );
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        let count = count_type(&arena, root, SyntaxT::PlainList);
+        let item_count = count_type(&arena, root, SyntaxT::Item);
+        assert_eq!(count, 1, "Expected 1 plain list with items >=10, found {}", count);
+        assert!(item_count >= 3, "Expected at least 3 items for list items >=10, found {}", item_count);
     }
 
     /// List with sub-items followed by more top-level items must not
@@ -181,18 +175,13 @@ jq '.fruit | keys' fruit.json
 
 - min, max
 ";
-        let count = get_type_count(input, SyntaxT::SrcBlock, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 SrcBlock inside a list item, found {}",
-            count
-        );
-        let item_count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert_eq!(
-            item_count, 2,
-            "Expected exactly 2 items, found {}",
-            item_count
-        );
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        let count = count_type(&arena, root, SyntaxT::SrcBlock);
+        assert_eq!(count, 1, "Expected 1 SrcBlock inside a list item, found {}", count);
+        let item_count = count_type(&arena, root, SyntaxT::Item);
+        assert_eq!(item_count, 2, "Expected exactly 2 items, found {}", item_count);
     }
 }
 
@@ -201,17 +190,14 @@ mod item {
 
     #[test]
     fn simple_item() {
-        let count = get_type_count("- some text\n", SyntaxT::Item, ParseGranularity::Element);
-        assert!(count >= 1, "Expected at least 1 item (dash), found {}", count);
-        let count2 = get_type_count("+ some text\n", SyntaxT::Item, ParseGranularity::Element);
-        assert!(count2 >= 1, "Expected at least 1 item (plus), found {}", count2);
-    }
-
-    #[test]
-    fn item_with_tag() {
-        let input = "- tag :: content\n";
-        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert!(count > 0, "Item count: {}", count);
+        for (input, desc) in &[
+            ("- some text\n", "dash bullet"),
+            ("+ some text\n", "plus bullet"),
+            ("- tag :: content\n", "tag item"),
+        ] {
+            let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 item ({}), found {}", desc, count);
+        }
     }
 
     #[test]
@@ -230,7 +216,7 @@ mod item {
     fn item_ordered_start() {
         let input = "1. first item\n2. second item\n";
         let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert!(count >= 2, "Expected at least 2 items, found {}", count);
+        assert_eq!(count, 2, "Expected 2 items, found {}", count);
     }
 
     #[test]
@@ -419,50 +405,17 @@ mod item {
             arena[para].location.start
         }
 
-        /// Basic case: `- tag :: content` — paragraph starts at `content`.
         #[test]
-        fn basic_desc_para_start() {
-            //          0123456789012345
-            let input = "- tag :: content\n";
-            //                   ^ offset 9
-            assert_eq!(para_start(input), 9, "paragraph should start after ' :: '");
-        }
-
-        /// Greedy: Emacs matches the LAST ` :: ` on the line as the separator.
-        /// So `- A :: B :: C` has tag `A :: B` and content `C`.
-        #[test]
-        fn greedy_last_separator() {
-            //          0123456789012345678901
-            let input = "- A :: B :: C\n";
-            //                       ^ offset 12
-            assert_eq!(
-                para_start(input),
-                12,
-                "greedy: last ' :: ' is the separator"
-            );
-        }
-
-        /// Tab after `::`: `- tag ::\tcontent` — paragraph starts at `content`.
-        #[test]
-        fn tab_after_colons() {
-            let input = "- tag ::\tcontent\n";
-            //           0123456789
-            //                    ^ offset 9
-            assert_eq!(para_start(input), 9, "paragraph should start after '::\\t'");
-        }
-
-        /// `::` at end of line — content is on the next line.
-        #[test]
-        fn content_on_next_line() {
-            let input = "- tag ::\n  content\n";
-            //           0         1
-            //           0123456789012345678
-            //                    ^ offset 9 (start of "  content" line)
-            assert_eq!(
-                para_start(input),
-                9,
-                "paragraph should start at beginning of continuation line"
-            );
+        fn para_start_cases() {
+            for (input, expected, desc) in &[
+                //   0123456789
+                ("- tag :: content\n", 9_usize, "basic ' :: ' separator"),
+                ("- A :: B :: C\n", 12, "greedy: last ' :: ' is the separator"),
+                ("- tag ::\tcontent\n", 9, "tab after '::'"),
+                ("- tag ::\n  content\n", 9, "content on next line"),
+            ] {
+                assert_eq!(para_start(input), *expected, "{}", desc);
+            }
         }
     }
 }
@@ -500,19 +453,21 @@ mod headline {
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let h1 = root_children.first().expect("Expected first headline");
-        if let Syntax::Headline(_) = &arena[*h1].data {
-            let h1_end = arena[*h1].location.end;
-            let h2 = root_children.get(1).expect("Expected second headline");
-            if let Syntax::Headline(_) = &arena[*h2].data {
-                assert!(
-                    h1_end <= arena[*h2].location.start,
-                    "First headline end ({}) should not overlap second headline start ({}): \
-                     headlines with tab should form proper subtree boundaries",
-                    h1_end,
-                    arena[*h2].location.start
-                );
-            }
-        }
+        let Syntax::Headline(_) = &arena[*h1].data else {
+            panic!("Expected Headline for h1, got {:?}", arena[*h1].data);
+        };
+        let h1_end = arena[*h1].location.end;
+        let h2 = root_children.get(1).expect("Expected second top-level headline");
+        let Syntax::Headline(_) = &arena[*h2].data else {
+            panic!("Expected Headline for h2, got {:?}", arena[*h2].data);
+        };
+        assert!(
+            h1_end <= arena[*h2].location.start,
+            "First headline end ({}) should not overlap second headline start ({}): \
+             headlines with tab should form proper subtree boundaries",
+            h1_end,
+            arena[*h2].location.start
+        );
     }
 
     #[test]
@@ -601,6 +556,7 @@ mod headline {
                 ("* foo bar\n", "plain text title"),
                 ("* foo *bold* bar\n", "title with markup"),
                 ("* See [[https://example.com][text]]\n", "title with link"),
+                ("* Title with *bold*\nsome body text\n** Sub\n", "headline with body and sub"),
             ] {
                 let types = headline_direct_child_types(input);
                 for t in inline_types {
@@ -609,31 +565,6 @@ mod headline {
                         "{t:?} must not be a direct child of Headline ({desc}); got {types:?}"
                     );
                 }
-            }
-        }
-
-        /// Headline with a body section: children should only be Section (and
-        /// optionally sub-Headlines), never inline objects.
-        #[test]
-        fn children_are_only_sections_and_headlines() {
-            let input = "* Title with *bold*\nsome body text\n** Sub\n";
-            let types = headline_direct_child_types(input);
-            let inline_types = [
-                SyntaxT::PlainText,
-                SyntaxT::Bold,
-                SyntaxT::Italic,
-                SyntaxT::Underline,
-                SyntaxT::Code,
-                SyntaxT::Verbatim,
-                SyntaxT::Link,
-                SyntaxT::StrikeThrough,
-            ];
-            for t in inline_types {
-                assert!(
-                    !types.contains(&t),
-                    "{}",
-                    "{t:?} must not be a direct child of Headline; children: {types:?}"
-                );
             }
         }
     }
@@ -650,7 +581,7 @@ mod table {
             ("| head1 | head2 |\n|--------|--------|\n| body1 | body2 |\n", "header + hline"),
         ] {
             let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
-            assert!(count >= 1, "Expected 1 table ({}), found {}", desc, count);
+            assert_eq!(count, 1, "Expected 1 table ({}), found {}", desc, count);
         }
     }
 
@@ -658,11 +589,7 @@ mod table {
     fn table_row_count() {
         let input = "| a | b |\n| c | d |\n| e | f |\n";
         let count = get_type_count(input, SyntaxT::TableRow, ParseGranularity::Element);
-        assert!(
-            count >= 3,
-            "Expected at least 3 table rows, found {}",
-            count
-        );
+        assert_eq!(count, 3, "Expected 3 table rows, found {}", count);
     }
 
     #[test]
@@ -673,7 +600,7 @@ mod table {
             ("| a | b |", "no trailing newline"),
         ] {
             let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
-            assert!(count >= 1, "Expected 1 table ({}), found {}", desc, count);
+            assert_eq!(count, 1, "Expected 1 table ({}), found {}", desc, count);
         }
     }
 
@@ -775,21 +702,12 @@ mod blocks {
             ("#+BEGIN_VERSE\nVerse line 1\nVerse line 2\n#+END_VERSE\n", SyntaxT::VerseBlock, "verse"),
             ("#+BEGIN_SPECIAL\nCustom block content\n#+END_SPECIAL\n", SyntaxT::SpecialBlock, "special"),
             ("#+BEGIN: my-block :param value\nBlock content\n#+END:\n", SyntaxT::DynamicBlock, "dynamic"),
+            ("#+begin_center\nCentered\n#+end_center\n", SyntaxT::CenterBlock, "center lowercase"),
+            ("#+BEGIN_CENTER\ncenter\n#+end_center \n", SyntaxT::CenterBlock, "center trailing space on END"),
         ] {
             let count = get_type_count(input, *typ, ParseGranularity::Element);
             assert_eq!(count, 1, "Expected 1 {} block, found {}", desc, count);
         }
-    }
-
-    #[test]
-    fn case_insensitive() {
-        let input = "#+begin_center\nCentered\n#+end_center\n";
-        let count = get_type_count(input, SyntaxT::CenterBlock, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 center block (case insensitive), found {}",
-            count
-        );
     }
 
     #[test]
@@ -850,19 +768,6 @@ mod blocks {
         }
     }
 
-    #[test]
-    fn block_end_edge_cases() {
-        let count = get_type_count(
-            "#+BEGIN_CENTER\ncenter\n#+end_center \n",
-            SyntaxT::CenterBlock,
-            ParseGranularity::Element,
-        );
-        assert_eq!(
-            count, 1,
-            "Expected 1 center block with trailing space on END, found {}",
-            count
-        );
-    }
 }
 
 mod drawer {
@@ -881,11 +786,21 @@ mod drawer {
 
     #[test]
     fn property_drawer_and_node_properties() {
-        let input = ":PROPERTIES:\n:CUSTOM_ID: my-id\n:END:\n";
-        let pd_count = get_type_count(input, SyntaxT::PropertyDrawer, ParseGranularity::Element);
-        assert_eq!(pd_count, 1, "Expected 1 property drawer, found {}", pd_count);
-        let np_count = get_type_count(input, SyntaxT::NodeProperty, ParseGranularity::Element);
-        assert!(np_count >= 1, "Expected at least 1 node property, found {}", np_count);
+        for (input, expected_props, desc) in &[
+            (":PROPERTIES:\n:CUSTOM_ID: my-id\n:END:\n", 1_usize, "single property"),
+            (":PROPERTIES:\n:ID: test-id\n:CUSTOM_ID: custom-id\n:END:\n", 2, "two properties"),
+        ] {
+            let pd_count =
+                get_type_count(input, SyntaxT::PropertyDrawer, ParseGranularity::Element);
+            assert_eq!(pd_count, 1, "Expected 1 property drawer ({}), found {}", desc, pd_count);
+            let np_count =
+                get_type_count(input, SyntaxT::NodeProperty, ParseGranularity::Element);
+            assert_eq!(
+                np_count, *expected_props,
+                "Expected {} node properties ({}), found {}",
+                expected_props, desc, np_count
+            );
+        }
     }
 
     #[test]
@@ -899,18 +814,6 @@ mod drawer {
         );
     }
 
-    #[test]
-    fn drawer_multiple_properties() {
-        let input = ":PROPERTIES:\n:ID: test-id\n:CUSTOM_ID: custom-id\n:END:\n";
-        let pd_count = get_type_count(input, SyntaxT::PropertyDrawer, ParseGranularity::Element);
-        let prop_count = get_type_count(input, SyntaxT::NodeProperty, ParseGranularity::Element);
-        assert!(
-            pd_count >= 1 && prop_count >= 2,
-            "Drawer: {}, Props: {}",
-            pd_count,
-            prop_count
-        );
-    }
 }
 
 mod planning {
@@ -938,16 +841,11 @@ mod comment {
         for (input, desc) in &[
             ("# Comment\n", "single line"),
             ("# Line 1\n# Line 2\n# Line 3\n", "multi-line"),
+            ("  # Indented comment\n", "indented"),
         ] {
             let count = get_type_count(input, SyntaxT::Comment, ParseGranularity::Element);
             assert_eq!(count, 1, "Expected 1 comment ({}), found {}", desc, count);
         }
-    }
-
-    #[test]
-    fn comment_indented() {
-        let count = get_type_count("  # Indented comment\n", SyntaxT::Comment, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 indented comment, found {}", count);
     }
 
 }
@@ -1224,17 +1122,11 @@ mod keyword {
             ("#+KEYWORD: value\n", "basic"),
             ("#+keyword: value\n", "case insensitive"),
             ("#+KEYWORD:    spaced value\n", "spaced"),
+            ("#+KEYWORD: value\nparagraph\n", "with following paragraph"),
         ] {
             let count = get_type_count(input, SyntaxT::Keyword, ParseGranularity::Element);
             assert_eq!(count, 1, "Expected 1 keyword ({}), found {}", desc, count);
         }
-    }
-
-    #[test]
-    fn keyword_with_newline() {
-        let input = "#+KEYWORD: value\nparagraph\n";
-        let count = get_type_count(input, SyntaxT::Keyword, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 keyword, found {}", count);
     }
 
     #[test]
@@ -1478,14 +1370,18 @@ mod od1_compliance {
     #[test]
     fn multiple_markup_on_same_line() {
         let input = "*bold* and /italic/ and =code= and ~verbatim~\n";
-        let bold = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
-        let italic = get_type_count(input, SyntaxT::Italic, ParseGranularity::Object);
-        let code = get_type_count(input, SyntaxT::Code, ParseGranularity::Object);
-        let verbatim = get_type_count(input, SyntaxT::Verbatim, ParseGranularity::Object);
-        assert_eq!(bold, 1, "Expected 1 bold");
-        assert_eq!(italic, 1, "Expected 1 italic");
-        assert_eq!(code, 1, "Expected 1 code");
-        assert_eq!(verbatim, 1, "Expected 1 verbatim");
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        for (typ, desc) in &[
+            (SyntaxT::Bold, "bold"),
+            (SyntaxT::Italic, "italic"),
+            (SyntaxT::Code, "code"),
+            (SyntaxT::Verbatim, "verbatim"),
+        ] {
+            let count = count_type(&arena, root, *typ);
+            assert_eq!(count, 1, "Expected 1 {}", desc);
+        }
     }
 
     #[test]
@@ -1583,36 +1479,22 @@ mod od1_compliance {
                 .collect()
         }
 
-        /// Plain-text description becomes a `PlainText` child of the link.
         #[test]
-        fn plain_description_is_child() {
+        fn link_description_children() {
             let children = link_children("[[https://example.com][OpenPGP]]\n");
             assert!(
                 children.contains(&SyntaxT::PlainText),
-                "{}",
-                "expected PlainText child for link description; got {children:?}"
+                "expected PlainText child for plain description; got {children:?}"
             );
-        }
-
-        /// A link without a description has no children.
-        #[test]
-        fn no_description_no_children() {
             let children = link_children("[[https://example.com]]\n");
             assert!(
                 children.is_empty(),
-                "{}",
                 "link without description should have no children; got {children:?}"
             );
-        }
-
-        /// A description containing bold markup yields a `Bold` child.
-        #[test]
-        fn bold_description_is_child() {
             let children = link_children("[[https://example.com][*bold*]]\n");
             assert!(
                 children.contains(&SyntaxT::Bold),
-                "{}",
-                "expected Bold child for bold link description; got {children:?}"
+                "expected Bold child for bold description; got {children:?}"
             );
         }
     }
@@ -1649,7 +1531,7 @@ mod od1_compliance {
             ("#+BEGIN_CENTER\n*bold*\n#+END_CENTER\n", "center block"),
         ] {
             let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
-            assert!(count >= 1, "Expected bold inside {}, found {}", desc, count);
+            assert_eq!(count, 1, "Expected 1 bold inside {}, found {}", desc, count);
         }
     }
 
@@ -1825,12 +1707,13 @@ mod od1_compliance {
             .iter()
             .find(|&&n| matches!(arena[n].data, Syntax::Planning(_)))
             .expect("planning node");
-        if let Syntax::Planning(p) = &arena[*planning].data {
-            assert!(
-                p.deadline.is_some(),
-                "DEADLINE should be parsed even when CLOSED follows on the same line"
-            );
-        }
+        let Syntax::Planning(p) = &arena[*planning].data else {
+            panic!("expected Planning node");
+        };
+        assert!(
+            p.deadline.is_some(),
+            "DEADLINE should be parsed even when CLOSED follows on the same line"
+        );
     }
 }
 
