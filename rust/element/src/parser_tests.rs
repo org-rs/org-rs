@@ -518,23 +518,14 @@ mod headline {
 
     #[test]
     fn basic_headline() {
-        let input = "* \n";
-        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
-    }
-
-    #[test]
-    fn headline_stars() {
-        let input = "****  \n";
-        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
-    }
-
-    #[test]
-    fn headline_title() {
-        let input = "* title\n";
-        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
+        for (input, desc) in &[
+            ("* \n", "minimal"),
+            ("****  \n", "four stars"),
+            ("* title\n", "with title"),
+        ] {
+            let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 headline ({}), found {}", desc, count);
+        }
     }
 
     #[test]
@@ -1033,31 +1024,30 @@ mod planning {
     use super::*;
 
     #[test]
-    fn planning_with_deadline() {
-        let input = "* TODO Task\nDEADLINE: <2023-12-31>\n";
-        let count = get_type_count(input, SyntaxT::Planning, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 planning, found {}", count);
-    }
-
-    #[test]
-    fn planning_with_scheduled() {
-        let input = "* TODO Task\nSCHEDULED: <2023-12-31>\n";
-        let count = get_type_count(input, SyntaxT::Planning, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 planning, found {}", count);
-    }
-
-    #[test]
-    fn planning_with_closed() {
-        let input = "* TODO Task\nCLOSED: [2023-12-31]\n";
-        let count = get_type_count(input, SyntaxT::Planning, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 planning, found {}", count);
-    }
-
-    #[test]
     fn planning_all_timestamps() {
-        let input =
-            "* TODO Task\nDEADLINE: <2023-12-31> SCHEDULED: <2023-12-30> CLOSED: [2023-12-29]\n";
-        let count = get_type_count(input, SyntaxT::Planning, ParseGranularity::Element);
+        let count = get_type_count(
+            "* TODO Task\nDEADLINE: <2023-12-31>\n",
+            SyntaxT::Planning,
+            ParseGranularity::Element,
+        );
+        assert_eq!(count, 1, "Expected 1 planning (deadline), found {}", count);
+        let count = get_type_count(
+            "* TODO Task\nSCHEDULED: <2023-12-31>\n",
+            SyntaxT::Planning,
+            ParseGranularity::Element,
+        );
+        assert_eq!(count, 1, "Expected 1 planning (scheduled), found {}", count);
+        let count = get_type_count(
+            "* TODO Task\nCLOSED: [2023-12-31]\n",
+            SyntaxT::Planning,
+            ParseGranularity::Element,
+        );
+        assert_eq!(count, 1, "Expected 1 planning (closed), found {}", count);
+        let count = get_type_count(
+            "* TODO Task\nDEADLINE: <2023-12-31> SCHEDULED: <2023-12-30> CLOSED: [2023-12-29]\n",
+            SyntaxT::Planning,
+            ParseGranularity::Element,
+        );
         assert_eq!(
             count, 1,
             "Expected 1 planning with all timestamps, found {}",
@@ -1071,9 +1061,13 @@ mod comment {
 
     #[test]
     fn basic_comment() {
-        let input = "# Comment\n";
-        let count = get_type_count(input, SyntaxT::Comment, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 comment, found {}", count);
+        for (input, desc) in &[
+            ("# Comment\n", "single line"),
+            ("# Line 1\n# Line 2\n# Line 3\n", "multi-line"),
+        ] {
+            let count = get_type_count(input, SyntaxT::Comment, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 comment ({}), found {}", desc, count);
+        }
     }
 
     #[test]
@@ -1096,39 +1090,16 @@ mod clock {
     use super::*;
 
     #[test]
-    fn running_clock() {
-        let input = "CLOCK: [2023-10-13 Fri 14:40]\n";
-        let count = get_type_count(input, SyntaxT::Clock, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 clock, found {}", count);
-    }
-
-    #[test]
-    fn closed_clock() {
-        let input = "CLOCK: [2023-10-13 Fri 14:40]--[2023-10-13 Fri 14:51] => 0:11\n";
-        let count = get_type_count(input, SyntaxT::Clock, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 clock, found {}", count);
-    }
-
-    #[test]
-    fn clock_case_insensitive() {
-        let input = "Clock: [2023-10-13 Fri 14:40]\n";
-        let count = get_type_count(input, SyntaxT::Clock, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 clock (case insensitive), found {}",
-            count
-        );
-    }
-
-    #[test]
-    fn clock_duration_only() {
-        let input = "CLOCK: => 0:11\n";
-        let count = get_type_count(input, SyntaxT::Clock, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 clock with duration only, found {}",
-            count
-        );
+    fn clock_variants() {
+        for (input, desc) in &[
+            ("CLOCK: [2023-10-13 Fri 14:40]\n", "running"),
+            ("CLOCK: [2023-10-13 Fri 14:40]--[2023-10-13 Fri 14:51] => 0:11\n", "closed"),
+            ("Clock: [2023-10-13 Fri 14:40]\n", "case insensitive"),
+            ("CLOCK: => 0:11\n", "duration only"),
+        ] {
+            let count = get_type_count(input, SyntaxT::Clock, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 clock ({}), found {}", desc, count);
+        }
     }
 
     #[test]
@@ -1161,17 +1132,14 @@ mod diary_sexp {
     use super::*;
 
     #[test]
-    fn basic() {
-        let input = "%%(org-anniversary 1956 5 14) Arthur Dent is %d years old\n";
-        let count = get_type_count(input, SyntaxT::DiarySexp, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 diary sexp, found {}", count);
-    }
-
-    #[test]
-    fn simple() {
-        let input = "%%(diary-sexp)\n";
-        let count = get_type_count(input, SyntaxT::DiarySexp, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 diary sexp, found {}", count);
+    fn diary_sexp() {
+        for (input, desc) in &[
+            ("%%(org-anniversary 1956 5 14) Arthur Dent is %d years old\n", "full"),
+            ("%%(diary-sexp)\n", "minimal"),
+        ] {
+            let count = get_type_count(input, SyntaxT::DiarySexp, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 diary sexp ({}), found {}", desc, count);
+        }
     }
 
     #[test]
@@ -1190,24 +1158,15 @@ mod latex_environment {
     use super::*;
 
     #[test]
-    fn basic() {
-        let input = "\\begin{equation}\nE = mc^2\n\\end{equation}\n";
-        let count = get_type_count(input, SyntaxT::LatexEnvironment, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 latex environment, found {}", count);
-    }
-
-    #[test]
-    fn latex_equation_environment() {
-        let input = "\\begin{equation}\n\\frac{a}{b}\n\\end{equation}\n";
-        let count = get_type_count(input, SyntaxT::LatexEnvironment, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 latex equation env, found {}", count);
-    }
-
-    #[test]
-    fn latex_aligned_environment() {
-        let input = "\\begin{aligned}\na &= b \\\\\nc &= d\n\\end{aligned}\n";
-        let count = get_type_count(input, SyntaxT::LatexEnvironment, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 latex aligned env, found {}", count);
+    fn latex_environment() {
+        for (input, desc) in &[
+            ("\\begin{equation}\nE = mc^2\n\\end{equation}\n", "basic equation"),
+            ("\\begin{equation}\n\\frac{a}{b}\n\\end{equation}\n", "equation with frac"),
+            ("\\begin{aligned}\na &= b \\\\\nc &= d\n\\end{aligned}\n", "aligned"),
+        ] {
+            let count = get_type_count(input, SyntaxT::LatexEnvironment, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 latex environment ({}), found {}", desc, count);
+        }
     }
 }
 
@@ -1216,35 +1175,18 @@ mod footnote_definition {
 
     #[test]
     fn footnote_definition() {
-        let input = "[fn:1] This is a footnote.\n";
-        let count = get_type_count(
-            input,
-            SyntaxT::FootnoteDefinition,
-            ParseGranularity::Element,
-        );
-        assert_eq!(count, 1, "Expected 1 footnote definition, found {}", count);
-    }
-
-    #[test]
-    fn named_footnote_definition() {
-        let input = "[fn:my-note] This is a named footnote.\n";
-        let count = get_type_count(
-            input,
-            SyntaxT::FootnoteDefinition,
-            ParseGranularity::Element,
-        );
-        assert_eq!(count, 1, "Expected 1 named footnote, found {}", count);
-    }
-
-    #[test]
-    fn multiline() {
-        let input = "[fn:1]\nMulti-line\nfootnote content\n";
-        let count = get_type_count(
-            input,
-            SyntaxT::FootnoteDefinition,
-            ParseGranularity::Element,
-        );
-        assert_eq!(count, 1, "Expected 1 multiline footnote, found {}", count);
+        for (input, desc) in &[
+            ("[fn:1] This is a footnote.\n", "numbered"),
+            ("[fn:my-note] This is a named footnote.\n", "named"),
+            ("[fn:1]\nMulti-line\nfootnote content\n", "multiline"),
+        ] {
+            let count = get_type_count(
+                input,
+                SyntaxT::FootnoteDefinition,
+                ParseGranularity::Element,
+            );
+            assert_eq!(count, 1, "Expected 1 footnote definition ({}), found {}", desc, count);
+        }
     }
 
     #[test]
@@ -1331,9 +1273,13 @@ mod fixed_width {
 
     #[test]
     fn basic() {
-        let input = ": Fixed width line\n";
-        let count = get_type_count(input, SyntaxT::FixedWidth, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 fixed width, found {}", count);
+        for (input, desc) in &[
+            (": Fixed width line\n", "basic"),
+            ("  : Indented fixed width\n", "indented"),
+        ] {
+            let count = get_type_count(input, SyntaxT::FixedWidth, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 fixed width ({}), found {}", desc, count);
+        }
     }
 
     #[test]
@@ -1401,20 +1347,13 @@ mod babel_call {
 
     #[test]
     fn babel_call() {
-        let input = "#+CALL: test()\n";
-        let count = get_type_count(input, SyntaxT::BabelCall, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 babel call, found {}", count);
-    }
-
-    #[test]
-    fn case_insensitive() {
-        let input = "#+call: test()\n";
-        let count = get_type_count(input, SyntaxT::BabelCall, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 babel call (case insensitive), found {}",
-            count
-        );
+        for (input, desc) in &[
+            ("#+CALL: test()\n", "uppercase"),
+            ("#+call: test()\n", "case insensitive"),
+        ] {
+            let count = get_type_count(input, SyntaxT::BabelCall, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 babel call ({}), found {}", desc, count);
+        }
     }
 
     #[test]
@@ -1485,27 +1424,14 @@ mod keyword {
 
     #[test]
     fn keyword() {
-        let input = "#+KEYWORD: value\n";
-        let count = get_type_count(input, SyntaxT::Keyword, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 keyword, found {}", count);
-    }
-
-    #[test]
-    fn case_insensitive() {
-        let input = "#+keyword: value\n";
-        let count = get_type_count(input, SyntaxT::Keyword, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 keyword (case insensitive), found {}",
-            count
-        );
-    }
-
-    #[test]
-    fn keyword_with_space() {
-        let input = "#+KEYWORD:    spaced value\n";
-        let count = get_type_count(input, SyntaxT::Keyword, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 keyword, found {}", count);
+        for (input, desc) in &[
+            ("#+KEYWORD: value\n", "basic"),
+            ("#+keyword: value\n", "case insensitive"),
+            ("#+KEYWORD:    spaced value\n", "spaced"),
+        ] {
+            let count = get_type_count(input, SyntaxT::Keyword, ParseGranularity::Element);
+            assert_eq!(count, 1, "Expected 1 keyword ({}), found {}", desc, count);
+        }
     }
 
     #[test]
@@ -1607,95 +1533,53 @@ mod object_parsing {
     use super::*;
 
     #[test]
-    fn bold_object() {
-        let input = "*bold*\n";
-        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
-        assert_eq!(count, 1, "Expected 1 bold object, found {}", count);
+    fn basic_markup() {
+        for (input, typ) in &[
+            ("*bold*\n", SyntaxT::Bold),
+            ("/italic/\n", SyntaxT::Italic),
+            ("_underline_\n", SyntaxT::Underline),
+            ("+strikethrough+\n", SyntaxT::StrikeThrough),
+            ("~code~\n", SyntaxT::Code),
+            ("=verbatim=\n", SyntaxT::Verbatim),
+        ] {
+            let count = get_type_count(input, *typ, ParseGranularity::Object);
+            assert_eq!(count, 1, "Expected 1 {:?} object, found {}", typ, count);
+        }
     }
 
     #[test]
-    fn italic_object() {
-        let input = "/italic/\n";
-        let count = get_type_count(input, SyntaxT::Italic, ParseGranularity::Object);
-        assert_eq!(count, 1, "Expected 1 italic object, found {}", count);
-    }
-
-    #[test]
-    fn underline_object() {
-        let input = "_underline_\n";
-        let count = get_type_count(input, SyntaxT::Underline, ParseGranularity::Object);
-        assert_eq!(count, 1, "Expected 1 underline object, found {}", count);
-    }
-
-    #[test]
-    fn strikethrough_object() {
-        let input = "+strikethrough+\n";
-        let count = get_type_count(input, SyntaxT::StrikeThrough, ParseGranularity::Object);
-        assert_eq!(count, 1, "Expected 1 strikethrough object, found {}", count);
-    }
-
-    #[test]
-    fn code_object() {
-        let input = "~code~\n";
-        let count = get_type_count(input, SyntaxT::Code, ParseGranularity::Object);
-        assert_eq!(count, 1, "Expected 1 code object, found {}", count);
-    }
-
-    #[test]
-    fn verbatim_object() {
-        let input = "=verbatim=\n";
-        let count = get_type_count(input, SyntaxT::Verbatim, ParseGranularity::Object);
-        assert_eq!(count, 1, "Expected 1 verbatim object, found {}", count);
+    fn single_char_markup() {
+        for (input, typ) in &[
+            ("*a*\n", SyntaxT::Bold),
+            ("/a/\n", SyntaxT::Italic),
+        ] {
+            let count = get_type_count(input, *typ, ParseGranularity::Object);
+            assert_eq!(count, 1, "Expected 1 {:?} from single-char input '{}', found {}", typ, input.trim(), count);
+        }
     }
 
     #[test]
     fn entity_object() {
-        let input = "\\alpha\n";
-        let count = get_type_count(input, SyntaxT::Entity, ParseGranularity::Object);
+        let count = get_type_count("\\alpha\n", SyntaxT::Entity, ParseGranularity::Object);
         assert_eq!(count, 1, "Expected 1 entity object, found {}", count);
     }
 
     #[test]
     fn link_object() {
-        let input = "[[https://example.com][link]]\n";
-        let count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+        let count = get_type_count("[[https://example.com][link]]\n", SyntaxT::Link, ParseGranularity::Object);
         assert_eq!(count, 1, "Expected 1 link object, found {}", count);
     }
 
     #[test]
     fn target_object() {
-        let input = "<<target>>\n";
-        let count = get_type_count(input, SyntaxT::Target, ParseGranularity::Object);
+        let count = get_type_count("<<target>>\n", SyntaxT::Target, ParseGranularity::Object);
         assert_eq!(count, 1, "Expected 1 target object, found {}", count);
     }
 
     #[test]
     fn timestamp_object() {
-        let input = "<2023-12-31>\n";
-        let count = get_type_count(input, SyntaxT::Timestamp, ParseGranularity::Object);
+        let count = get_type_count("<2023-12-31>\n", SyntaxT::Timestamp, ParseGranularity::Object);
         assert_eq!(count, 1, "Expected 1 timestamp object, found {}", count);
-    }
-
-    #[test]
-    fn single_char_bold() {
-        let input = "*a*\n";
-        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
-        assert_eq!(
-            count, 1,
-            "Expected 1 bold from single-char '*a*', found {}",
-            count
-        );
-    }
-
-    #[test]
-    fn single_char_italic() {
-        let input = "/a/\n";
-        let count = get_type_count(input, SyntaxT::Italic, ParseGranularity::Object);
-        assert_eq!(
-            count, 1,
-            "Expected 1 italic from single-char '/a/', found {}",
-            count
-        );
     }
 
     #[test]
