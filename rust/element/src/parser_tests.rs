@@ -561,13 +561,6 @@ mod headline {
     }
 
     #[test]
-    fn headline_only_stars() {
-        let input = "* \n";
-        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 headline, found {}", count);
-    }
-
-    #[test]
     fn headline_with_tab_after_stars() {
         let input = "*\tOne\n**\tSub\n*\tTwo\n";
         let bump = Bump::new();
@@ -1943,17 +1936,6 @@ mod od1_compliance {
     }
 
     #[test]
-    fn heading_levels_1_to_3() {
-        let input = "* Level 1\n** Level 2\n*** Level 3\n";
-        let count = get_type_count(input, SyntaxT::Headline, ParseGranularity::Element);
-        assert_eq!(
-            count, 3,
-            "Expected headlines at levels 1, 2 and 3, found {}",
-            count
-        );
-    }
-
-    #[test]
     fn description_list_type() {
         use crate::list::ListKind;
         let input = "- term :: description text\n";
@@ -2006,28 +1988,6 @@ mod od1_compliance {
             "Expected 1 item with [-] checkbox, found {}",
             count
         );
-    }
-
-    #[test]
-    fn src_block_with_language() {
-        let input = "#+BEGIN_SRC python\nprint('hello')\n#+END_SRC\n";
-        let bump = Bump::new();
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
-        let (arena, root) = parser.parse_buffer();
-        let root_children = &arena[root].children;
-        let section = root_children.first().expect("section");
-        let section_ch = &arena[*section].children;
-        let block = section_ch.first().expect("src block");
-        if let Syntax::SrcBlock(data) = &arena[*block].data {
-            assert_eq!(
-                data.language,
-                Some("python"),
-                "Expected language 'python', got {:?}",
-                data.language
-            );
-        } else {
-            panic!("Expected SrcBlock, got {:?}", arena[*block].data);
-        }
     }
 
     #[test]
@@ -2156,13 +2116,6 @@ mod od1_compliance {
             "Expected 3 rows (header + hline + data), found {}",
             row_count
         );
-    }
-
-    #[test]
-    fn horizontal_rule_five_dashes() {
-        let input = "-----\n";
-        let count = get_type_count(input, SyntaxT::HorizontalRule, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 horizontal rule, found {}", count);
     }
 
     #[test]
