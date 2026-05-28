@@ -307,7 +307,7 @@ impl<'a, 'b> NodeArena<'a, 'b> {
     pub fn nodes(&self, root: NodeId) -> Nodes<'_, 'a, 'b> {
         Nodes {
             arena: self,
-            stack: vec![0],
+            stack: InlineStack::with_first_entry(0),
             current: root,
         }
     }
@@ -328,10 +328,80 @@ impl<'a, 'b> std::ops::Index<NodeId> for NodeArena<'a, 'b> {
     }
 }
 
+/// DFS child-index stack with a fixed inline buffer; only spills to heap
+/// when nesting depth exceeds `N`.
+struct InlineStack<const N: usize> {
+    inline: [usize; N],
+    len: usize,
+    overflow: Vec<usize>,
+}
+
+impl<const N: usize> InlineStack<N> {
+    fn with_first_entry(v: usize) -> Self {
+        let mut s = Self {
+            inline: [0; N],
+            len: 0,
+            overflow: Vec::new(),
+        };
+        s.push(v);
+        s
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    #[inline]
+    fn push(&mut self, v: usize) {
+        if self.len < N {
+            self.inline[self.len] = v;
+        } else {
+            self.overflow.push(v);
+        }
+        self.len += 1;
+    }
+
+    #[inline]
+    fn pop(&mut self) {
+        if self.len == 0 {
+            return;
+        }
+        self.len -= 1;
+        if self.len >= N {
+            self.overflow.pop();
+        }
+    }
+
+    #[inline]
+    fn last(&self) -> Option<usize> {
+        if self.len == 0 {
+            return None;
+        }
+        if self.len <= N {
+            Some(self.inline[self.len - 1])
+        } else {
+            self.overflow.last().copied()
+        }
+    }
+
+    #[inline]
+    fn last_mut(&mut self) -> Option<&mut usize> {
+        if self.len == 0 {
+            return None;
+        }
+        if self.len <= N {
+            Some(&mut self.inline[self.len - 1])
+        } else {
+            self.overflow.last_mut()
+        }
+    }
+}
+
 /// A pre-order traversal of [`SyntaxNode`] values inside a [`NodeArena`].
 pub struct Nodes<'s, 'a, 'b> {
     arena: &'s NodeArena<'a, 'b>,
-    stack: Vec<usize>,
+    stack: InlineStack<16>,
     current: NodeId,
 }
 
@@ -348,7 +418,7 @@ impl<'s, 'a, 'b> Iterator for Nodes<'s, 'a, 'b> {
 
         loop {
             let n = self.arena.nodes[self.current].children.len();
-            let exhausted = self.stack.last().is_none_or(|&idx| idx >= n);
+            let exhausted = self.stack.last().is_none_or(|idx| idx >= n);
             if !exhausted {
                 break;
             }
@@ -359,9 +429,9 @@ impl<'s, 'a, 'b> Iterator for Nodes<'s, 'a, 'b> {
             self.current = self.arena.nodes[self.current].parent?.get() - 1;
         }
 
-        let last = self.stack.len() - 1;
-        let child = self.arena.nodes[self.current].children[self.stack[last]];
-        self.stack[last] += 1;
+        let child_idx = self.stack.last().unwrap();
+        let child = self.arena.nodes[self.current].children[child_idx];
+        *self.stack.last_mut().unwrap() += 1;
         self.stack.push(0);
         self.current = child;
 

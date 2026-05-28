@@ -214,6 +214,30 @@ fn bench_list_heavy(c: &mut Criterion) {
     group.finish();
 }
 
+/// Parse once outside the loop, then repeatedly walk every node in the tree.
+/// Isolates the `Nodes` iterator cost from parsing cost.
+fn bench_traverse(c: &mut Criterion) {
+    let mut group = c.benchmark_group("traverse");
+    group.sample_size(100);
+
+    for (label, n) in [("3k", 1), ("34k", 10), ("340k", 100)] {
+        let corpus = make_corpus(n);
+        let bump = Bump::new();
+        let mut parser =
+            Parser::new(&corpus, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+
+        group.bench_function(label, |b| {
+            b.iter(|| {
+                let count: usize = arena.nodes(black_box(root)).count();
+                black_box(count)
+            })
+        });
+    }
+
+    group.finish();
+}
+
 fn main() {
     let mut c = Criterion::default().configure_from_args();
     bench_parse_sizes(&mut c);
@@ -222,5 +246,6 @@ fn main() {
     bench_headline_heavy(&mut c);
     bench_list_heavy(&mut c);
     bench_footnote_heavy(&mut c);
+    bench_traverse(&mut c);
     c.final_summary();
 }
