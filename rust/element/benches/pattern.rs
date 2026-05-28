@@ -161,6 +161,94 @@ fn item_byte(input: &str, pos: usize) -> bool {
     i >= line.len() || line[i] == b' ' || line[i] == b'\t'
 }
 
+/// Simulate the current paragraph-parser dispatch: `line.trim()` + starts_with checks.
+fn paragraph_check_trim(line: &str, end_gt_start: bool) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    if !end_gt_start {
+        return false;
+    }
+    if trimmed.starts_with('*') && trimmed.len() > 1
+        && matches!(trimmed.as_bytes().get(1), Some(b' ' | b'*'))
+    {
+        return true; // headline
+    }
+    if trimmed.starts_with("#+") || trimmed.starts_with("# ") || trimmed == "#" {
+        return true; // keyword / comment
+    }
+    if is_horizontal_rule(trimmed) {
+        return true;
+    }
+    // Inline item check — same logic as starts_with_item.
+    paragraph_item_check(line)
+}
+
+/// Byte-level dispatch: find first non-whitespace byte, match on it directly,
+/// avoiding the full `trim()` scan from both ends.
+fn paragraph_check_byte(line: &str, end_gt_start: bool) -> bool {
+    let bytes = line.as_bytes();
+    let first_non_ws = bytes.iter().position(|&b| b != b' ' && b != b'\t');
+    let Some(i) = first_non_ws else {
+        return true; // blank line
+    };
+    if !end_gt_start {
+        return false;
+    }
+    match bytes[i] {
+        b'*' if bytes.get(i + 1).is_some_and(|&b| b == b' ' || b == b'*') => true,
+        b'#' => {
+            i + 1 < bytes.len() && bytes[i + 1] == b'+'
+                || bytes.get(i + 1).is_some_and(|&b| b == b' ')
+                || i + 1 == bytes.len()
+        }
+        // Horizontal rule must be checked before item for `-`/`+` lines
+        b'-' | b'+' => {
+            // If followed by space/tab or end of line it's a list item.
+            // If 5+ hyphens with only trailing ws it's an hrule.
+            match bytes.get(i + 1) {
+                Some(b' ' | b'\t') | None => true,
+                _ => is_horizontal_rule(&line[i..]),
+            }
+        }
+        b'0'..=b'9' => paragraph_item_check(line),
+        _ => is_horizontal_rule(&line[i..]),
+    }
+}
+
+/// Inline item check matching `starts_with_item` in list.rs.
+fn paragraph_item_check(line: &str) -> bool {
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        i += 1;
+    }
+    if i >= bytes.len() {
+        return false;
+    }
+    match bytes[i] {
+        b'-' | b'+' => i += 1,
+        b'*' => {
+            if i == 0 {
+                return false;
+            }
+            i += 1;
+        }
+        _ if bytes[i].is_ascii_digit() => {
+            while i < bytes.len() && bytes[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i >= bytes.len() || (bytes[i] != b'.' && bytes[i] != b')') {
+                return false;
+            }
+            i += 1;
+        }
+        _ => return false,
+    }
+    i >= bytes.len() || bytes[i] == b' ' || bytes[i] == b'\t'
+}
+
 // ── test corpora ─────────────────────────────────────────────────────────────
 //
 // Each constant is a block of lines with realistic average length so that
@@ -239,6 +327,26 @@ const ITEM_INPUT: &str = concat!(
     "100. deeply numbered item for edge case testing\n",
     "text with - dash in middle\n",
     "  *\n",
+);
+
+const PARA_INPUT: &str = concat!(
+    "Regular paragraph text that continues for a while without any breaks\n",
+    "This is more of the paragraph content flowing across multiple lines\n",
+    "Some more descriptive text in the middle of a paragraph body here\n",
+    "* Headline that should cause a paragraph break when encountered\n",
+    "This line is back in paragraph mode after the headline above\n",
+    "  - an indented list item that would break a paragraph\n",
+    "And here we are back to regular prose once more in the document\n",
+    "1. ordered list item would also break the paragraph here\n",
+    "Writing more paragraph text to keep the benchmark realistic\n",
+    "#+BEGIN_SRC rust\n",
+    "And more text after the keyword line to keep things flowing\n",
+    "# Another comment-style line that terminates paragraphs\n",
+    "The quick brown fox jumps over the lazy dog near the bank\n",
+    "-----\n",
+    "More normal text content that doesn't match any patterns\n",
+    "  -----  \n",
+    "# a comment\n",
 );
 
 // Collect the byte offset of every line start in `s`.
@@ -408,6 +516,52 @@ fn bench_item(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_paragraph_dispatch(c: &mut Criterion) {
+    let input = PARA_INPUT;
+    let positions = line_starts(input);
+    let end_gt_start = true; // simulate second+ paragraph line
+
+    // Verify agreement on every line
+    for &pos in &positions {
+        let line_end = input[pos..].find('\n').map(|p| pos + p).unwrap_or(input.len());
+        let line = &input[pos..line_end];
+        let r = paragraph_check_trim(line, end_gt_start);
+        let b = paragraph_check_byte(line, end_gt_start);
+        assert_eq!(r, b,
+            "Mismatch at byte {}: line={:?} trim={} byte={}",
+            pos, line, r, b);
+    }
+
+    let mut group = c.benchmark_group("paragraph_dispatch");
+    group.sample_size(500);
+
+    group.bench_function("trim", |b| {
+        b.iter(|| {
+            positions
+                .iter()
+                .map(|&p| {
+                    let line_end = input[p..].find('\n').map(|p2| p + p2).unwrap_or(input.len());
+                    paragraph_check_trim(black_box(&input[p..line_end]), end_gt_start) as usize
+                })
+                .sum::<usize>()
+        })
+    });
+
+    group.bench_function("byte", |b| {
+        b.iter(|| {
+            positions
+                .iter()
+                .map(|&p| {
+                    let line_end = input[p..].find('\n').map(|p2| p + p2).unwrap_or(input.len());
+                    paragraph_check_byte(black_box(&input[p..line_end]), end_gt_start) as usize
+                })
+                .sum::<usize>()
+        })
+    });
+
+    group.finish();
+}
+
 fn main() {
     let mut c = Criterion::default().configure_from_args();
     bench_hashtag_dispatch(&mut c);
@@ -415,5 +569,6 @@ fn main() {
     bench_on_headline(&mut c);
     bench_horizontal_rule(&mut c);
     bench_item(&mut c);
+    bench_paragraph_dispatch(&mut c);
     c.final_summary();
 }
