@@ -133,6 +133,41 @@ fn make_list_heavy(items_per_list: usize) -> String {
     s
 }
 
+/// Many footnote definitions back-to-back, stressing footnote_definition_parser (#2).
+fn make_footnote_heavy(count: usize) -> String {
+    let mut s = String::with_capacity(count * 60);
+    for i in 0..count {
+        s.push_str(&format!(
+            "[fn:note{}] This is the body of footnote number {}.\n\n",
+            i, i
+        ));
+    }
+    s
+}
+
+fn bench_footnote_heavy(c: &mut Criterion) {
+    let mut group = c.benchmark_group("footnote_heavy");
+    group.sample_size(100);
+
+    for (label, n) in [("50", 50), ("200", 200), ("1000", 1000)] {
+        let corpus = make_footnote_heavy(n);
+        group.bench_function(label, |b| {
+            b.iter(|| {
+                let bump = bumpalo::Bump::new();
+                let mut parser = Parser::new(
+                    black_box(&corpus),
+                    ParseGranularity::Object,
+                    DefaultEnvironment,
+                    &bump,
+                );
+                parser.parse_buffer();
+            })
+        });
+    }
+
+    group.finish();
+}
+
 fn bench_headline_heavy(c: &mut Criterion) {
     let mut group = c.benchmark_group("headline_heavy");
     group.sample_size(100);
@@ -186,5 +221,6 @@ fn main() {
     bench_parse_viewport(&mut c);
     bench_headline_heavy(&mut c);
     bench_list_heavy(&mut c);
+    bench_footnote_heavy(&mut c);
     c.final_summary();
 }

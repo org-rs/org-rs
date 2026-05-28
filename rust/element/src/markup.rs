@@ -183,17 +183,12 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         } = element_span;
         let input_slice = &self.input[begin..limit];
 
-        let label = match REGEX_FOOTNOTE_DEFINITION.captures(input_slice) {
-            Some(caps) => caps.get(1).map(|m| m.as_str()).unwrap_or(""),
-            None => {
-                return self
-                    .arena
-                    .alloc(SyntaxNode::fallback(self.input, begin, limit, self.bump))
+        let (label, label_end) = match REGEX_FOOTNOTE_DEFINITION.captures(input_slice) {
+            Some(caps) => {
+                let label = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                let label_end = caps.get(0).unwrap().end();
+                (label, label_end)
             }
-        };
-
-        let label_end = match REGEX_FOOTNOTE_DEFINITION.find(input_slice) {
-            Some(m) => m.end(),
             None => {
                 return self
                     .arena
