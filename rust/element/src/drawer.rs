@@ -102,13 +102,13 @@ fn is_end_line(line: &str) -> bool {
         && bytes[1..bytes.len() - 1].eq_ignore_ascii_case(b"END")
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Parse a drawer element.
     ///
     /// Format: `:NAME:\n...content...\n:END:`
     /// Case insensitive (matches :NAME: and :END:)
     #[inline]
-    pub fn drawer_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn drawer_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -223,7 +223,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 children.push(
                     self.arena.alloc(
                         SyntaxNode::new(
-                            Syntax::NodeProperty(Box::new(node_data)),
+                            Syntax::NodeProperty(self.bump.alloc(node_data)),
                             (prop_start, prop_end),
                         )
                         .build(),

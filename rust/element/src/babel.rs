@@ -43,13 +43,13 @@ pub struct BabelCallData<'a> {
     pub value: &'a str,
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Parse a babel call element.
     ///
     /// Format: `#+CALL: name(args)` or `#+CALL: name[:header] args`
     /// Case insensitive (matches CALL, call, etc.)
     #[inline]
-    pub fn babel_call_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn babel_call_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -85,7 +85,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         self.arena.alloc(
             SyntaxNode::new(
-                Syntax::BabelCall(Box::new(BabelCallData {
+                Syntax::BabelCall(self.bump.alloc(BabelCallData {
                     call: call_name,
                     inside_header: None,
                     arguments: None,

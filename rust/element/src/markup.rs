@@ -127,13 +127,13 @@ pub struct FootnoteDefinitionData<'a> {
     pub value: &'a str,
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Parse a comment element starting at `start`.
     ///
     /// A comment is one or more consecutive lines starting with `# `
     /// (hash + space) or just `#` at end of line.
     #[inline]
-    pub fn comment_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn comment_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let span = element_span.span;
         let mut end = span.start;
 
@@ -163,7 +163,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// A horizontal rule is a line containing at least five consecutive
     /// dashes and nothing else (ignoring surrounding whitespace).
     #[inline]
-    pub fn horizontal_rule_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn horizontal_rule_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let span = element_span.span;
         let end = memchr(b'\n', &self.input.as_bytes()[span.start..span.end])
             .map_or(span.end, |i| span.start + i + 1);
@@ -184,7 +184,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Sets content_location for contents_begin/contents_end
     /// - Calculates pre_blank and post_blank
     #[inline]
-    pub fn footnote_definition_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn footnote_definition_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval {
                 start: begin,
@@ -286,7 +286,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         self.arena.alloc(
             SyntaxNode::new(
-                Syntax::FootnoteDefinition(Box::new(FootnoteDefinitionData {
+                Syntax::FootnoteDefinition(self.bump.alloc(FootnoteDefinitionData {
                     label,
                     pre_blank,
                     value,
@@ -312,7 +312,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Value is stored WITHOUT colons (stripped at parse time)
     /// - Calculates post-blank
     #[inline]
-    pub fn fixed_width_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn fixed_width_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval {
                 start: begin,

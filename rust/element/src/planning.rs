@@ -27,7 +27,7 @@ lazy_static! {
     ).unwrap();
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     #[inline]
     pub fn planning_parser(&mut self, limit: usize) -> NodeId {
         let start = self.cursor.pos();
@@ -73,7 +73,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         };
 
         self.arena.alloc(
-            SyntaxNode::new(Syntax::Planning(Box::new(planning_data)), (start, end))
+            SyntaxNode::new(Syntax::Planning(self.bump.alloc(planning_data)), (start, end))
                 .post_blank(post_blank)
                 .build(),
         )
@@ -135,11 +135,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
         self.arena.alloc(
             SyntaxNode::new(
-                Syntax::Clock(Box::new(crate::data::ClockData {
-                    duration: "",
-                    status: crate::data::ClockStatus::Running,
-                    raw: value,
-                })),
+                Syntax::Clock(self.bump.alloc(crate::data::ClockData::new(value))),
                 (start, end),
             )
             .post_blank(post_blank)
@@ -218,7 +214,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Value is the full sexp string
     /// - Stores affiliated data in SyntaxNode
     #[inline]
-    pub fn diary_sexp_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn diary_sexp_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,

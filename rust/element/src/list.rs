@@ -16,21 +16,21 @@
 //!  Plain Lists and Items
 //! https://orgmode.org/worg/dev/org-syntax.html#Plain_Lists_and_Items
 //!
-//!  Items are defined by a line starting with the following pattern: “BULLET
-//! COUNTER-SET CHECK-BOX TAG”, in which only BULLET is mandatory.
+//!  Items are defined by a line starting with the following pattern: "BULLET
+//! COUNTER-SET CHECK-BOX TAG", in which only BULLET is mandatory.
 //!
 //!  BULLET is either an asterisk, a hyphen, a plus sign character or follows
-//! either the pattern “COUNTER.” or “COUNTER)”.  In any case, BULLET is follwed by
+//! either the pattern "COUNTER." or "COUNTER)".  In any case, BULLET is follwed by
 //! a whitespace character or line ending.
 //!
 //!  COUNTER can be a number or a single letter.
 //!
 //!  COUNTER-SET follows the pattern [@COUNTER].
 //!
-//!  CHECK-BOX is either a single whitespace character, a “X” character or a
+//!  CHECK-BOX is either a single whitespace character, a "X" character or a
 //! hyphen, enclosed within square brackets.
 //!
-//!  TAG follows “TAG-TEXT ::” pattern, where TAG-TEXT can contain any character
+//!  TAG follows "TAG-TEXT ::" pattern, where TAG-TEXT can contain any character
 //! but a new line.
 //!
 //!  An item ends before the next item, the first line less or equally indented
@@ -41,8 +41,8 @@
 //! only directly contain items.
 //!
 //!  If first item in a plain list has a counter in its bullet, the plain list will
-//! be an “ordered plain-list”. If it contains a tag, it will be a “descriptive
-//! list”. Otherwise, it will be an “unordered list”. List types are mutually
+//! be an "ordered plain-list". If it contains a tag, it will be a "descriptive
+//! list". Otherwise, it will be an "unordered list". List types are mutually
 //! exclusive.
 //!
 //!  For example, consider the following excerpt of an Org document:
@@ -279,7 +279,7 @@ fn desc_content_start(input: &str, from: usize, limit: usize) -> Option<usize> {
     })
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Fallback: item parser (not yet fully implemented).
     #[inline]
     pub fn item_parser(
@@ -296,7 +296,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     #[inline]
     pub fn plain_list_parser(
         &mut self,
-        element_span: ElementSpan<'a>,
+        element_span: ElementSpan<'a, 'b>,
         structure: Rc<ListStruct<'a>>,
     ) -> NodeId {
         let span = element_span.span;
@@ -420,7 +420,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         self.arena.alloc(SyntaxNode {
             parent: None,
             children: Vec::new(),
-            data: Syntax::Item(Box::new(item_data)),
+            data: Syntax::Item(self.bump.alloc(item_data)),
             location: Interval {
                 start: item.position,
                 end,

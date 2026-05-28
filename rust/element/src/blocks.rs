@@ -266,7 +266,7 @@ fn post_blank(input: &str, end: usize, limit: usize) -> usize {
     }
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Fallback: consume from `start` to the matching `#+END_` line (or
     /// `limit`) and return a `Paragraph` node so parsing can continue.
     fn block_fallback(&mut self, span: Interval, block_type: &str) -> NodeId {
@@ -281,9 +281,9 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// blocks whose only parse output is a location, content span, and affiliated data.
     fn parse_content_block(
         &mut self,
-        element_span: ElementSpan<'a>,
+        element_span: ElementSpan<'a, 'b>,
         tag: &str,
-        syntax: Syntax<'a>,
+        syntax: Syntax<'a, 'b>,
     ) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
@@ -303,13 +303,13 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Parse a center block element.
     #[inline]
-    pub fn center_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn center_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         self.parse_content_block(element_span, "CENTER", Syntax::CenterBlock)
     }
 
     /// Parse a comment block element.
     #[inline]
-    pub fn comment_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn comment_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -328,7 +328,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Parse an example block element.
     #[inline]
-    pub fn example_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn example_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -339,7 +339,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let value = &self.input[bounds.content.start..bounds.content.end];
         self.arena.alloc(
             SyntaxNode::new(
-                Syntax::ExampleBlock(Box::new(ExampleBlockData {
+                Syntax::ExampleBlock(self.bump.alloc(ExampleBlockData {
                     label_fmt: None,
                     language: None,
                     number_lines: None,
@@ -359,7 +359,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Parse an export block element.
     #[inline]
-    pub fn export_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn export_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -376,7 +376,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             .unwrap_or("html");
         self.arena.alloc(
             SyntaxNode::new(
-                Syntax::ExportBlock(Box::new(ExportBlockData { type_s, value })),
+                Syntax::ExportBlock(self.bump.alloc(ExportBlockData { type_s, value })),
                 bounds.location,
             )
             .post_blank(post_blank(self.input, bounds.location.end, limit))
@@ -387,7 +387,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Parse a quote block element.
     #[inline]
-    pub fn quote_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn quote_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -406,7 +406,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Parse a src block element.
     #[inline]
-    pub fn src_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn src_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -420,7 +420,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let language = self.input[start..first_line_end].split_whitespace().nth(1);
         self.arena.alloc(
             SyntaxNode::new(
-                Syntax::SrcBlock(Box::new(SrcBlockData {
+                Syntax::SrcBlock(self.bump.alloc(SrcBlockData {
                     label_fmt: None,
                     language,
                     number_lines: None,
@@ -439,7 +439,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Parse a verse block element.
     #[inline]
-    pub fn verse_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn verse_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -458,7 +458,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Parse a special block element.
     #[inline]
-    pub fn special_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn special_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -475,7 +475,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         let raw_value = &self.input[bounds.content.start..bounds.content.end];
         self.arena.alloc(
             SyntaxNode::new(
-                Syntax::SpecialBlock(Box::new(SpecialBlockData { type_s, raw_value })),
+                Syntax::SpecialBlock(self.bump.alloc(SpecialBlockData { type_s, raw_value })),
                 bounds.location,
             )
             .content(bounds.content)
@@ -487,7 +487,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
     /// Fallback: dynamic block parser (not yet fully implemented).
     #[inline]
-    pub fn dynamic_block_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn dynamic_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -499,7 +499,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
         };
         self.arena.alloc(
             SyntaxNode::new(
-                Syntax::DynamicBlock(Box::new(DynamicBlockData {
+                Syntax::DynamicBlock(self.bump.alloc(DynamicBlockData {
                     arguments: "",
                     block_name: "",
                     drawer_name: "",

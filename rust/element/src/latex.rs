@@ -38,9 +38,9 @@ pub struct LatexEnvironmentData<'a> {
     value: &'a str,
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     #[inline]
-    pub fn latex_environment_parser(&mut self, element_span: ElementSpan<'a>) -> NodeId {
+    pub fn latex_environment_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -106,7 +106,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
                 return self.arena.alloc(
                     SyntaxNode::new(
-                        Syntax::LatexEnvironment(Box::new(env_data)),
+                        Syntax::LatexEnvironment(self.bump.alloc(env_data)),
                         (start, end_pos),
                     )
                     .post_blank(post_blank)

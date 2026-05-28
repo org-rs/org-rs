@@ -21,6 +21,7 @@
 use crate::data::{NodeArena, NodeId, Syntax, SyntaxT};
 use crate::environment::DefaultEnvironment;
 use crate::parser::{ParseGranularity, Parser};
+use bumpalo::Bump;
 
 fn count_type(arena: &NodeArena, id: NodeId, typ: SyntaxT) -> usize {
     let mut count = 0;
@@ -34,7 +35,8 @@ fn count_type(arena: &NodeArena, id: NodeId, typ: SyntaxT) -> usize {
 }
 
 fn get_type_count(input: &str, typ: SyntaxT, granularity: ParseGranularity) -> usize {
-    let mut parser = Parser::new(input, granularity, DefaultEnvironment);
+    let bump = Bump::new();
+    let mut parser = Parser::new(input, granularity, DefaultEnvironment, &bump);
     let (arena, root) = parser.parse_buffer();
     count_type(&arena, root, typ)
 }
@@ -263,7 +265,8 @@ mod item {
     #[test]
     fn item_with_counter_set() {
         let input = "1. [@3] item\n2. next\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
         let root_children = &arena[root].children;
@@ -314,7 +317,8 @@ mod item {
         #[test]
         fn sub_headline_after_blank_is_not_item_child() {
             let input = "* Top Level\n- list item\n\n** Sub-headline\n";
-            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+            let bump = Bump::new();
+            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
 
             let top_hl = arena[root].children[0];
@@ -344,7 +348,8 @@ mod item {
         #[test]
         fn sub_headline_is_sibling_of_section() {
             let input = "* Top Level\n- list item\n\n** Sub-headline\n";
-            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+            let bump = Bump::new();
+            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
 
             let top_hl = arena[root].children[0];
@@ -364,7 +369,8 @@ mod item {
         #[test]
         fn headline_after_multiple_items_not_in_last_item() {
             let input = "* Parent\n- alpha\n- beta\n\n** Child\n";
-            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+            let bump = Bump::new();
+            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
 
             let top_hl = arena[root].children[0];
@@ -395,7 +401,8 @@ mod item {
         #[test]
         fn top_level_list_followed_by_headline() {
             let input = "- top item\n\n* Headline\n";
-            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+            let bump = Bump::new();
+            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
 
             // Find the PlainList (may be inside a section or directly under root)
@@ -432,7 +439,8 @@ mod item {
         use super::*;
 
         fn para_start(input: &str) -> usize {
-            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+            let bump = Bump::new();
+            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
             // Walk: root → section → plain_list → item → paragraph
             let section = arena[root].children[0];
@@ -557,7 +565,8 @@ mod headline {
     #[test]
     fn headline_with_tab_after_stars() {
         let input = "*\tOne\n**\tSub\n*\tTwo\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let h1 = root_children.first().expect("Expected first headline");
@@ -579,7 +588,8 @@ mod headline {
     #[test]
     fn headline_with_unicode_tags() {
         let input = "* title :café:标签:\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let h = root_children.first().expect("Expected headline");
@@ -603,7 +613,8 @@ mod headline {
     #[test]
     fn headline_comment_not_in_title() {
         let input = "* COMMENT stuff\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let h = root_children.first().expect("Expected headline");
@@ -628,7 +639,8 @@ mod headline {
         use super::*;
 
         fn headline_direct_child_types(input: &str) -> Vec<SyntaxT> {
-            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+            let bump = Bump::new();
+            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
             // root → headline (first child)
             let hl = *arena[root].children.first().expect("expected a headline");
@@ -756,7 +768,8 @@ mod table {
     #[test]
     fn table_hline_detection() {
         let input = "| h1 | h2 |\n|---|\n| c1 | c2 |\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
         let root_children = &arena[root].children;
@@ -810,11 +823,12 @@ mod table {
         // TableRow.  Rust currently skips the TableCell wrapper and puts objects
         // directly in the row.
         let input = "| foo | bar |\n";
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
         fn find_first<'a>(
-            arena: &'a crate::data::NodeArena,
+            arena: &'a crate::data::NodeArena<'a, '_>,
             id: NodeId,
             t: SyntaxT,
         ) -> Option<NodeId> {
@@ -930,7 +944,8 @@ mod blocks {
     #[test]
     fn export_block_type() {
         let input = "#+BEGIN_EXPORT html\n<div>HTML</div>\n#+END_EXPORT\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
         let root_children = &arena[root].children;
@@ -952,7 +967,8 @@ mod blocks {
     #[test]
     fn src_block_language() {
         let input = "#+BEGIN_SRC python\nprint('hello')\n#+END_SRC\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
         let root_children = &arena[root].children;
@@ -974,10 +990,12 @@ mod blocks {
 
     #[test]
     fn block_end_edge_cases() {
+        let bump = Bump::new();
         let mut parser = Parser::new(
             "#+BEGIN_CENTER\ncenter\n#+end_center \n",
             ParseGranularity::Element,
             DefaultEnvironment,
+            &bump,
         );
         let (_arena, _root) = parser.parse_buffer();
         let count = get_type_count(
@@ -1270,7 +1288,8 @@ mod footnote_definition {
     #[test]
     fn content_location() {
         let input = "[fn:1] This is footnote content\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
         let count = get_type_count(
@@ -1310,7 +1329,8 @@ mod footnote_definition {
     #[test]
     fn with_label() {
         let input = "[fn:my-label] Some content\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
         let count = get_type_count(
@@ -1375,7 +1395,8 @@ mod fixed_width {
     #[test]
     fn multiline_value_strips_colons() {
         let input = ": Line 1\n: Line 2\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
         let root_children = &arena[root].children;
@@ -1534,10 +1555,12 @@ mod keyword {
 
     #[test]
     fn keyword_edge_cases() {
+        let bump = Bump::new();
         let mut parser = Parser::new(
             "#+KEY: val\n#+EMPTY:\n#+COLONS: a::b::c\n#+UNICODE: café 标签\n",
             ParseGranularity::Element,
             DefaultEnvironment,
+            &bump,
         );
         let (_arena, _root) = parser.parse_buffer();
         let count = get_type_count(
@@ -1605,7 +1628,8 @@ mod inlinetask {
     #[test]
     fn fifteen_stars_is_not_headline() {
         let input = "*************** Inlinetask\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let first = root_children.first().expect("Expected first child");
@@ -1736,7 +1760,8 @@ mod object_parsing {
     #[test]
     fn timestamp_with_time_range() {
         let input = "<2023-12-01 10:15-11:30>\n";
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
         let root_children = &arena[root].children;
@@ -1768,7 +1793,8 @@ mod object_parsing {
     fn link_type_with_brackets() {
         use crate::data::LinkType;
         let input = "[[https://example.com]]\n";
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let section = root_children.first().expect("Expected section");
@@ -1921,7 +1947,8 @@ mod od1_compliance {
     fn description_list_type() {
         use crate::list::ListKind;
         let input = "- term :: description text\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let section = root_children.first().expect("section node");
@@ -1974,7 +2001,8 @@ mod od1_compliance {
     #[test]
     fn src_block_with_language() {
         let input = "#+BEGIN_SRC python\nprint('hello')\n#+END_SRC\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let section = root_children.first().expect("section");
@@ -2051,10 +2079,11 @@ mod od1_compliance {
         use super::*;
 
         fn link_children(input: &str) -> Vec<SyntaxT> {
-            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+            let bump = Bump::new();
+            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
             // Walk to the Link node
-            fn find_link<'a>(arena: &'a crate::data::NodeArena<'a>, id: NodeId) -> Option<NodeId> {
+            fn find_link<'a>(arena: &'a crate::data::NodeArena<'a, '_>, id: NodeId) -> Option<NodeId> {
                 if SyntaxT::from(&arena[id].data) == SyntaxT::Link {
                     return Some(id);
                 }
@@ -2132,7 +2161,8 @@ mod od1_compliance {
     #[test]
     fn description_list_tag_is_term() {
         let input = "- term :: description text\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let section = root_children.first().expect("section");
@@ -2220,7 +2250,8 @@ mod od1_compliance {
     #[test]
     fn headline_priority_extracted() {
         let input = "* [#A] important task\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let headline = root_children.first().expect("headline");
@@ -2246,7 +2277,8 @@ mod od1_compliance {
         // With the bug, the quote closes early and "more" / "#+END_QUOTE"
         // become stray section-level paragraphs.
         let input = "#+BEGIN_QUOTE\n#+END_SRC\nmore\n#+END_QUOTE\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let section = root_children.first().expect("section");
@@ -2279,7 +2311,8 @@ mod od1_compliance {
     #[test]
     fn bold_in_headline_title() {
         let input = "* *bold* heading\n";
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let hl = *arena[root].children.first().expect("expected headline");
         let crate::data::Syntax::Headline(ref data) = arena[hl].data else {
@@ -2324,7 +2357,8 @@ mod od1_compliance {
     #[test]
     fn timestamp_with_dayname_and_time() {
         let input = "<2023-12-31 Sun 10:30>\n";
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_children = &arena[root].children;
         let section = root_children.first().expect("section");
@@ -2370,7 +2404,8 @@ mod od1_compliance {
         // `starts_with('<') && ends_with('>')` guard fails and deadline is
         // silently set to None even though it was explicitly present.
         let input = "* Head\nDEADLINE: <2023-12-31> CLOSED: [2024-01-01]\ncontent\n";
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let root_ch = &arena[root].children;
         let headline = root_ch.first().expect("headline");
@@ -2423,7 +2458,8 @@ mod subscript_superscript {
     #[test]
     fn bare_subscript() {
         let input = "H_2\n";
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let scripts = find_script(&arena, root);
         assert!(
@@ -2441,7 +2477,8 @@ mod subscript_superscript {
     #[test]
     fn braced_subscript() {
         let input = "H_{2}O\n";
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let scripts = find_script(&arena, root);
         assert!(
@@ -2453,7 +2490,8 @@ mod subscript_superscript {
     #[test]
     fn bare_superscript() {
         let input = "E=mc^2\n";
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let scripts = find_script(&arena, root);
         assert!(
@@ -2471,7 +2509,8 @@ mod subscript_superscript {
     #[test]
     fn braced_superscript() {
         let input = "x^{n+1}\n";
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let scripts = find_script(&arena, root);
         assert!(
@@ -2487,7 +2526,8 @@ mod subscript_superscript {
         // Emacs: subscript at [1,6) with plain-text child "foo" at [2,5).
         // Rust currently emits a Script node with empty children.
         let input = "x_foo test\n";
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let scripts = find_script(&arena, root);
         assert!(!scripts.is_empty(), "no Script node found");
@@ -2509,7 +2549,8 @@ mod subscript_superscript {
     fn braced_subscript_has_plain_text_child() {
         // "H_{2}O\n" — braced subscript {2} must contain a PlainText child.
         let input = "H_{2}O\n";
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let scripts = find_script(&arena, root);
         assert!(!scripts.is_empty(), "no Script node found");
@@ -2532,7 +2573,8 @@ mod post_blank {
     use super::*;
 
     fn plain_text_starts(input: &str) -> Vec<usize> {
-        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment);
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
         let mut starts = Vec::new();
         collect_plain_text_starts(&arena, root, &mut starts);

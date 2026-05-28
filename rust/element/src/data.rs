@@ -44,7 +44,7 @@ pub struct Interval {
 /// https://orgmode.org/worg/dev/org-element-api.html#attributes
 /// Should be bound to the underlying rope's lifetime
 #[derive(Debug)]
-pub struct SyntaxNode<'a> {
+pub struct SyntaxNode<'a, 'b> {
     /// Parent node index (base-1) in the arena, or `None` for the root.
     /// Stores `p + 1` so that `NonZeroUsize`'s niche optimisation fires,
     /// making `Option<NonZeroUsize>` a single word.
@@ -52,7 +52,7 @@ pub struct SyntaxNode<'a> {
     /// Child node indices in the arena.
     pub children: Vec<NodeId>,
 
-    pub data: Syntax<'a>,
+    pub data: Syntax<'a, 'b>,
 
     /// holds `begin` and `end`
     pub location: Interval,
@@ -68,7 +68,7 @@ pub struct SyntaxNode<'a> {
     pub post_blank: usize,
 
     /// Affiliated keywords
-    pub affiliated: Option<AffiliatedData<'a>>,
+    pub affiliated: Option<AffiliatedData<'a, 'b>>,
 }
 
 /// Builder for [`SyntaxNode`], obtained via [`SyntaxNode::new`].
@@ -83,15 +83,15 @@ pub struct SyntaxNode<'a> {
 ///     .affiliated(aff)
 ///     .build()
 /// ```
-pub struct SyntaxNodeBuilder<'a> {
-    data: Syntax<'a>,
+pub struct SyntaxNodeBuilder<'a, 'b> {
+    data: Syntax<'a, 'b>,
     location: Interval,
     content_location: Option<Interval>,
     post_blank: usize,
-    affiliated: Option<AffiliatedData<'a>>,
+    affiliated: Option<AffiliatedData<'a, 'b>>,
 }
 
-impl<'a> SyntaxNodeBuilder<'a> {
+impl<'a, 'b> SyntaxNodeBuilder<'a, 'b> {
     #[inline]
     pub fn content(mut self, loc: impl Into<Interval>) -> Self {
         self.content_location = Some(loc.into());
@@ -105,13 +105,13 @@ impl<'a> SyntaxNodeBuilder<'a> {
     }
 
     #[inline]
-    pub fn affiliated(mut self, aff: Option<AffiliatedData<'a>>) -> Self {
+    pub fn affiliated(mut self, aff: Option<AffiliatedData<'a, 'b>>) -> Self {
         self.affiliated = aff;
         self
     }
 
     #[inline]
-    pub fn build(self) -> SyntaxNode<'a> {
+    pub fn build(self) -> SyntaxNode<'a, 'b> {
         SyntaxNode {
             parent: None,
             children: Vec::new(),
@@ -124,12 +124,12 @@ impl<'a> SyntaxNodeBuilder<'a> {
     }
 }
 
-impl<'a> SyntaxNode<'a> {
+impl<'a, 'b> SyntaxNode<'a, 'b> {
     /// Begin constructing a [`SyntaxNode`].  Returns a [`SyntaxNodeBuilder`]
     /// pre-loaded with the two required fields; call `.build()` to finish.
     #[allow(clippy::new_ret_no_self)]
     #[inline]
-    pub fn new(data: Syntax<'a>, location: impl Into<Interval>) -> SyntaxNodeBuilder<'a> {
+    pub fn new(data: Syntax<'a, 'b>, location: impl Into<Interval>) -> SyntaxNodeBuilder<'a, 'b> {
         SyntaxNodeBuilder {
             data,
             location: location.into(),
@@ -142,7 +142,7 @@ impl<'a> SyntaxNode<'a> {
     /// Creates a `SyntaxNode` corosponding to a raw string used as an
     /// element in elisp.
     #[inline]
-    pub fn create_raw_at(content: &'a str, interval: Interval) -> SyntaxNode<'a> {
+    pub fn create_raw_at(content: &'a str, interval: Interval) -> SyntaxNode<'a, 'b> {
         SyntaxNode {
             parent: None,
             children: Vec::new(),
@@ -159,7 +159,7 @@ impl<'a> SyntaxNode<'a> {
     /// Used for element parsers that are not yet implemented, so that parsing
     /// can continue past the unrecognised content without panicking.
     #[inline]
-    pub fn fallback(input: &str, start: usize, limit: usize) -> SyntaxNode<'a> {
+    pub fn fallback(input: &str, start: usize, limit: usize) -> SyntaxNode<'a, 'b> {
         let end = memchr(b'\n', &input.as_bytes()[start..limit])
             .map_or(limit, |i| (start + i + 1).min(limit));
         SyntaxNode {
@@ -174,7 +174,7 @@ impl<'a> SyntaxNode<'a> {
     }
 
     #[inline]
-    pub fn create_root() -> SyntaxNode<'a> {
+    pub fn create_root() -> SyntaxNode<'a, 'b> {
         SyntaxNode {
             parent: None,
             children: Vec::new(),
@@ -190,11 +190,11 @@ impl<'a> SyntaxNode<'a> {
 /// An arena that owns all [`SyntaxNode`] values.  Nodes are addressed
 /// by [`NodeId`] (a `usize` index) instead of `Rc` pointers.
 #[derive(Debug)]
-pub struct NodeArena<'a> {
-    pub(crate) nodes: Vec<SyntaxNode<'a>>,
+pub struct NodeArena<'a, 'b> {
+    pub(crate) nodes: Vec<SyntaxNode<'a, 'b>>,
 }
 
-impl<'a> NodeArena<'a> {
+impl<'a, 'b> NodeArena<'a, 'b> {
     #[inline]
     pub fn new() -> Self {
         NodeArena { nodes: Vec::new() }
@@ -231,7 +231,7 @@ impl<'a> NodeArena<'a> {
 
     /// Allocate a leaf node (no children, no parent).
     #[inline]
-    pub fn alloc(&mut self, mut node: SyntaxNode<'a>) -> NodeId {
+    pub fn alloc(&mut self, mut node: SyntaxNode<'a, 'b>) -> NodeId {
         node.parent = None;
         node.children = Vec::new();
         let id = self.nodes.len();
@@ -243,7 +243,7 @@ impl<'a> NodeArena<'a> {
     #[inline]
     pub fn alloc_with_children(
         &mut self,
-        mut node: SyntaxNode<'a>,
+        mut node: SyntaxNode<'a, 'b>,
         children: Vec<NodeId>,
     ) -> NodeId {
         let id = self.nodes.len();
@@ -283,13 +283,13 @@ impl<'a> NodeArena<'a> {
     }
 
     #[inline]
-    pub fn get(&self, id: NodeId) -> &SyntaxNode<'a> {
+    pub fn get(&self, id: NodeId) -> &SyntaxNode<'a, 'b> {
         &self.nodes[id]
     }
 
     /// Create a pre-order iterator over the subtree rooted at `root`.
     #[inline]
-    pub fn nodes(&'a self, root: NodeId) -> Nodes<'a> {
+    pub fn nodes(&'a self, root: NodeId) -> Nodes<'a, 'b> {
         Nodes {
             arena: self,
             stack: vec![0],
@@ -298,15 +298,15 @@ impl<'a> NodeArena<'a> {
     }
 }
 
-impl Default for NodeArena<'_> {
+impl<'a, 'b> Default for NodeArena<'a, 'b> {
     #[inline]
     fn default() -> Self {
         NodeArena::new()
     }
 }
 
-impl<'a> std::ops::Index<NodeId> for NodeArena<'a> {
-    type Output = SyntaxNode<'a>;
+impl<'a, 'b> std::ops::Index<NodeId> for NodeArena<'a, 'b> {
+    type Output = SyntaxNode<'a, 'b>;
     #[inline]
     fn index(&self, id: NodeId) -> &Self::Output {
         &self.nodes[id]
@@ -314,14 +314,14 @@ impl<'a> std::ops::Index<NodeId> for NodeArena<'a> {
 }
 
 /// A pre-order traversal of [`SyntaxNode`] values inside a [`NodeArena`].
-pub struct Nodes<'a> {
-    arena: &'a NodeArena<'a>,
+pub struct Nodes<'a, 'b> {
+    arena: &'a NodeArena<'a, 'b>,
     stack: Vec<usize>,
     current: NodeId,
 }
 
-impl<'a> Iterator for Nodes<'a> {
-    type Item = &'a SyntaxNode<'a>;
+impl<'a, 'b> Iterator for Nodes<'a, 'b> {
+    type Item = &'a SyntaxNode<'a, 'b>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -358,18 +358,18 @@ impl<'a> Iterator for Nodes<'a> {
 /// This structure is not meant to be extended.
 #[derive(Debug, EnumDiscriminants)]
 #[strum_discriminants(name(SyntaxT))]
-pub enum Syntax<'a> {
+pub enum Syntax<'a, 'b> {
     /// The root of the parse tree
     OrgData,
 
     /// Element
-    BabelCall(Box<BabelCallData<'a>>),
+    BabelCall(&'b mut BabelCallData<'a>),
 
     /// Greater element
     CenterBlock,
 
     /// Element
-    Clock(Box<ClockData<'a>>),
+    Clock(&'b mut ClockData<'a>),
 
     /// Element
     Comment(&'a str),
@@ -384,25 +384,25 @@ pub enum Syntax<'a> {
     Drawer(&'a str),
 
     /// Greater element
-    DynamicBlock(Box<DynamicBlockData<'a>>),
+    DynamicBlock(&'b mut DynamicBlockData<'a>),
 
     /// Element
-    ExampleBlock(Box<ExampleBlockData<'a>>),
+    ExampleBlock(&'b mut ExampleBlockData<'a>),
 
     /// Element
-    ExportBlock(Box<ExportBlockData<'a>>),
+    ExportBlock(&'b mut ExportBlockData<'a>),
 
     /// Element
     FixedWidth(&'a str),
 
     /// Greater element
-    FootnoteDefinition(Box<FootnoteDefinitionData<'a>>),
+    FootnoteDefinition(&'b mut FootnoteDefinitionData<'a>),
 
     /// Greater element
     /// In addition to the following list, any property specified
     /// in a property drawer attached to the headline will be
     /// accessible as an attribute (with an uppercase name, e.g. CUSTOM_ID).
-    Headline(Box<HeadlineData<'a>>),
+    Headline(&'b mut HeadlineData<'a>),
 
     /// Element
     HorizontalRule,
@@ -412,28 +412,28 @@ pub enum Syntax<'a> {
     /// in a property drawer attached to the headline
     /// will be accessible as an attribute
     /// (with an uppercase name, e.g. CUSTOM_ID).
-    InlineTask(Box<InlineTaskData<'a>>),
+    InlineTask(&'b mut InlineTaskData<'a>),
 
     /// Greater element
-    Item(Box<ItemData<'a>>),
+    Item(&'b mut ItemData<'a>),
 
     /// Element
     /// Keywords follow the syntax:
     /// ```org
     ///   #+KEY: VALUE
     /// ```
-    /// KEY can contain any non-whitespace character, but it cannot be equal to “CALL” or any affiliated keyword.<br>
+    /// KEY can contain any non-whitespace character, but it cannot be equal to "CALL" or any affiliated keyword.<br>
     /// VALUE can contain any character excepted a new line.<br>
     /// If KEY belongs to org-element-document-properties, VALUE can contain objects.
-    Keyword(Box<KeywordData<'a>>),
+    Keyword(&'b mut KeywordData<'a>),
 
     /// Element
     /// An inline Latex environment element
-    LatexEnvironment(Box<LatexEnvironmentData<'a>>),
+    LatexEnvironment(&'b mut LatexEnvironmentData<'a>),
 
     /// Element
     /// Node properties can only exist in property drawers
-    NodeProperty(Box<NodePropertyData<'a>>),
+    NodeProperty(&'b mut NodePropertyData<'a>),
 
     /// Element containing objects.
     Paragraph,
@@ -442,7 +442,7 @@ pub enum Syntax<'a> {
     PlainList(PlainListData<'a>),
 
     /// Element
-    Planning(Box<PlanningData<'a>>),
+    Planning(&'b mut PlanningData<'a>),
 
     /// Greater Element
     PropertyDrawer,
@@ -454,16 +454,16 @@ pub enum Syntax<'a> {
     Section,
 
     /// Greater element
-    SpecialBlock(Box<SpecialBlockData<'a>>),
+    SpecialBlock(&'b mut SpecialBlockData<'a>),
 
     /// Element
-    SrcBlock(Box<SrcBlockData<'a>>),
+    SrcBlock(&'b mut SrcBlockData<'a>),
 
     /// Greater element — a plain display table with no formula.
     Table,
 
     /// Greater element — a table with a `#+TBLFM:` formula requiring recalculation.
-    Spreadsheet(Box<SpreadsheetData<'a>>),
+    Spreadsheet(&'b mut SpreadsheetData<'a>),
 
     /// Element containing objects — a row inside a [`Syntax::Table`].
     TableRow(TableRowType),
@@ -472,7 +472,7 @@ pub enum Syntax<'a> {
     SpreadsheetRow(SpreadsheetRowData),
 
     /// Object — an individually addressable cell inside a [`Syntax::SpreadsheetRow`].
-    SpreadsheetCell(Box<SpreadsheetCellData<'a>>),
+    SpreadsheetCell(&'b mut SpreadsheetCellData<'a>),
 
     /// Element containing objects.
     VerseBlock,
@@ -484,19 +484,19 @@ pub enum Syntax<'a> {
     Code(&'a str),
 
     /// Object
-    Entity(Box<EntityData<'a>>),
+    Entity(&'b mut EntityData<'a>),
 
     /// Object
-    ExportSnippet(Box<ExportSnippetData<'a>>),
+    ExportSnippet(&'b mut ExportSnippetData<'a>),
 
     /// Recursive object.
-    FootnoteReference(Box<FootnoteReferenceData<'a>>),
+    FootnoteReference(&'b mut FootnoteReferenceData<'a>),
 
     /// Object
-    InlineBabelCall(Box<InlineBabelCallData<'a>>),
+    InlineBabelCall(&'b mut InlineBabelCallData<'a>),
 
     /// Object
-    InlineSrcBlock(Box<InlineSrcBlockData<'a>>),
+    InlineSrcBlock(&'b mut InlineSrcBlockData<'a>),
 
     /// Recursive object.
     Italic,
@@ -507,10 +507,10 @@ pub enum Syntax<'a> {
     LatexFragment(&'a str),
 
     /// Recursive object.
-    Link(Box<LinkData<'a>>),
+    Link(&'b mut LinkData<'a>),
 
     /// Object
-    Macro(Box<MacroData<'a>>),
+    Macro(&'b mut MacroData<'a>),
 
     /// Recursive object.
     RadioTarget(RadioTargetData<'a>),
@@ -531,7 +531,7 @@ pub enum Syntax<'a> {
     Target(&'a str),
 
     /// Object
-    Timestamp(Box<TimestampData<'a>>),
+    Timestamp(&'b mut TimestampData<'a>),
 
     /// Recursive object.
     Underline,
@@ -803,12 +803,12 @@ impl SyntaxT {
 }
 
 /// Some elements can contain objects directly in their value fields
-pub enum StringOrObject<'a> {
+pub enum StringOrObject<'a, 'b> {
     Raw(&'a str),
-    Parsed(Box<SyntaxNode<'a>>),
+    Parsed(&'b mut SyntaxNode<'a, 'b>),
 }
 
-impl<'a> core::fmt::Debug for StringOrObject<'a> {
+impl<'a, 'b> core::fmt::Debug for StringOrObject<'a, 'b> {
     #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
@@ -818,9 +818,9 @@ impl<'a> core::fmt::Debug for StringOrObject<'a> {
     }
 }
 
-impl<'a> PartialEq for StringOrObject<'a> {
+impl<'a, 'b> PartialEq for StringOrObject<'a, 'b> {
     #[inline]
-    fn eq(&self, other: &StringOrObject) -> bool {
+    fn eq(&self, other: &StringOrObject<'a, 'b>) -> bool {
         match self {
             StringOrObject::Raw(raw) => match other {
                 StringOrObject::Parsed(..) => false,
@@ -845,12 +845,12 @@ pub struct ClockData<'a> {
 
 impl<'a> ClockData<'a> {
     #[inline]
-    pub fn new(raw: &'a str) -> Box<Self> {
-        Box::new(Self {
+    pub fn new(raw: &'a str) -> Self {
+        Self {
             duration: "",
             status: ClockStatus::Running,
             raw,
-        })
+        }
     }
 }
 
