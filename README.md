@@ -27,9 +27,9 @@ can be used in a content management system, as a blogging backend, _etc._
 
 ## Prior art
 
-Many attempts have been made.  The most faithful not written in a lisp is the implementaiton in [`pandoc`](https://github.com/jgm/pandoc).
+Many attempts have been made.  The most faithful not written in a lisp is the implementation in [`pandoc`](https://github.com/jgm/pandoc).
 
-The reason why there have been relatively few attemps is that Org's
+The reason why there have been relatively few attempts is that Org's
 syntax is not trivial.  Most of Org's syntax is
 [context-sensitive](https://en.wikipedia.org/wiki/Chomsky_hierarchy#Type-1_grammars)
 with only a few context-free elements.  This results in a higher
@@ -74,28 +74,68 @@ These are the choices that were made to achieve the goals:
 - Adhere to the original emacs lisp implementation in terms of
   structure and organisation.
 - Adhere to idiomatic Rust wherever else possible.
+- Use arena allocation ([`bumpalo`](https://docs.rs/bumpalo)) for the
+  parse tree, keeping all nodes in a compact slab and avoiding
+  per-node heap allocations.
 
 These decisions result in a clear scope, and completion criteria, as
 well as easily verifiable replication of the behaviour of the original
 lisp implementation.
 
 
+# Current state
+
+The [`org_element`](rust/element) crate is the sole focus of active
+development.  The parser can handle the full range of Org elements and
+objects at configurable granularity:
+
+| Granularity | What is parsed |
+|-------------|----------------|
+| `Headline`  | Headlines only |
+| `GreaterElement` | Headlines, sections, and top-level elements |
+| `Element`   | Everything except objects and plain text |
+| `Object` (default) | Complete parse — all elements and inline objects |
+
+Serialisation back to canonical Org representation is not yet
+implemented.
+
+A `corpus-check` binary is included for verifying the parser against a
+collection of real-world `.org` files.
+
+
+# Usage
+
+Add the crate to your `Cargo.toml`:
+
+```toml
+[dependencies]
+org_element = { path = "rust/element" }
+```
+
+Parse a buffer:
+
+```rust,ignore
+use org_element::prelude::*;
+
+let src = "* Heading\n\nSome paragraph text.\n";
+let bump = bumpalo::Bump::new();
+let env = DefaultEnvironment::default();
+let mut parser = Parser::new(src, ParseGranularity::Object, env, &bump);
+let (arena, root) = parser.parse_buffer();
+```
+
+All public types are re-exported from `org_element::prelude`.
+
+
 # Roadmap
 
-[element](rust/element) - parser crate is currently the main and only focus.
-It should perform just 2 tasks. Generate concrete syntax tree and serialize it
-back to canonical Org representation.
-
-The rest of the roadmap is not fully flashed out. Feature-complete parser opens
-a lot of possibilities, here are just a few of my ideas:
-
-- Parse tree manipulation tools (like exporting to other formats).
-- Language server - [a way to solve "the matrix" problem](https://langserver.org/).
-  Enabling other editors to have their own org-mode would be a logical next step.
-
-- CLI tools. I'd love to get integration with
+- [x] Complete element and object parser (`rust/element`)
+- [ ] Serialise parse tree back to canonical Org representation
+- [ ] Parse tree manipulation tools (e.g. export to other formats)
+- [ ] Language server — [solving "the matrix" problem](https://langserver.org/),
+  enabling non-Emacs editors to have first-class Org support
+- [ ] CLI tools, including possible integration with
   [TaskWarrior](https://github.com/GothenburgBitFactory/taskwarrior)
-  and maybe even use Org as TaskWarrior's DOM.
 
 
 # Contribution
