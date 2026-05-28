@@ -33,7 +33,7 @@
 //! TAGS is made of words separated with colons, e.g. `:tag1:tag2:`.
 
 use crate::cursor::CachedRegex;
-use crate::data::{Interval, NodeId, Syntax, SyntaxNode, TimestampData};
+use crate::data::{BumpVec, Interval, NodeId, Syntax, SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use memchr::memchr;
 use regex::Regex;
@@ -113,7 +113,7 @@ impl HeadlineFlags {
 }
 
 #[derive(Debug)]
-pub struct HeadlineData<'a> {
+pub struct HeadlineData<'a, 'b> {
     /// Packed flags.
     flags: HeadlineFlags,
 
@@ -153,13 +153,13 @@ pub struct HeadlineData<'a> {
     /// a secondary string (Emacs `:title` property), not body content
     /// (`org-element-contents`).  Body children are Sections and sub-Headlines
     /// only.
-    pub title_objects: Vec<NodeId>,
+    pub title_objects: BumpVec<'b, NodeId>,
 
     /// Headline's TODO keyword, if any.
     pub todo_keyword: Option<TodoKeyword>,
 }
 
-impl<'a> HeadlineData<'a> {
+impl<'a, 'b> HeadlineData<'a, 'b> {
     #[inline]
     pub fn archivedp(&self) -> bool {
         self.flags.archivedp()
@@ -292,7 +292,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         if level >= 15 {
             return self.arena.alloc(SyntaxNode {
                 parent: None,
-                children: Vec::new(),
+                children: BumpVec::new_in(self.bump),
                 data: Syntax::InlineTask(self.bump.alloc(InlineTaskData {
                     closed: None,
                     deadline: None,
@@ -331,7 +331,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             tags,
             title,
             title_location,
-            title_objects: Vec::new(),
+            title_objects: BumpVec::new_in(self.bump),
             todo_keyword,
         };
 
@@ -346,7 +346,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
         self.arena.alloc(SyntaxNode {
             parent: None,
-            children: Vec::new(),
+            children: BumpVec::new_in(self.bump),
             data: Syntax::Headline(self.bump.alloc(data)),
             location: Interval { start: begin, end },
             content_location,
@@ -360,7 +360,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     pub fn inlinetask_parser(&mut self, limit: usize, _raw_secondary_p: bool) -> NodeId {
         let start = self.cursor.pos();
         self.arena
-            .alloc(SyntaxNode::fallback(self.input, start, limit))
+            .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump))
     }
 
     /// Fallback: property drawer parser (not yet implemented).
@@ -368,7 +368,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     pub fn property_drawer_parser(&mut self, limit: usize) -> NodeId {
         let start = self.cursor.pos();
         self.arena
-            .alloc(SyntaxNode::fallback(self.input, start, limit))
+            .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump))
     }
 
     /// Fallback: node property parser (not yet implemented).
@@ -376,7 +376,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     pub fn node_property_parser(&mut self, limit: usize) -> NodeId {
         let start = self.cursor.pos();
         self.arena
-            .alloc(SyntaxNode::fallback(self.input, start, limit))
+            .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump))
     }
 }
 

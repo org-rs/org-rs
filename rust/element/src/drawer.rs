@@ -15,7 +15,7 @@
 
 use crate::affiliated::ElementSpan;
 use crate::cursor::CachedRegex;
-use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
+use crate::data::{BumpVec, Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use lazy_static::lazy_static;
 use memchr::{memchr, memmem, memrchr};
@@ -121,7 +121,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             if name.eq_ignore_ascii_case("END") {
                 return self
                     .arena
-                    .alloc(SyntaxNode::fallback(self.input, start, limit));
+                    .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump));
             }
 
             let bytes = self.input.as_bytes();
@@ -136,7 +136,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             if !found_end {
                 return self
                     .arena
-                    .alloc(SyntaxNode::fallback(self.input, start, limit));
+                    .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump));
             }
 
             let post_blank = if end < limit {
@@ -147,33 +147,33 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             }
             .min(2);
 
-            let children = if name.eq_ignore_ascii_case("PROPERTIES") {
-                self.parse_property_drawer_contents(start, end)
-            } else {
-                vec![]
-            };
-
             let data = if name.eq_ignore_ascii_case("PROPERTIES") {
                 Syntax::PropertyDrawer
             } else {
                 Syntax::Drawer(name)
             };
 
-            return self.arena.alloc_with_children(
-                SyntaxNode::new(data, (start, end))
+            let node = self.arena.alloc(
+                SyntaxNode::new(data, (start, end), self.bump)
                     .post_blank(post_blank)
                     .affiliated(affiliated)
                     .build(),
-                children,
             );
+
+            if name.eq_ignore_ascii_case("PROPERTIES") {
+                let children = self.parse_property_drawer_contents(start, end);
+                self.arena.set_children(node, children);
+            }
+
+            return node;
         }
 
         self.arena
-            .alloc(SyntaxNode::fallback(self.input, start, limit))
+            .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump))
     }
 
-    fn parse_property_drawer_contents(&mut self, start: usize, end: usize) -> Vec<NodeId> {
-        let mut children = Vec::new();
+    fn parse_property_drawer_contents(&mut self, start: usize, end: usize) -> BumpVec<'b, NodeId> {
+        let mut children = BumpVec::new_in(self.bump);
         let input = self.input;
 
         let first_line_end = match memchr(b'\n', &input.as_bytes()[start..]) {
@@ -225,6 +225,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                         SyntaxNode::new(
                             Syntax::NodeProperty(self.bump.alloc(node_data)),
                             (prop_start, prop_end),
+                            self.bump,
                         )
                         .build(),
                     ),

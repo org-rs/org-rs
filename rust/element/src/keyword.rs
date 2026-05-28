@@ -76,6 +76,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     value: value_ref,
                 })),
                 (start, line_end),
+                self.bump,
             )
             .build(),
         )

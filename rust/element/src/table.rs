@@ -16,7 +16,7 @@
 use std::fmt;
 
 use crate::cursor::CachedRegex;
-use crate::data::NodeId;
+use crate::data::{BumpVec, NodeId};
 use crate::prelude::*;
 use memchr::memchr;
 use regex::Regex;
@@ -115,7 +115,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         };
 
         self.arena
-            .alloc(SyntaxNode::new(Syntax::TableRow(row_type), (start, end)).build())
+            .alloc(SyntaxNode::new(Syntax::TableRow(row_type), (start, end), self.bump).build())
     }
 
     #[inline]
@@ -123,7 +123,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let span = element_span.span;
         let (end, children) = {
             let mut current = span.start;
-            let mut rows: Vec<NodeId> = Vec::new();
+            let mut rows: BumpVec<'b, NodeId> = BumpVec::new_in(self.bump);
             loop {
                 if current >= span.end {
                     break;
@@ -141,9 +141,9 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         };
 
         if children.is_empty() {
-            return self
-                .arena
-                .alloc(SyntaxNode::fallback(self.input, span.start, span.end));
+            return self.arena.alloc(SyntaxNode::fallback(
+                self.input, span.start, span.end, self.bump,
+            ));
         }
 
         // Look for a #+TBLFM: line immediately after the table rows.
@@ -162,7 +162,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
         match formula {
             None => {
-                let node = SyntaxNode::new(Syntax::Table, (span.start, end))
+                let node = SyntaxNode::new(Syntax::Table, (span.start, end), self.bump)
                     .post_blank(post_blank)
                     .affiliated(element_span.affiliated)
                     .build();
@@ -189,6 +189,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                         col_count,
                     })),
                     (span.start, end),
+                    self.bump,
                 )
                 .post_blank(post_blank)
                 .affiliated(element_span.affiliated)
@@ -210,9 +211,9 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let cells = (matches!(row_type, TableRowType::Standard)
             && self.granularity == ParseGranularity::Object)
             .then(|| self.parse_table_cells(start, end))
-            .unwrap_or_default();
+            .unwrap_or_else(|| BumpVec::new_in(self.bump));
 
-        let node = SyntaxNode::new(Syntax::TableRow(row_type), (start, end)).build();
+        let node = SyntaxNode::new(Syntax::TableRow(row_type), (start, end), self.bump).build();
         self.arena.alloc_with_children(node, cells)
     }
 
@@ -222,9 +223,9 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     /// runs from the character immediately after the preceding `|` up to and
     /// including the following `|`.  Object content within the cell is trimmed
     /// of leading/trailing whitespace before parsing.
-    fn parse_table_cells(&mut self, row_start: usize, row_end: usize) -> Vec<NodeId> {
+    fn parse_table_cells(&mut self, row_start: usize, row_end: usize) -> BumpVec<'b, NodeId> {
         let bytes = self.input[row_start..row_end].as_bytes();
-        let mut cells = Vec::new();
+        let mut cells = BumpVec::new_in(self.bump);
 
         // Skip leading whitespace then the opening '|'.
         let first_pipe = match memchr(b'|', bytes) {
@@ -255,7 +256,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             let contents_end = pipe_abs.saturating_sub(trailing).max(contents_begin);
 
             let cell_node = self.arena.alloc(
-                SyntaxNode::new(Syntax::TableCell, (cell_begin, cell_end))
+                SyntaxNode::new(Syntax::TableCell, (cell_begin, cell_end), self.bump)
                     .content((contents_begin, contents_end))
                     .build(),
             );

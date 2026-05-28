@@ -85,7 +85,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 if !found {
                     return self
                         .arena
-                        .alloc(SyntaxNode::fallback(self.input, start, limit));
+                        .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump));
                 }
 
                 let post_blank = if end_pos < limit {
@@ -108,6 +108,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     SyntaxNode::new(
                         Syntax::LatexEnvironment(self.bump.alloc(env_data)),
                         (start, end_pos),
+                        self.bump,
                     )
                     .post_blank(post_blank)
                     .affiliated(affiliated)
@@ -117,6 +118,6 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         }
 
         self.arena
-            .alloc(SyntaxNode::fallback(self.input, start, limit))
+            .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump))
     }
 }

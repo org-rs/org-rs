@@ -66,7 +66,7 @@ use std::rc::Rc;
 
 use crate::affiliated::ElementSpan;
 use crate::cursor::CachedRegex;
-use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
+use crate::data::{BumpVec, Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use memchr::{memchr, memmem};
 use regex::Regex;
@@ -288,8 +288,12 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         _raw_secondary_p: bool,
     ) -> NodeId {
         let start = self.cursor.pos();
-        self.arena
-            .alloc(SyntaxNode::fallback(self.input, start, self.input.len()))
+        self.arena.alloc(SyntaxNode::fallback(
+            self.input,
+            start,
+            self.input.len(),
+            self.bump,
+        ))
     }
 
     /// Fallback: plain list parser (not yet fully implemented).
@@ -302,15 +306,15 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let span = element_span.span;
         let items = &structure.items;
         if items.is_empty() {
-            return self
-                .arena
-                .alloc(SyntaxNode::fallback(self.input, span.start, span.end));
+            return self.arena.alloc(SyntaxNode::fallback(
+                self.input, span.start, span.end, self.bump,
+            ));
         }
 
         let first_indent = items[0].indent;
         let list_type = Self::get_list_type(items);
 
-        let mut children = Vec::new();
+        let mut children = BumpVec::new_in(self.bump);
         let mut i = 0;
 
         while i < items.len() {
@@ -358,7 +362,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         };
 
         self.arena.alloc_with_children(
-            SyntaxNode::new(Syntax::PlainList(list_data), (span.start, end))
+            SyntaxNode::new(Syntax::PlainList(list_data), (span.start, end), self.bump)
                 .affiliated(element_span.affiliated)
                 .build(),
             children,
@@ -417,18 +421,15 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             structure: ListStruct::new(),
         };
 
-        self.arena.alloc(SyntaxNode {
-            parent: None,
-            children: Vec::new(),
-            data: Syntax::Item(self.bump.alloc(item_data)),
-            location: Interval {
-                start: item.position,
-                end,
-            },
-            content_location,
-            post_blank: 0,
-            affiliated: None,
-        })
+        let mut node = SyntaxNode::new(
+            Syntax::Item(self.bump.alloc(item_data)),
+            (item.position, end),
+            self.bump,
+        );
+        if let Some(loc) = content_location {
+            node = node.content(loc);
+        }
+        self.arena.alloc(node.build())
     }
 
     /// Scan input for list items at current indentation level

@@ -30,6 +30,7 @@ use crate::{
 use memchr::memchr;
 use std::num::NonZeroUsize;
 
+pub use bumpalo::collections::Vec as BumpVec;
 use strum_macros::EnumDiscriminants;
 
 pub type NodeId = usize;
@@ -50,7 +51,7 @@ pub struct SyntaxNode<'a, 'b> {
     /// making `Option<NonZeroUsize>` a single word.
     pub parent: Option<NonZeroUsize>,
     /// Child node indices in the arena.
-    pub children: Vec<NodeId>,
+    pub children: BumpVec<'b, NodeId>,
 
     pub data: Syntax<'a, 'b>,
 
@@ -89,6 +90,7 @@ pub struct SyntaxNodeBuilder<'a, 'b> {
     content_location: Option<Interval>,
     post_blank: usize,
     affiliated: Option<AffiliatedData<'a, 'b>>,
+    bump: &'b bumpalo::Bump,
 }
 
 impl<'a, 'b> SyntaxNodeBuilder<'a, 'b> {
@@ -114,7 +116,7 @@ impl<'a, 'b> SyntaxNodeBuilder<'a, 'b> {
     pub fn build(self) -> SyntaxNode<'a, 'b> {
         SyntaxNode {
             parent: None,
-            children: Vec::new(),
+            children: BumpVec::new_in(self.bump),
             data: self.data,
             location: self.location,
             content_location: self.content_location,
@@ -129,23 +131,32 @@ impl<'a, 'b> SyntaxNode<'a, 'b> {
     /// pre-loaded with the two required fields; call `.build()` to finish.
     #[allow(clippy::new_ret_no_self)]
     #[inline]
-    pub fn new(data: Syntax<'a, 'b>, location: impl Into<Interval>) -> SyntaxNodeBuilder<'a, 'b> {
+    pub fn new(
+        data: Syntax<'a, 'b>,
+        location: impl Into<Interval>,
+        bump: &'b bumpalo::Bump,
+    ) -> SyntaxNodeBuilder<'a, 'b> {
         SyntaxNodeBuilder {
             data,
             location: location.into(),
             content_location: None,
             post_blank: 0,
             affiliated: None,
+            bump,
         }
     }
 
     /// Creates a `SyntaxNode` corosponding to a raw string used as an
     /// element in elisp.
     #[inline]
-    pub fn create_raw_at(content: &'a str, interval: Interval) -> SyntaxNode<'a, 'b> {
+    pub fn create_raw_at(
+        content: &'a str,
+        interval: Interval,
+        bump: &'b bumpalo::Bump,
+    ) -> SyntaxNode<'a, 'b> {
         SyntaxNode {
             parent: None,
-            children: Vec::new(),
+            children: BumpVec::new_in(bump),
             data: Syntax::PlainText(content),
             location: interval,
             content_location: None,
@@ -159,12 +170,17 @@ impl<'a, 'b> SyntaxNode<'a, 'b> {
     /// Used for element parsers that are not yet implemented, so that parsing
     /// can continue past the unrecognised content without panicking.
     #[inline]
-    pub fn fallback(input: &str, start: usize, limit: usize) -> SyntaxNode<'a, 'b> {
+    pub fn fallback(
+        input: &str,
+        start: usize,
+        limit: usize,
+        bump: &'b bumpalo::Bump,
+    ) -> SyntaxNode<'a, 'b> {
         let end = memchr(b'\n', &input.as_bytes()[start..limit])
             .map_or(limit, |i| (start + i + 1).min(limit));
         SyntaxNode {
             parent: None,
-            children: Vec::new(),
+            children: BumpVec::new_in(bump),
             data: Syntax::Paragraph,
             location: Interval { start, end },
             content_location: None,
@@ -174,10 +190,10 @@ impl<'a, 'b> SyntaxNode<'a, 'b> {
     }
 
     #[inline]
-    pub fn create_root() -> SyntaxNode<'a, 'b> {
+    pub fn create_root(bump: &'b bumpalo::Bump) -> SyntaxNode<'a, 'b> {
         SyntaxNode {
             parent: None,
-            children: Vec::new(),
+            children: BumpVec::new_in(bump),
             data: Syntax::OrgData,
             location: Interval { start: 0, end: 0 },
             content_location: None,
@@ -233,7 +249,6 @@ impl<'a, 'b> NodeArena<'a, 'b> {
     #[inline]
     pub fn alloc(&mut self, mut node: SyntaxNode<'a, 'b>) -> NodeId {
         node.parent = None;
-        node.children = Vec::new();
         let id = self.nodes.len();
         self.nodes.push(node);
         id
@@ -244,7 +259,7 @@ impl<'a, 'b> NodeArena<'a, 'b> {
     pub fn alloc_with_children(
         &mut self,
         mut node: SyntaxNode<'a, 'b>,
-        children: Vec<NodeId>,
+        children: BumpVec<'b, NodeId>,
     ) -> NodeId {
         let id = self.nodes.len();
         for &child in &children {
@@ -258,7 +273,7 @@ impl<'a, 'b> NodeArena<'a, 'b> {
 
     /// Replace the children of `parent`, updating parent back-pointers.
     #[inline]
-    pub fn set_children(&mut self, parent: NodeId, children: Vec<NodeId>) {
+    pub fn set_children(&mut self, parent: NodeId, children: BumpVec<'b, NodeId>) {
         for &child in &children {
             self.nodes[child].parent = NonZeroUsize::new(parent + 1);
         }
@@ -273,7 +288,7 @@ impl<'a, 'b> NodeArena<'a, 'b> {
     /// sub-headlines).  This method sets the parent pointer of each object to
     /// `parent` so arena traversals can still walk up to the headline.
     #[inline]
-    pub fn set_title_objects(&mut self, parent: NodeId, objects: Vec<NodeId>) {
+    pub fn set_title_objects(&mut self, parent: NodeId, objects: BumpVec<'b, NodeId>) {
         for &obj in &objects {
             self.nodes[obj].parent = NonZeroUsize::new(parent + 1);
         }
@@ -289,7 +304,7 @@ impl<'a, 'b> NodeArena<'a, 'b> {
 
     /// Create a pre-order iterator over the subtree rooted at `root`.
     #[inline]
-    pub fn nodes(&'a self, root: NodeId) -> Nodes<'a, 'b> {
+    pub fn nodes(&self, root: NodeId) -> Nodes<'_, 'a, 'b> {
         Nodes {
             arena: self,
             stack: vec![0],
@@ -314,14 +329,14 @@ impl<'a, 'b> std::ops::Index<NodeId> for NodeArena<'a, 'b> {
 }
 
 /// A pre-order traversal of [`SyntaxNode`] values inside a [`NodeArena`].
-pub struct Nodes<'a, 'b> {
-    arena: &'a NodeArena<'a, 'b>,
+pub struct Nodes<'s, 'a, 'b> {
+    arena: &'s NodeArena<'a, 'b>,
     stack: Vec<usize>,
     current: NodeId,
 }
 
-impl<'a, 'b> Iterator for Nodes<'a, 'b> {
-    type Item = &'a SyntaxNode<'a, 'b>;
+impl<'s, 'a, 'b> Iterator for Nodes<'s, 'a, 'b> {
+    type Item = &'s SyntaxNode<'a, 'b>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -401,8 +416,8 @@ pub enum Syntax<'a, 'b> {
     /// Greater element
     /// In addition to the following list, any property specified
     /// in a property drawer attached to the headline will be
-    /// accessible as an attribute (with an uppercase name, e.g. CUSTOM_ID).
-    Headline(&'b mut HeadlineData<'a>),
+    /// accessible as an attribute (e.g. CUSTOM_ID).
+    Headline(&'b mut HeadlineData<'a, 'b>),
 
     /// Element
     HorizontalRule,
@@ -1521,21 +1536,22 @@ mod test {
 
     #[test]
     fn nodes_iter_with_a_single_element_returns_that_element() {
+        let bump = bumpalo::Bump::new();
         let mut arena = NodeArena::new();
-        let root = arena.alloc(SyntaxNode::create_root());
-        let results: Vec<&SyntaxNode> = arena.nodes(root).collect();
-        assert_eq!(results.len(), 1);
+        let root = arena.alloc(SyntaxNode::create_root(&bump));
+        assert_eq!(arena.nodes(root).count(), 1);
     }
 
     #[test]
     fn nodes_iter_with_several_children_return_all() {
+        let bump = bumpalo::Bump::new();
         let mut arena = NodeArena::new();
-        let parent = arena.alloc(SyntaxNode::create_root());
+        let parent = arena.alloc(SyntaxNode::create_root(&bump));
         const NUM_CHILDREN: usize = 4;
         let children: Vec<NodeId> = (0..NUM_CHILDREN)
-            .map(|_| arena.alloc(SyntaxNode::create_root()))
+            .map(|_| arena.alloc(SyntaxNode::create_root(&bump)))
             .collect();
-        arena.set_children(parent, children.clone());
+        arena.set_children(parent, BumpVec::from_iter_in(children.clone(), &bump));
 
         let results: Vec<&SyntaxNode> = arena.nodes(parent).collect();
 
@@ -1555,14 +1571,15 @@ mod test {
 
     #[test]
     fn nodes_iter_with_several_layers_return_all() {
+        let bump = bumpalo::Bump::new();
         let mut arena = NodeArena::new();
         const LEVELS: usize = 4;
         let mut ids: Vec<NodeId> = Vec::new();
         for _ in 0..LEVELS {
-            ids.push(arena.alloc(SyntaxNode::create_root()));
+            ids.push(arena.alloc(SyntaxNode::create_root(&bump)));
         }
         for i in 1..LEVELS {
-            arena.set_children(ids[i - 1], vec![ids[i]]);
+            arena.set_children(ids[i - 1], BumpVec::from_iter_in([ids[i]], &bump));
         }
 
         let results: Vec<&SyntaxNode> = arena.nodes(ids[0]).collect();

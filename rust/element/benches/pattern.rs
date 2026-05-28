@@ -115,14 +115,16 @@ fn item_regex(input: &str, pos: usize, re: &Regex) -> bool {
         .find('\n')
         .map(|p| pos + p)
         .unwrap_or(input.len());
-    re.find(&input[pos..end])
-        .is_some_and(|m| m.start() == 0)
+    re.find(&input[pos..end]).is_some_and(|m| m.start() == 0)
 }
 
 /// New: scan the line — non-whitespace → bullet type → post-bullet space/EOL.
 fn item_byte(input: &str, pos: usize) -> bool {
     let bytes = &input.as_bytes()[pos..];
-    let line_end = bytes.iter().position(|&b| b == b'\n').unwrap_or(bytes.len());
+    let line_end = bytes
+        .iter()
+        .position(|&b| b == b'\n')
+        .unwrap_or(bytes.len());
     let line = &bytes[..line_end];
     let mut i = 0;
 
@@ -170,7 +172,8 @@ fn paragraph_check_trim(line: &str, end_gt_start: bool) -> bool {
     if !end_gt_start {
         return false;
     }
-    if trimmed.starts_with('*') && trimmed.len() > 1
+    if trimmed.starts_with('*')
+        && trimmed.len() > 1
         && matches!(trimmed.as_bytes().get(1), Some(b' ' | b'*'))
     {
         return true; // headline
@@ -523,13 +526,18 @@ fn bench_paragraph_dispatch(c: &mut Criterion) {
 
     // Verify agreement on every line
     for &pos in &positions {
-        let line_end = input[pos..].find('\n').map(|p| pos + p).unwrap_or(input.len());
+        let line_end = input[pos..]
+            .find('\n')
+            .map(|p| pos + p)
+            .unwrap_or(input.len());
         let line = &input[pos..line_end];
         let r = paragraph_check_trim(line, end_gt_start);
         let b = paragraph_check_byte(line, end_gt_start);
-        assert_eq!(r, b,
+        assert_eq!(
+            r, b,
             "Mismatch at byte {}: line={:?} trim={} byte={}",
-            pos, line, r, b);
+            pos, line, r, b
+        );
     }
 
     let mut group = c.benchmark_group("paragraph_dispatch");
@@ -540,7 +548,10 @@ fn bench_paragraph_dispatch(c: &mut Criterion) {
             positions
                 .iter()
                 .map(|&p| {
-                    let line_end = input[p..].find('\n').map(|p2| p + p2).unwrap_or(input.len());
+                    let line_end = input[p..]
+                        .find('\n')
+                        .map(|p2| p + p2)
+                        .unwrap_or(input.len());
                     paragraph_check_trim(black_box(&input[p..line_end]), end_gt_start) as usize
                 })
                 .sum::<usize>()
@@ -552,12 +563,197 @@ fn bench_paragraph_dispatch(c: &mut Criterion) {
             positions
                 .iter()
                 .map(|&p| {
-                    let line_end = input[p..].find('\n').map(|p2| p + p2).unwrap_or(input.len());
+                    let line_end = input[p..]
+                        .find('\n')
+                        .map(|p2| p + p2)
+                        .unwrap_or(input.len());
                     paragraph_check_byte(black_box(&input[p..line_end]), end_gt_start) as usize
                 })
                 .sum::<usize>()
         })
     });
+
+    group.finish();
+}
+
+/// Simulate the `NodeArena::nodes: Vec<SyntaxNode>` allocation pattern:
+/// a single Vec that grows as elements are pushed, with ~15 doublings.
+const SYNTAX_NODE_SIZE: usize = 264;
+
+fn bench_arena_vec(c: &mut Criterion) {
+    use bumpalo::collections::Vec as BumpVec;
+    const NODES: usize = 20_000;
+
+    // A mock SyntaxNode sized to match reality (264 bytes).
+    #[repr(C)]
+    struct MockNode([u8; SYNTAX_NODE_SIZE]);
+    const _: () = assert!(std::mem::size_of::<MockNode>() == SYNTAX_NODE_SIZE);
+
+    let mut group = c.benchmark_group("arena_vec");
+    group.sample_size(100);
+
+    // std Vec, natural growth — current production behaviour
+    group.bench_function("std_vec", |b| {
+        b.iter(|| {
+            let mut v: Vec<MockNode> = Vec::new();
+            for _ in 0..NODES {
+                v.push(MockNode([0u8; SYNTAX_NODE_SIZE]));
+            }
+            black_box(v);
+        })
+    });
+
+    // std Vec, pre-sized
+    group.bench_function("std_vec_presized", |b| {
+        b.iter(|| {
+            let mut v: Vec<MockNode> = Vec::with_capacity(NODES);
+            for _ in 0..NODES {
+                v.push(MockNode([0u8; SYNTAX_NODE_SIZE]));
+            }
+            black_box(v);
+        })
+    });
+
+    // bump Vec, natural growth
+    let bump_ptr = Box::into_raw(Box::new(bumpalo::Bump::new()));
+    group.bench_function("bump_vec", |b| {
+        b.iter(|| unsafe {
+            let bump: &mut bumpalo::Bump = &mut *bump_ptr;
+            bump.reset();
+            let mut v: BumpVec<'_, MockNode> = BumpVec::new_in(bump);
+            for _ in 0..NODES {
+                v.push(MockNode([0u8; SYNTAX_NODE_SIZE]));
+            }
+            black_box(v);
+        })
+    });
+
+    // bump Vec, pre-sized
+    group.bench_function("bump_vec_presized", |b| {
+        b.iter(|| unsafe {
+            let bump: &mut bumpalo::Bump = &mut *bump_ptr;
+            bump.reset();
+            let mut v: BumpVec<'_, MockNode> = BumpVec::with_capacity_in(NODES, bump);
+            for _ in 0..NODES {
+                v.push(MockNode([0u8; SYNTAX_NODE_SIZE]));
+            }
+            black_box(v);
+        })
+    });
+
+    unsafe {
+        drop(Box::from_raw(bump_ptr));
+    }
+    group.finish();
+}
+
+fn bench_vec_allocation(c: &mut Criterion) {
+    use bumpalo::collections::Vec as BumpVec;
+
+    /// Simulate the pattern of SyntaxNode::children Vecs:
+    /// 20k Vecs (one per node), each holding 0-15 NodeIds,
+    /// matching the distribution of container vs leaf nodes.
+    fn generate_children_sizes() -> Vec<usize> {
+        // ~70% leaf (0-2 children), ~20% medium (3-8), ~10% many (9-15)
+        let mut sizes = Vec::with_capacity(20_000);
+        let mut rng = 42u64;
+        for _ in 0..20_000 {
+            rng = rng
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let bucket = (rng >> 32) as u32 % 100;
+            let n = if bucket < 70 {
+                // leaf — 0..=2
+                (rng >> 40) as usize % 3
+            } else if bucket < 90 {
+                // medium — 3..=8
+                3 + (rng >> 40) as usize % 6
+            } else {
+                // many — 9..=15
+                9 + (rng >> 40) as usize % 7
+            };
+            sizes.push(n);
+        }
+        sizes
+    }
+
+    let sizes = generate_children_sizes();
+
+    // ── global-allocator Vec ──────────────────────────────────────────────
+    let mut group = c.benchmark_group("vec_children");
+    group.sample_size(100);
+
+    group.bench_function("global_std_vec", |b| {
+        b.iter(|| {
+            let mut arena: Vec<Vec<usize>> = Vec::with_capacity(sizes.len());
+            for &n in &sizes {
+                let mut v = Vec::with_capacity(n.min(4));
+                for i in 0..n {
+                    v.push(i);
+                }
+                arena.push(v);
+            }
+            black_box(arena);
+        })
+    });
+
+    // ── pre-sized global Vec (upper bound capacity) ──────────────────────
+    group.bench_function("global_presized", |b| {
+        b.iter(|| {
+            let mut arena: Vec<Vec<usize>> = Vec::with_capacity(sizes.len());
+            for &n in &sizes {
+                let mut v = Vec::with_capacity(n);
+                for i in 0..n {
+                    v.push(i);
+                }
+                arena.push(v);
+            }
+            black_box(arena);
+        })
+    });
+
+    // ── bump-allocated Vec (bumpalo::collections::Vec) ───────────────────
+    // Leak a Bump into a raw pointer so BumpVec borrows can outlive the
+    // explicit moves/borrows in the closure.  We reset() the bump between
+    // iterations so memory doesn't grow without bound.
+    let bump_ptr = Box::into_raw(Box::new(bumpalo::Bump::new()));
+    group.bench_function("bump_vec", |b| {
+        b.iter(|| unsafe {
+            let bump: &mut bumpalo::Bump = &mut *bump_ptr;
+            bump.reset();
+            let bump_ref: &bumpalo::Bump = bump;
+            let mut arena: BumpVec<'_, BumpVec<'_, usize>> = BumpVec::new_in(bump_ref);
+            for &n in &sizes {
+                let mut v = BumpVec::new_in(bump_ref);
+                for i in 0..n {
+                    v.push(i);
+                }
+                arena.push(v);
+            }
+            black_box(arena);
+        })
+    });
+
+    group.bench_function("bump_vec_presized", |b| {
+        b.iter(|| unsafe {
+            let bump: &mut bumpalo::Bump = &mut *bump_ptr;
+            bump.reset();
+            let bump_ref: &bumpalo::Bump = bump;
+            let mut arena: BumpVec<'_, BumpVec<'_, usize>> = BumpVec::new_in(bump_ref);
+            for &n in &sizes {
+                let mut v = BumpVec::with_capacity_in(n, bump_ref);
+                for i in 0..n {
+                    v.push(i);
+                }
+                arena.push(v);
+            }
+            black_box(arena);
+        })
+    });
+    // Recover and drop the leaked Bump (and all its allocations).
+    unsafe {
+        drop(Box::from_raw(bump_ptr));
+    }
 
     group.finish();
 }
@@ -570,5 +766,7 @@ fn main() {
     bench_horizontal_rule(&mut c);
     bench_item(&mut c);
     bench_paragraph_dispatch(&mut c);
+    bench_vec_allocation(&mut c);
+    bench_arena_vec(&mut c);
     c.final_summary();
 }

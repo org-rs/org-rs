@@ -393,7 +393,12 @@ mod test {
         text.push_str("\n\n");
         {
             let bump = bumpalo::Bump::new();
-            let mut p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment, &bump);
+            let mut p = Parser::new(
+                text.as_str(),
+                ParseGranularity::Object,
+                DefaultEnvironment,
+                &bump,
+            );
             let maybe_collected = p.collect_affiliated_keywords(text.len());
             assert_eq!(0, maybe_collected.span.start);
             assert!(maybe_collected.affiliated.is_none());
@@ -402,7 +407,12 @@ mod test {
         text.push_str("#+BEGIN_SRC");
 
         let bump = bumpalo::Bump::new();
-        let mut p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment, &bump);
+        let mut p = Parser::new(
+            text.as_str(),
+            ParseGranularity::Object,
+            DefaultEnvironment,
+            &bump,
+        );
         let maybe_collected = p.collect_affiliated_keywords(text.len());
         assert_eq!(0, maybe_collected.span.start);
         assert!(maybe_collected.affiliated.is_some());

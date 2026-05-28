@@ -155,7 +155,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
         let value = &self.input[span.start..end];
         self.arena
-            .alloc(SyntaxNode::new(Syntax::Comment(value), (span.start, end)).build())
+            .alloc(SyntaxNode::new(Syntax::Comment(value), (span.start, end), self.bump).build())
     }
 
     /// Parse a horizontal rule at `start`.
@@ -168,7 +168,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let end = memchr(b'\n', &self.input.as_bytes()[span.start..span.end])
             .map_or(span.end, |i| span.start + i + 1);
         self.arena
-            .alloc(SyntaxNode::new(Syntax::HorizontalRule, (span.start, end)).build())
+            .alloc(SyntaxNode::new(Syntax::HorizontalRule, (span.start, end), self.bump).build())
     }
 
     /// Parse a footnote definition element.
@@ -199,7 +199,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             None => {
                 return self
                     .arena
-                    .alloc(SyntaxNode::fallback(self.input, begin, limit))
+                    .alloc(SyntaxNode::fallback(self.input, begin, limit, self.bump))
             }
         };
 
@@ -208,7 +208,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             None => {
                 return self
                     .arena
-                    .alloc(SyntaxNode::fallback(self.input, begin, limit))
+                    .alloc(SyntaxNode::fallback(self.input, begin, limit, self.bump))
             }
         };
 
@@ -292,6 +292,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     value,
                 })),
                 (begin, end),
+                self.bump,
             )
             .content((contents_start, contents_end))
             .post_blank(post_blank)
@@ -382,7 +383,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         }
 
         self.arena.alloc(
-            SyntaxNode::new(Syntax::FixedWidth(raw_value), (begin, end))
+            SyntaxNode::new(Syntax::FixedWidth(raw_value), (begin, end), self.bump)
                 .post_blank(post_blank)
                 .affiliated(affiliated)
                 .build(),

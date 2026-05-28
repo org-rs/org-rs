@@ -318,7 +318,8 @@ mod item {
         fn sub_headline_after_blank_is_not_item_child() {
             let input = "* Top Level\n- list item\n\n** Sub-headline\n";
             let bump = Bump::new();
-            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+            let mut parser =
+                Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
 
             let top_hl = arena[root].children[0];
@@ -349,7 +350,8 @@ mod item {
         fn sub_headline_is_sibling_of_section() {
             let input = "* Top Level\n- list item\n\n** Sub-headline\n";
             let bump = Bump::new();
-            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+            let mut parser =
+                Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
 
             let top_hl = arena[root].children[0];
@@ -370,7 +372,8 @@ mod item {
         fn headline_after_multiple_items_not_in_last_item() {
             let input = "* Parent\n- alpha\n- beta\n\n** Child\n";
             let bump = Bump::new();
-            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+            let mut parser =
+                Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
 
             let top_hl = arena[root].children[0];
@@ -402,7 +405,8 @@ mod item {
         fn top_level_list_followed_by_headline() {
             let input = "- top item\n\n* Headline\n";
             let bump = Bump::new();
-            let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+            let mut parser =
+                Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
 
             // Find the PlainList (may be inside a section or directly under root)
@@ -440,7 +444,8 @@ mod item {
 
         fn para_start(input: &str) -> usize {
             let bump = Bump::new();
-            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+            let mut parser =
+                Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
             // Walk: root → section → plain_list → item → paragraph
             let section = arena[root].children[0];
@@ -640,7 +645,8 @@ mod headline {
 
         fn headline_direct_child_types(input: &str) -> Vec<SyntaxT> {
             let bump = Bump::new();
-            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+            let mut parser =
+                Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
             // root → headline (first child)
             let hl = *arena[root].children.first().expect("expected a headline");
@@ -827,8 +833,8 @@ mod table {
         let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
-        fn find_first<'a>(
-            arena: &'a crate::data::NodeArena<'a, '_>,
+        fn find_first(
+            arena: &crate::data::NodeArena<'_, '_>,
             id: NodeId,
             t: SyntaxT,
         ) -> Option<NodeId> {
@@ -2080,10 +2086,11 @@ mod od1_compliance {
 
         fn link_children(input: &str) -> Vec<SyntaxT> {
             let bump = Bump::new();
-            let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+            let mut parser =
+                Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
             let (arena, root) = parser.parse_buffer();
             // Walk to the Link node
-            fn find_link<'a>(arena: &'a crate::data::NodeArena<'a, '_>, id: NodeId) -> Option<NodeId> {
+            fn find_link(arena: &crate::data::NodeArena<'_, '_>, id: NodeId) -> Option<NodeId> {
                 if SyntaxT::from(&arena[id].data) == SyntaxT::Link {
                     return Some(id);
                 }

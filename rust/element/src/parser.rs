@@ -21,7 +21,7 @@ use crate::affiliated::ElementSpan;
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
 use crate::data::{
-    Brackets, EntityData, FootnoteReferenceData, Interval, LinkData, NodeArena, NodeId,
+    Brackets, BumpVec, EntityData, FootnoteReferenceData, Interval, LinkData, NodeArena, NodeId,
     ScriptFlags, ScriptKind, Syntax, SyntaxNode, SyntaxT, TimestampData,
 };
 
@@ -240,7 +240,12 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         self.cursor.skip_whitespace();
 
         let end = self.input.len();
-        let root = self.arena.alloc(SyntaxNode::create_root());
+        // Pre-size the arena to avoid reallocation copies: ~1 node per 100
+        // bytes of input, capped at 4096 to keep the working set in L2 cache.
+        if end > 0 {
+            self.arena.nodes.reserve((end / 100).min(4096));
+        }
+        let root = self.arena.alloc(SyntaxNode::create_root(self.bump));
         let children = self.parse_elements((0, end), ParserMode::FirstSection, None);
         self.arena.set_children(root, children);
 
@@ -254,7 +259,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         span: impl Into<Interval>,
         mut mode: ParserMode,
         structure: Option<Rc<ListStruct<'a>>>,
-    ) -> Vec<NodeId> {
+    ) -> BumpVec<'b, NodeId> {
         let span = span.into();
         let pos = self.cursor.pos();
         self.cursor.set(span.start);
@@ -263,7 +268,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             self.cursor.next_headline();
         }
 
-        let mut elements: Vec<NodeId> = vec![];
+        let mut elements: BumpVec<'b, NodeId> = BumpVec::new_in(self.bump);
         loop {
             let current_pos = self.cursor.pos();
             if current_pos >= span.end {
@@ -617,9 +622,9 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         &mut self,
         interval: impl Into<Interval>,
         restriction: impl Fn(SyntaxT) -> bool,
-    ) -> Vec<NodeId> {
+    ) -> BumpVec<'b, NodeId> {
         let interval = interval.into();
-        let mut children: Vec<NodeId> = Vec::new();
+        let mut children: BumpVec<'b, NodeId> = BumpVec::new_in(self.bump);
         let mut pos = interval.start;
 
         while pos < interval.end {
@@ -797,6 +802,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                         SyntaxNode::new(
                             Syntax::PlainText(&self.input[pos..pos + 1]),
                             (pos, pos + 1),
+                            self.bump,
                         )
                         .build(),
                     );
@@ -893,6 +899,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             SyntaxNode::new(
                 Syntax::PlainText(&self.input[content_begin..content_end]),
                 (content_begin, content_end),
+                self.bump,
             )
             .build(),
         );
@@ -905,14 +912,17 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             .count();
 
         let flags = ScriptFlags::new(kind, brackets);
+        let mut script_children: BumpVec<'b, NodeId> = BumpVec::new_in(self.bump);
+        script_children.push(plain_text);
         let node = self.arena.alloc_with_children(
             SyntaxNode::new(
                 Syntax::Script(flags),
                 (start, start + consumed + post_blank),
+                self.bump,
             )
             .post_blank(post_blank)
             .build(),
-            vec![plain_text],
+            script_children,
         );
         Some((node, consumed + post_blank))
     }
@@ -973,6 +983,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             SyntaxNode::new(
                 Syntax::Link(self.bump.alloc(link_data)),
                 (start, start + close + post_blank),
+                self.bump,
             )
             .content((start + 2, start + close - 2))
             .build(),
@@ -1020,9 +1031,9 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let close = found_close?;
         let content = &text[2..close - 2];
 
-        let node = self
-            .arena
-            .alloc(SyntaxNode::new(Syntax::Target(content), (start, start + close)).build());
+        let node = self.arena.alloc(
+            SyntaxNode::new(Syntax::Target(content), (start, start + close), self.bump).build(),
+        );
 
         Some((node, close))
     }
@@ -1107,8 +1118,8 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 Syntax::StrikeThrough,
                 self.parse_objects(content_location, |_| true),
             ),
-            SyntaxT::Code => (Syntax::Code(content), vec![]),
-            SyntaxT::Verbatim => (Syntax::Verbatim(content), vec![]),
+            SyntaxT::Code => (Syntax::Code(content), BumpVec::new_in(self.bump)),
+            SyntaxT::Verbatim => (Syntax::Verbatim(content), BumpVec::new_in(self.bump)),
             _ => return None,
         };
 
@@ -1122,7 +1133,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             .unwrap_or(0);
 
         let node = self.arena.alloc_with_children(
-            SyntaxNode::new(data, (start, start + close + 1 + post_blank))
+            SyntaxNode::new(data, (start, start + close + 1 + post_blank), self.bump)
                 .content(content_location)
                 .build(),
             children,
@@ -1157,6 +1168,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             SyntaxNode::new(
                 Syntax::Link(self.bump.alloc(LinkData::new_plain(raw))),
                 (start, start + consumed),
+                self.bump,
             )
             .build(),
         );
@@ -1187,12 +1199,13 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
         let children = definition_location
             .map(|loc| self.parse_objects(loc, |that| SyntaxT::FootnoteReference.can_contain(that)))
-            .unwrap_or_default();
+            .unwrap_or_else(|| BumpVec::new_in(self.bump));
 
         let consumed = close + 1;
         let mut builder = SyntaxNode::new(
             Syntax::FootnoteReference(self.bump.alloc(FootnoteReferenceData { label, type_s })),
             (start, start + consumed),
+            self.bump,
         );
         if let Some(loc) = definition_location {
             builder = builder.content(loc);
@@ -1210,6 +1223,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             SyntaxNode::new(
                 Syntax::PlainText(&text[..consume]),
                 (start, start + consume),
+                self.bump,
             )
             .build(),
         );
@@ -1266,6 +1280,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             SyntaxNode::new(
                 Syntax::Timestamp(self.bump.alloc(timestamp_data)),
                 (start, start + consumed),
+                self.bump,
             )
             .content((start + 1, start + consumed - 1))
             .build(),
@@ -1311,7 +1326,12 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let entity_data = EntityData::new(entity_name)?;
 
         let node = self.arena.alloc(
-            SyntaxNode::new(Syntax::Entity(self.bump.alloc(entity_data)), (start, start + end)).build(),
+            SyntaxNode::new(
+                Syntax::Entity(self.bump.alloc(entity_data)),
+                (start, start + end),
+                self.bump,
+            )
+            .build(),
         );
 
         Some((node, end))

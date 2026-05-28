@@ -274,7 +274,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             .map(|b| b.location.end)
             .unwrap_or(span.end);
         self.arena
-            .alloc(SyntaxNode::new(Syntax::Paragraph, (span.start, end)).build())
+            .alloc(SyntaxNode::new(Syntax::Paragraph, (span.start, end), self.bump).build())
     }
 
     /// Shared implementation for the three content-only blocks (CENTER, QUOTE, VERSE):
@@ -293,7 +293,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             return self.block_fallback(Interval { start, end: limit }, tag);
         };
         self.arena.alloc(
-            SyntaxNode::new(syntax, bounds.location)
+            SyntaxNode::new(syntax, bounds.location, self.bump)
                 .content(bounds.content)
                 .post_blank(post_blank(self.input, bounds.location.end, limit))
                 .affiliated(affiliated)
@@ -319,7 +319,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         };
         let value = &self.input[bounds.content.start..bounds.content.end];
         self.arena.alloc(
-            SyntaxNode::new(Syntax::CommentBlock(value), bounds.location)
+            SyntaxNode::new(Syntax::CommentBlock(value), bounds.location, self.bump)
                 .post_blank(post_blank(self.input, bounds.location.end, limit))
                 .affiliated(affiliated)
                 .build(),
@@ -350,6 +350,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     value,
                 })),
                 bounds.location,
+                self.bump,
             )
             .post_blank(post_blank(self.input, bounds.location.end, limit))
             .affiliated(affiliated)
@@ -378,6 +379,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             SyntaxNode::new(
                 Syntax::ExportBlock(self.bump.alloc(ExportBlockData { type_s, value })),
                 bounds.location,
+                self.bump,
             )
             .post_blank(post_blank(self.input, bounds.location.end, limit))
             .affiliated(affiliated)
@@ -396,7 +398,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             return self.block_fallback(Interval { start, end: limit }, "QUOTE");
         };
         self.arena.alloc(
-            SyntaxNode::new(Syntax::QuoteBlock, bounds.location)
+            SyntaxNode::new(Syntax::QuoteBlock, bounds.location, self.bump)
                 .content(bounds.content)
                 .post_blank(post_blank(self.input, bounds.location.end, limit))
                 .affiliated(affiliated)
@@ -430,6 +432,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     value,
                 })),
                 bounds.location,
+                self.bump,
             )
             .post_blank(post_blank(self.input, bounds.location.end, limit))
             .affiliated(affiliated)
@@ -448,7 +451,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             return self.block_fallback(Interval { start, end: limit }, "VERSE");
         };
         self.arena.alloc(
-            SyntaxNode::new(Syntax::VerseBlock, bounds.location)
+            SyntaxNode::new(Syntax::VerseBlock, bounds.location, self.bump)
                 .content(bounds.content)
                 .post_blank(post_blank(self.input, bounds.location.end, limit))
                 .affiliated(affiliated)
@@ -477,6 +480,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             SyntaxNode::new(
                 Syntax::SpecialBlock(self.bump.alloc(SpecialBlockData { type_s, raw_value })),
                 bounds.location,
+                self.bump,
             )
             .content(bounds.content)
             .post_blank(post_blank(self.input, bounds.location.end, limit))
@@ -495,7 +499,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let Some(bounds) = find_dynamic_block_bounds(self.input, start, limit) else {
             return self
                 .arena
-                .alloc(SyntaxNode::new(Syntax::Paragraph, (start, limit)).build());
+                .alloc(SyntaxNode::new(Syntax::Paragraph, (start, limit), self.bump).build());
         };
         self.arena.alloc(
             SyntaxNode::new(
@@ -505,6 +509,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     drawer_name: "",
                 })),
                 bounds.location,
+                self.bump,
             )
             .content(bounds.content)
             .post_blank(post_blank(self.input, bounds.location.end, limit))

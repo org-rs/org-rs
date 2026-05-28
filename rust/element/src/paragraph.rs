@@ -68,8 +68,12 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     b'*' if bytes.get(i + 1).is_some_and(|&b| b == b' ' || b == b'*') => break,
                     // Keyword / block / comment
                     b'#' => {
-                        if i + 1 < bytes.len() && bytes[i + 1] == b'+' { break; }
-                        if bytes.get(i + 1).is_none_or(|&b| b == b' ') { break; }
+                        if i + 1 < bytes.len() && bytes[i + 1] == b'+' {
+                            break;
+                        }
+                        if bytes.get(i + 1).is_none_or(|&b| b == b' ') {
+                            break;
+                        }
                     }
                     // List item or horizontal rule
                     b'-' | b'+' => {
@@ -82,8 +86,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                         }
                     }
                     // Numbered list item
-                    _ if bytes[i].is_ascii_digit()
-                        && crate::list::starts_with_item(line) => break,
+                    _ if bytes[i].is_ascii_digit() && crate::list::starts_with_item(line) => break,
                     _ => {}
                 }
             }
@@ -100,7 +103,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let children = self.parse_objects((start, end), |_| true);
 
         self.arena.alloc_with_children(
-            SyntaxNode::new(Syntax::Paragraph, (start, end))
+            SyntaxNode::new(Syntax::Paragraph, (start, end), self.bump)
                 .content((start, end))
                 .affiliated(affiliated)
                 .build(),
@@ -117,7 +120,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     pub fn section_parser(&mut self, limit: usize) -> NodeId {
         let begin = self.cursor.pos();
         self.arena.alloc(
-            SyntaxNode::new(Syntax::Section, (begin, limit))
+            SyntaxNode::new(Syntax::Section, (begin, limit), self.bump)
                 .content((begin, limit))
                 .build(),
         )
