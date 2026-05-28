@@ -46,9 +46,18 @@ mod plain_list {
 
     #[test]
     fn unordered_list() {
-        let input = "- item 1\n- item 2\n- item 3\n";
-        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 plain list, found {}", count);
+        let count = get_type_count(
+            "- item 1\n- item 2\n- item 3\n",
+            SyntaxT::PlainList,
+            ParseGranularity::Element,
+        );
+        assert_eq!(count, 1, "Expected 1 plain list (3 items), found {}", count);
+        let count2 = get_type_count(
+            "- item 1\n- item 2\n",
+            SyntaxT::PlainList,
+            ParseGranularity::Element,
+        );
+        assert_eq!(count2, 1, "Expected 1 plain list (2 items), found {}", count2);
     }
 
     #[test]
@@ -83,13 +92,6 @@ mod plain_list {
             count,
             item_count
         );
-    }
-
-    #[test]
-    fn list_two_items() {
-        let input = "- item 1\n- item 2\n";
-        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 plain list, found {}", count);
     }
 
     #[test]
@@ -222,16 +224,10 @@ mod item {
 
     #[test]
     fn simple_item() {
-        let input = "- some text\n";
-        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert!(count >= 1, "Expected at least 1 item, found {}", count);
-    }
-
-    #[test]
-    fn item_with_bullet() {
-        let input = "+ some text\n";
-        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert!(count > 0, "Item count: {}", count);
+        let count = get_type_count("- some text\n", SyntaxT::Item, ParseGranularity::Element);
+        assert!(count >= 1, "Expected at least 1 item (dash), found {}", count);
+        let count2 = get_type_count("+ some text\n", SyntaxT::Item, ParseGranularity::Element);
+        assert!(count2 >= 1, "Expected at least 1 item (plus), found {}", count2);
     }
 
     #[test]
@@ -246,6 +242,12 @@ mod item {
         let input = "- [X] checked item\n";
         let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
         assert!(count >= 1, "Expected at least 1 item, found {}", count);
+        let input2 = "- [X] done item\n";
+        let count2 = get_type_count(input2, SyntaxT::Item, ParseGranularity::Element);
+        assert_eq!(count2, 1, "Expected 1 item with [X] checkbox, found {}", count2);
+        let input3 = "- [-] in-progress item\n";
+        let count3 = get_type_count(input3, SyntaxT::Item, ParseGranularity::Element);
+        assert_eq!(count3, 1, "Expected 1 item with [-] checkbox, found {}", count3);
     }
 
     #[test]
@@ -253,6 +255,9 @@ mod item {
         let input = "- [ ] unchecked item\n";
         let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
         assert!(count >= 1, "Expected at least 1 item, found {}", count);
+        let input2 = "- [ ] todo item\n";
+        let count2 = get_type_count(input2, SyntaxT::Item, ParseGranularity::Element);
+        assert_eq!(count2, 1, "Expected 1 item with [ ] checkbox, found {}", count2);
     }
 
     #[test]
@@ -719,7 +724,13 @@ mod table {
     fn simple_table() {
         let input = "| col 1 | col 2 |\n|-----|-----|\n| a | b |\n| c | d |\n";
         let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
-        assert!(count >= 1, "Expected 1 table, found {}", count);
+        assert!(count >= 1, "Expected 1 table (rows + hline), found {}", count);
+        let input2 = "| a | b |\n| c | d |\n";
+        let count2 = get_type_count(input2, SyntaxT::Table, ParseGranularity::Element);
+        assert!(count2 >= 1, "Expected 1 table (data only), found {}", count2);
+        let input3 = "| head1 | head2 |\n|--------|--------|\n| body1 | body2 |\n";
+        let count3 = get_type_count(input3, SyntaxT::Table, ParseGranularity::Element);
+        assert!(count3 >= 1, "Expected 1 table (header + hline), found {}", count3);
     }
 
     #[test]
@@ -731,20 +742,6 @@ mod table {
             "Expected at least 3 table rows, found {}",
             count
         );
-    }
-
-    #[test]
-    fn table_with_header() {
-        let input = "| head1 | head2 |\n|--------|--------|\n| body1 | body2 |\n";
-        let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
-        assert!(count >= 1, "Expected 1 table, found {}", count);
-    }
-
-    #[test]
-    fn table_no_hline() {
-        let input = "| a | b |\n| c | d |\n";
-        let count = get_type_count(input, SyntaxT::Table, ParseGranularity::Element);
-        assert!(count >= 1, "Expected 1 table, found {}", count);
     }
 
     #[test]
@@ -867,45 +864,10 @@ mod blocks {
     }
 
     #[test]
-    fn quote() {
-        let input = "#+BEGIN_QUOTE\nQuoted text\n#+END_QUOTE\n";
-        let count = get_type_count(input, SyntaxT::QuoteBlock, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 quote block, found {}", count);
-    }
-
-    #[test]
-    fn example() {
-        let input = "#+BEGIN_EXAMPLE\nExample text\n#+END_EXAMPLE\n";
-        let count = get_type_count(input, SyntaxT::ExampleBlock, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 example block, found {}", count);
-    }
-
-    #[test]
-    fn src() {
-        let input = "#+BEGIN_SRC python\nprint('hello')\n#+END_SRC\n";
-        let count = get_type_count(input, SyntaxT::SrcBlock, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 src block, found {}", count);
-    }
-
-    #[test]
     fn verse() {
         let input = "#+BEGIN_VERSE\nVerse line 1\nVerse line 2\n#+END_VERSE\n";
         let count = get_type_count(input, SyntaxT::VerseBlock, ParseGranularity::Element);
         assert_eq!(count, 1, "Expected 1 verse block, found {}", count);
-    }
-
-    #[test]
-    fn comment() {
-        let input = "#+BEGIN_COMMENT\nComment text\n#+END_COMMENT\n";
-        let count = get_type_count(input, SyntaxT::CommentBlock, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 comment block, found {}", count);
-    }
-
-    #[test]
-    fn export() {
-        let input = "#+BEGIN_EXPORT html\n<div>HTML</div>\n#+END_EXPORT\n";
-        let count = get_type_count(input, SyntaxT::ExportBlock, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 export block, found {}", count);
     }
 
     #[test]
@@ -1116,9 +1078,10 @@ mod comment {
 
     #[test]
     fn comment_indented() {
-        let input = "  # Indented comment\n";
-        let count = get_type_count(input, SyntaxT::Comment, ParseGranularity::Element);
+        let count = get_type_count("  # Indented comment\n", SyntaxT::Comment, ParseGranularity::Element);
         assert_eq!(count, 1, "Expected 1 comment, found {}", count);
+        let count2 = get_type_count("  # indented comment\n", SyntaxT::Comment, ParseGranularity::Element);
+        assert_eq!(count2, 1, "Expected 1 indented comment (lowercase), found {}", count2);
     }
 
     #[test]
@@ -1174,16 +1137,12 @@ mod clock {
         let count = get_type_count(input, SyntaxT::Clock, ParseGranularity::Element);
         assert_eq!(
             count, 1,
-            "Expected 1 clock (whitespace allowed per Elisp), found {}",
+            "Expected 1 clock with leading spaces, found {}",
             count
         );
-    }
-
-    #[test]
-    fn with_leading_whitespace() {
-        let input = "\tCLOCK: [2023-10-13 Fri 14:40]\n";
-        let count = get_type_count(input, SyntaxT::Clock, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 clock with tab, found {}", count);
+        let input2 = "\tCLOCK: [2023-10-13 Fri 14:40]\n";
+        let count2 = get_type_count(input2, SyntaxT::Clock, ParseGranularity::Element);
+        assert_eq!(count2, 1, "Expected 1 clock with leading tab, found {}", count2);
     }
 
     #[test]
@@ -1958,39 +1917,6 @@ mod od1_compliance {
     }
 
     #[test]
-    fn checkbox_checked() {
-        let input = "- [X] done item\n";
-        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 item with [X] checkbox, found {}",
-            count
-        );
-    }
-
-    #[test]
-    fn checkbox_unchecked() {
-        let input = "- [ ] todo item\n";
-        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 item with [ ] checkbox, found {}",
-            count
-        );
-    }
-
-    #[test]
-    fn checkbox_in_progress() {
-        let input = "- [-] in-progress item\n";
-        let count = get_type_count(input, SyntaxT::Item, ParseGranularity::Element);
-        assert_eq!(
-            count, 1,
-            "Expected 1 item with [-] checkbox, found {}",
-            count
-        );
-    }
-
-    #[test]
     fn all_five_block_types() {
         for (keyword, syntax_t) in &[
             ("EXAMPLE", SyntaxT::ExampleBlock),
@@ -2116,13 +2042,6 @@ mod od1_compliance {
             "Expected 3 rows (header + hline + data), found {}",
             row_count
         );
-    }
-
-    #[test]
-    fn comment_indented() {
-        let input = "  # indented comment\n";
-        let count = get_type_count(input, SyntaxT::Comment, ParseGranularity::Element);
-        assert_eq!(count, 1, "Expected 1 indented comment, found {}", count);
     }
 
     #[test]
