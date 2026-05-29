@@ -628,6 +628,13 @@ pub enum Syntax<'a, 'b> {
     PlainText(&'a str),
 }
 
+impl Interval {
+    #[inline]
+    pub fn as_range(self) -> std::ops::Range<usize> {
+        self.start..self.end
+    }
+}
+
 impl From<(usize, usize)> for Interval {
     #[inline]
     fn from((start, end): (usize, usize)) -> Self {
@@ -1273,6 +1280,11 @@ impl<'a> LinkData<'a> {
     #[inline]
     pub fn link_type(&self) -> LinkType {
         self.flags.link_type()
+    }
+
+    #[inline]
+    pub fn raw_link(&self) -> &'a str {
+        self.raw_link
     }
 }
 

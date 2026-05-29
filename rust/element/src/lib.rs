@@ -50,6 +50,7 @@ mod table;
 /// There are no name conflicts among the re-exported items: every public
 /// type in the crate has a unique name.
 pub mod prelude {
+    pub use bumpalo;
     pub use crate::affiliated::{AffiliatedData, DualVal, ElementSpan, ElementSpanBuilder};
     pub use crate::babel::BabelCallData;
     pub use crate::blocks::{
