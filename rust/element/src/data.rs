@@ -311,6 +311,30 @@ impl<'a, 'b> NodeArena<'a, 'b> {
             current: root,
         }
     }
+
+    /// Iterate over `(id, headline_byte_offset)` pairs in the subtree
+    /// rooted at `root`.
+    ///
+    /// Yields one entry per headline that carries a `:ID:` node-property
+    /// in its property drawer.  The id string is borrowed from the
+    /// original input text.
+    #[inline]
+    pub fn id_headlines<'s>(
+        &'s self,
+        root: NodeId,
+    ) -> impl Iterator<Item = (&'a str, usize)> + use<'a, 's, 'b> {
+        let mut hl_start = 0usize;
+        self.nodes(root).filter_map(move |node| match &node.data {
+            Syntax::Headline(_) => {
+                hl_start = node.location.start;
+                None
+            }
+            Syntax::NodeProperty(np) if np.key == "ID" => {
+                Some((np.value, hl_start))
+            }
+            _ => None,
+        })
+    }
 }
 
 impl<'a, 'b> Default for NodeArena<'a, 'b> {
