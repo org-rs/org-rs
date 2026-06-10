@@ -258,6 +258,45 @@ jq '.fruit | keys' fruit.json
                 .collect::<Vec<_>>()
         );
     }
+
+    /// Fixed-width lines indented inside a list item body should be
+    /// parsed as FixedWidth children of the Item, not as Paragraph.
+    #[test]
+    fn fixed_width_inside_plain_list_item() {
+        let input = r#"- item with fixed width:
+   : fixed width content
+
+- next item
+"#;
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+
+        let mut found_inside_item = false;
+        fn walk_for_fw(
+            arena: &NodeArena,
+            id: NodeId,
+            inside_item: bool,
+            found: &mut bool,
+        ) {
+            if *found {
+                return;
+            }
+            if matches!(arena[id].data, Syntax::FixedWidth(_)) && inside_item {
+                *found = true;
+                return;
+            }
+            let is_item = matches!(arena[id].data, Syntax::Item(_));
+            for &c in &arena[id].children {
+                walk_for_fw(arena, c, inside_item || is_item, found);
+            }
+        }
+        walk_for_fw(&arena, root, false, &mut found_inside_item);
+        assert!(
+            found_inside_item,
+            "FixedWidth must be a child of an Item node, not a direct Section child"
+        );
+    }
 }
 
 mod item {
