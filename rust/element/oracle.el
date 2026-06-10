@@ -5,8 +5,8 @@
   "Emit CHILDREN as oracle S-expressions, threading POS for plain-text spans.
 POS is the 1-based buffer position at which the first child begins.
 Plain-text (Lisp strings) have no :begin/:end in Emacs 30; their spans
-are recovered by advancing POS by the string length between sibling objects
-whose :end positions anchor the counter."
+are recovered by advancing POS by the string length between sibling
+objects whose :end positions anchor the counter."
   (let (result)
     (dolist (child children (delq nil (nreverse result)))
       (cond

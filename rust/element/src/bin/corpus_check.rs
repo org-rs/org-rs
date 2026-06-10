@@ -6,8 +6,14 @@ use org_element::parser::{ParseGranularity, Parser};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
+use std::io::Write;
 use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::thread;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Error)]
 enum CorpusError {
@@ -39,6 +45,17 @@ enum CorpusError {
     EmptyOracle { path: PathBuf },
     #[error("emacs is not in PATH or oracle.el is missing")]
     EmacsUnavailable,
+}
+
+#[derive(Default, Clone, Copy)]
+struct FileTimings {
+    emacs: Duration,
+    sexp: Duration,
+    oracle_conv: Duration,
+    rust: Duration,
+    compare: Duration,
+    emit: Duration,
+    total: Duration,
 }
 
 struct TypeInterner {
@@ -160,23 +177,29 @@ impl ByteOffset {
     }
 }
 
-/// Converts Emacs character positions to byte offsets by walking the source
-/// string on each call.  No allocation — O(file_size) per lookup.
-struct CharByteTable<'a>(&'a str);
+/// Precomputed map from character-index → byte-offset for O(1) lookups.
+struct CharByteTable {
+    char_to_byte: Vec<usize>,
+}
 
-impl<'a> CharByteTable<'a> {
-    fn new(s: &'a str) -> Self {
-        CharByteTable(s)
+impl CharByteTable {
+    fn new(s: &str) -> Self {
+        let mut char_to_byte = Vec::with_capacity(s.len());
+        for (b, _) in s.char_indices() {
+            char_to_byte.push(b);
+        }
+        // sentinel: one past the last char maps to string length
+        char_to_byte.push(s.len());
+        CharByteTable { char_to_byte }
     }
 
     fn to_byte(&self, pos: EmacsCharPos) -> ByteOffset {
         let idx = pos.char_index();
         ByteOffset(
-            self.0
-                .char_indices()
-                .nth(idx)
-                .map(|(b, _)| b)
-                .unwrap_or(self.0.len()),
+            self.char_to_byte
+                .get(idx)
+                .copied()
+                .unwrap_or(self.char_to_byte[self.char_to_byte.len() - 1]),
         )
     }
 }
@@ -213,16 +236,16 @@ impl fmt::Debug for Snippet {
 
 #[derive(Debug)]
 struct OracleNode {
-    node_type: String,
+    type_key: TypeKey,
     begin: Option<ByteOffset>,
     end: Option<ByteOffset>,
-    props: HashMap<String, Value>,
+    props_display: String,
     children: Vec<OracleNode>,
 }
 
 impl OracleNode {
     fn type_key(&self) -> TypeKey {
-        intern_type(&self.node_type)
+        self.type_key
     }
 
     fn span(&self) -> (usize, usize) {
@@ -235,31 +258,26 @@ impl OracleNode {
 
 impl fmt::Display for OracleNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}", self.node_type)?;
-        let mut keys: Vec<_> = self.props.keys().collect();
-        keys.sort();
-        for k in keys {
-            write!(f, " {k} {:?}", self.props[k])?;
-        }
-        write!(f, ")")
+        write!(f, "({}{})", self.type_key, self.props_display)
     }
 }
 
-fn from_value(v: &Value, table: &CharByteTable<'_>) -> Option<OracleNode> {
+fn from_value(v: &Value, table: &CharByteTable) -> Option<OracleNode> {
     let mut iter = v.list_iter()?;
 
-    let node_type = iter.next()?.as_symbol()?.to_string();
+    let type_name = iter.next()?.as_symbol()?.as_ref();
+    let type_key = intern_type(type_name);
     let plist_val = iter.next()?;
 
-    let mut props = HashMap::new();
+    let mut props_display = String::new();
     let mut begin = None;
     let mut end = None;
 
     if let Some(mut pl) = plist_val.list_iter() {
         while let Some(k) = pl.next() {
-            let key = k.as_symbol()?.to_string();
-            let val = pl.next()?.clone();
-            match key.as_str() {
+            let key = k.as_symbol()?;
+            let val = pl.next()?;
+            match key.as_ref() {
                 ":begin" => {
                     begin = val
                         .as_u64()
@@ -273,7 +291,8 @@ fn from_value(v: &Value, table: &CharByteTable<'_>) -> Option<OracleNode> {
                         .map(|n| table.to_byte(EmacsCharPos(n)))
                 }
                 _ => {
-                    props.insert(key, val);
+                    use std::fmt::Write;
+                    write!(props_display, " {key} {val:?}").ok();
                 }
             }
         }
@@ -285,10 +304,10 @@ fn from_value(v: &Value, table: &CharByteTable<'_>) -> Option<OracleNode> {
         .collect();
 
     Some(OracleNode {
-        node_type,
+        type_key,
         begin,
         end,
-        props,
+        props_display,
         children,
     })
 }
@@ -465,36 +484,102 @@ fn run_oracle(path: &Path) -> Result<String, CorpusError> {
     })
 }
 
-fn process_file(path: &Path) -> Result<Vec<Discrepancy>, CorpusError> {
+fn timed_stage<T>(
+    label: &str,
+    display: &str,
+    index: usize,
+    total: usize,
+    stderr_lock: &Arc<Mutex<()>>,
+    work: impl FnOnce() -> T,
+) -> (T, Duration) {
+    let done = Arc::new(AtomicBool::new(false));
+    let d = done.clone();
+    let l = Arc::clone(stderr_lock);
+    let dn = display.to_string();
+    let lb = label.to_string();
+
+    let timer = thread::spawn(move || {
+        let start = Instant::now();
+        while !d.load(Ordering::Relaxed) {
+            let elapsed = start.elapsed();
+            let _g = l.lock().unwrap();
+            eprint!("\r[{}/{}] {}  {} {:.3}s  ", index, total, dn, lb, elapsed.as_secs_f64());
+            std::io::stderr().flush().ok();
+            drop(_g);
+            thread::sleep(Duration::from_millis(50));
+        }
+    });
+
+    let start = Instant::now();
+    let result = work();
+    let elapsed = start.elapsed();
+
+    done.store(true, Ordering::Relaxed);
+    timer.join().unwrap();
+    (result, elapsed)
+}
+
+fn process_file(
+    path: &Path,
+    display: &str,
+    index: usize,
+    total: usize,
+    stderr_lock: &Arc<Mutex<()>>,
+) -> Result<(Vec<Discrepancy>, FileTimings), CorpusError> {
+    let file_start = Instant::now();
+
     let input = std::fs::read_to_string(path).map_err(|source| CorpusError::ReadFile {
         path: path.to_owned(),
         source,
     })?;
-    let sexp = run_oracle(path)?;
-    let root = lexpr::from_str(&sexp).map_err(|source| CorpusError::OracleSexp {
-        path: path.to_owned(),
-        source,
-    })?;
-    let table = CharByteTable::new(&input);
-    let oracle = from_value(&root, &table).ok_or_else(|| CorpusError::EmptyOracle {
-        path: path.to_owned(),
-    })?;
+
+    let (orc_result, emacs) = timed_stage("emacs", display, index, total, stderr_lock, || {
+        run_oracle(path)
+    });
+    let sexp = orc_result?;
+
+    let (root, sexp_t) = timed_stage("sexp", display, index, total, stderr_lock, || {
+        lexpr::from_str(&sexp).map_err(|source| CorpusError::OracleSexp {
+            path: path.to_owned(),
+            source,
+        })
+    });
+    let root = root?;
+
+    let (oracle, oracle_conv) = timed_stage("oracle", display, index, total, stderr_lock, || {
+        let table = CharByteTable::new(&input);
+        from_value(&root, &table).ok_or_else(|| CorpusError::EmptyOracle {
+            path: path.to_owned(),
+        })
+    });
+    let oracle = oracle?;
 
     let bump = bumpalo::Bump::new();
+    let rust_start = Instant::now();
     let mut parser = Parser::new(&input, ParseGranularity::Object, DefaultEnvironment, &bump);
     let (arena, root_id) = parser.parse_buffer();
+    let rust = rust_start.elapsed();
 
-    let mut discrepancies = Vec::new();
-    compare(
-        &oracle,
-        &arena,
-        root_id,
-        &input,
-        path,
-        "root",
-        &mut discrepancies,
-    );
-    Ok(discrepancies)
+    let (discrepancies, compare) = timed_stage("cmp", display, index, total, stderr_lock, || {
+        let mut ds = Vec::new();
+        compare(&oracle, &arena, root_id, &input, path, "root", &mut ds);
+        ds
+    });
+
+    let total = file_start.elapsed();
+
+    Ok((
+        discrepancies,
+        FileTimings {
+            emacs,
+            sexp: sexp_t,
+            oracle_conv,
+            rust,
+            compare,
+            emit: Duration::ZERO,
+            total,
+        },
+    ))
 }
 
 fn main() {
@@ -508,28 +593,73 @@ fn main() {
         std::process::exit(1);
     }
 
-    let mut total = 0usize;
+    let org_files: Vec<_> = std::fs::read_dir(&corpus)
+        .expect("cannot read corpus/")
+        .filter_map(|e| {
+            let p = e.ok()?.path();
+            (p.extension().and_then(|e| e.to_str()) == Some("org")).then_some(p)
+        })
+        .collect();
+    let n = org_files.len();
+    let total_discrepancies = Arc::new(AtomicUsize::new(0));
+    let stderr_lock = Arc::new(Mutex::new(()));
+    let stdout_lock = Arc::new(Mutex::new(()));
 
-    for entry in std::fs::read_dir(&corpus).expect("cannot read corpus/") {
-        let path = entry.unwrap().path();
-        if path.extension().and_then(|e| e.to_str()) != Some("org") {
-            continue;
-        }
+    std::thread::scope(|s| {
+        for i in 0..org_files.len() {
+            let path = &org_files[i];
+            let dn = path.file_name().unwrap().to_str().unwrap().to_string();
+            let g = stderr_lock.lock().unwrap();
+            eprintln!("[{}/{}] {}", i + 1, n, dn);
+            drop(g);
 
-        match process_file(&path) {
-            Err(e) => eprintln!("SKIP {}: {e}", path.display()),
-            Ok(ds) if ds.is_empty() => println!("OK  {}", path.display()),
-            Ok(ds) => {
-                println!("FAIL {} ({} discrepancies)", path.display(), ds.len());
-                for d in &ds {
-                    d.print_context();
+            let sl = Arc::clone(&stderr_lock);
+            let sol = Arc::clone(&stdout_lock);
+            let td = Arc::clone(&total_discrepancies);
+            s.spawn(move || {
+                let result = process_file(path, &dn, i + 1, n, &sl);
+
+                let g = sl.lock().unwrap();
+                match result {
+                    Err(e) => eprintln!("  SKIP: {e}"),
+                    Ok((ds, t)) => {
+                        let emit_start = Instant::now();
+
+                        let sg = sol.lock().unwrap();
+                        if ds.is_empty() {
+                            println!("OK  {}", path.display());
+                        } else {
+                            println!("FAIL {} ({} discrepancies)", path.display(), ds.len());
+                            for d in &ds {
+                                d.print_context();
+                            }
+                            td.fetch_add(ds.len(), Ordering::Relaxed);
+                        }
+                        drop(sg);
+
+                        let emit = emit_start.elapsed();
+                        eprintln!(
+                            "\n----\n\
+                             parse: emacs: {:.3}s, org-rs: {:.3}s\n\
+                             sexp: {:.3}s, oracle: {:.3}s\n\
+                             emit: {:.3}s\n\
+                             total: {:.3}s\n\
+                             ----",
+                            t.emacs.as_secs_f64(),
+                            t.rust.as_secs_f64(),
+                            t.sexp.as_secs_f64(),
+                            t.oracle_conv.as_secs_f64(),
+                            (t.compare + emit).as_secs_f64(),
+                            (t.total + emit).as_secs_f64(),
+                        );
+                    }
                 }
-                total += ds.len();
-            }
+                drop(g);
+            });
         }
-    }
+    });
 
-    if total > 0 {
+    if total_discrepancies.load(Ordering::Relaxed) > 0 {
         std::process::exit(1);
     }
 }
