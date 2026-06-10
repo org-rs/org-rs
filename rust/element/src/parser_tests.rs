@@ -221,6 +221,43 @@ jq '.fruit | keys' fruit.json
             item_count
         );
     }
+
+    /// After a blank line closes a nested list, Emacs places a
+    /// SrcBlock as a direct Section child. Rust keeps it nested
+    /// inside the last list item.
+    #[test]
+    fn src_block_after_blank_line_after_nested_list() {
+        let input = r#"- item 1
+  - item 2
+    - item 3
+
+#+BEGIN_SRC emacs-lisp
+(code)
+#+END_SRC
+"#;
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+
+        let sb_count = count_type(&arena, root, SyntaxT::SrcBlock);
+        assert_eq!(sb_count, 1, "Expected exactly one SrcBlock; got {}", sb_count);
+
+        let root_kids = &arena[root].children;
+        let section = root_kids.first().expect("Expected Section");
+        let section_kids = &arena[*section].children;
+        for &id in section_kids {
+            if matches!(arena[id].data, Syntax::SrcBlock(_)) {
+                return;
+            }
+        }
+        panic!(
+            "SrcBlock must be a direct child of Section, found only: {:?}",
+            section_kids
+                .iter()
+                .map(|id| format!("{:?}", SyntaxT::from(&arena[*id].data)))
+                .collect::<Vec<_>>()
+        );
+    }
 }
 
 mod item {
