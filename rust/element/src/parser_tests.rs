@@ -597,7 +597,7 @@ mod headline {
                 SyntaxT::Link,
                 SyntaxT::StrikeThrough,
             ];
-            for (input, desc) in &[
+            for (input, desc) in [
                 ("* foo bar\n", "plain text title"),
                 ("* foo *bold* bar\n", "title with markup"),
                 ("* See [[https://example.com][text]]\n", "title with link"),
@@ -610,7 +610,10 @@ mod headline {
                 for t in inline_types {
                     assert!(
                         !types.contains(&t),
-                        "{t:?} must not be a direct child of Headline ({desc}); got {types:?}"
+                        "{:?} must not be a direct child of Headline ({}); got {:?}",
+                        t,
+                        desc,
+                        types
                     );
                 }
             }
@@ -909,7 +912,10 @@ mod planning {
             ("* TODO Task\nDEADLINE: <2023-12-31>\n", "deadline"),
             ("* TODO Task\nSCHEDULED: <2023-12-31>\n", "scheduled"),
             ("* TODO Task\nCLOSED: [2023-12-31]\n", "closed"),
-            ("* TODO Task\nDEADLINE: <2023-12-31> SCHEDULED: <2023-12-30> CLOSED: [2023-12-29]\n", "all timestamps"),
+            (
+                "* TODO Task\nDEADLINE: <2023-12-31> SCHEDULED: <2023-12-30> CLOSED: [2023-12-29]\n",
+                "all timestamps",
+            ),
         ] {
             let count = get_type_count(input, SyntaxT::Planning, ParseGranularity::Element);
             assert_eq!(count, 1, "Expected 1 planning ({}), found {}", desc, count);
@@ -1632,17 +1638,20 @@ mod od1_compliance {
             let children = link_children("[[https://example.com][OpenPGP]]\n");
             assert!(
                 children.contains(&SyntaxT::PlainText),
-                "expected PlainText child for plain description; got {children:?}"
+                "expected PlainText child for plain description; got {:?}",
+                children
             );
             let children = link_children("[[https://example.com]]\n");
             assert!(
                 children.is_empty(),
-                "link without description should have no children; got {children:?}"
+                "link without description should have no children; got {:?}",
+                children
             );
             let children = link_children("[[https://example.com][*bold*]]\n");
             assert!(
                 children.contains(&SyntaxT::Bold),
-                "expected Bold child for bold description; got {children:?}"
+                "expected Bold child for bold description; got {:?}",
+                children
             );
         }
     }
@@ -2080,7 +2089,8 @@ mod post_blank {
         let starts = plain_text_starts(input);
         assert!(
             !starts.contains(&5),
-            "PlainText must not start at byte 5 (after `[`); `[` should be included in preceding PlainText. starts: {:?}", starts
+            "PlainText must not start at byte 5 (after `[`); `[` should be included in preceding PlainText. starts: {:?}",
+            starts
         );
     }
 
@@ -2093,7 +2103,8 @@ mod post_blank {
         let starts = plain_text_starts(input);
         assert!(
             !starts.contains(&19),
-            "PlainText must not start at byte 19 (first trailing space); spaces must be absorbed by plain link. starts: {:?}", starts
+            "PlainText must not start at byte 19 (first trailing space); spaces must be absorbed by plain link. starts: {:?}",
+            starts
         );
     }
 }
