@@ -1,7 +1,7 @@
 [package]
 name = "org_element"
-version = "0.1.0"
-authors = ["Ihor Antonov <ngortheone@gmail.com>"]
+version = "1.0.0"
+authors = ["Org-rs maintainers"]
 edition = "2018"
 license = "GPL-3.0-or-later"
 
