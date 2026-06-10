@@ -208,6 +208,10 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             TableRowType::Standard
         };
 
+        #[allow(
+            clippy::obfuscated_if_else,
+            reason = "This is not obfuscated, just my style"
+        )]
         let cells = (matches!(row_type, TableRowType::Standard)
             && self.granularity == ParseGranularity::Object)
             .then(|| self.parse_table_cells(start, end))
@@ -224,6 +228,10 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     /// including the following `|`.  Object content within the cell is trimmed
     /// of leading/trailing whitespace before parsing.
     fn parse_table_cells(&mut self, row_start: usize, row_end: usize) -> BumpVec<'b, NodeId> {
+        #[allow(
+            clippy::sliced_string_as_bytes,
+            reason = "We actually want to slice by the UTF-8 boundaries first."
+        )]
         let bytes = self.input[row_start..row_end].as_bytes();
         let mut cells = BumpVec::new_in(self.bump);
 

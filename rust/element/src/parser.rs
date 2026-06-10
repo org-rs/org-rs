@@ -402,7 +402,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 let maybe_headline_offset = self.cursor.line_beginning_position(Some(0));
                 let is_prev_line_headline =
                     self.input.as_bytes().get(maybe_headline_offset) == Some(&b'*');
-                let is_match_planning = self.cursor.looking_at(&*REGEX_PLANNING_LINE).is_some();
+                let is_match_planning = self.cursor.looking_at(&REGEX_PLANNING_LINE).is_some();
 
                 if mode == Planning && is_prev_line_headline && is_match_planning {
                     return self.planning_parser(limit);
@@ -417,7 +417,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
                 if (mode == Planning || mode == PropertyDrawer)
                     && is_prev_line_headline
-                    && self.cursor.looking_at(&*REGEX_PROPERTY_DRAWER).is_some()
+                    && self.cursor.looking_at(&REGEX_PROPERTY_DRAWER).is_some()
                 {
                     return self.property_drawer_parser(limit);
                 }

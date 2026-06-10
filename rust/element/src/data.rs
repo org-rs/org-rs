@@ -329,9 +329,7 @@ impl<'a, 'b> NodeArena<'a, 'b> {
                 hl_start = node.location.start;
                 None
             }
-            Syntax::NodeProperty(np) if np.key == "ID" => {
-                Some((np.value, hl_start))
-            }
+            Syntax::NodeProperty(np) if np.key == "ID" => Some((np.value, hl_start)),
             _ => None,
         })
     }

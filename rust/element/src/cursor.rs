@@ -465,7 +465,7 @@ impl<'a> Cursor<'a> {
         };
         let tail = &bytes[line_start..];
         let n = tail.iter().take_while(|&&b| b == b'*').count();
-        n > 0 && tail.get(n).map_or(false, |&b| b == b' ' || b == b'\t')
+        n > 0 && tail.get(n).is_some_and(|&b| b == b' ' || b == b'\t')
     }
 
     #[inline]

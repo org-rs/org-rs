@@ -410,7 +410,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 && rest_bytes.len() >= 7
                 && rest_bytes[0] == b'#'
                 && rest_bytes[1] == b'+'
-                && (&rest_bytes[2..7]).eq_ignore_ascii_case(b"BEGIN")
+                && (rest_bytes[2..7]).eq_ignore_ascii_case(b"BEGIN")
             {
                 in_block = true;
                 pos = next_pos;
@@ -421,7 +421,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 if rest_bytes.len() >= 5
                     && rest_bytes[0] == b'#'
                     && rest_bytes[1] == b'+'
-                    && (&rest_bytes[2..5]).eq_ignore_ascii_case(b"END")
+                    && (rest_bytes[2..5]).eq_ignore_ascii_case(b"END")
                 {
                     in_block = false;
                 }
