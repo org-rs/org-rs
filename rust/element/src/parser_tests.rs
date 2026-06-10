@@ -901,6 +901,28 @@ mod drawer {
             count
         );
     }
+
+    /// Emacs parses `:PROPERTIES:` drawers that appear right after a
+    /// headline body (before the blank line that ends the section's
+    /// first paragraph). Rust absorbs the drawer into a Paragraph
+    /// instead of creating a PropertyDrawer node.
+    #[test]
+    fn property_drawer_after_headline_no_blank_line() {
+        let input = "** my-comment-box\n\
+                      :PROPERTIES:\n\
+                      :CREATED:  [2019-01-11 Fri 14:36]\n\
+                      :END:\n\n\
+                      paragraph after blank line\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+
+        let pd_count = count_type(&arena, root, SyntaxT::PropertyDrawer);
+        assert!(
+            pd_count > 0,
+            "Rust absorbs ':' lines after headline body into Paragraph instead of PropertyDrawer"
+        );
+    }
 }
 
 mod planning {
