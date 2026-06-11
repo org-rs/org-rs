@@ -142,18 +142,18 @@ impl<'a, 'b> ListStruct<'a, 'b> {
 #[derive(Debug)]
 pub struct ItemData<'rope> {
     /// Item's bullet (string).
-    bullet: &'rope str,
+    pub bullet: &'rope str,
     /// Item's check_box, if any (symbol on, off, trans, nil).
-    checkbox: Option<CheckBox>,
+    pub checkbox: Option<CheckBox>,
     /// Item's counter, if any. Literal counters become ordinals (integer).
     pub counter: usize,
     /// Number of newline characters between the beginning
     /// of the item and the beginning of the contents (0, 1 or 2).
-    pre_blank: usize,
+    pub pre_blank: usize,
     /// Uninterpreted item's tag, if any (string or nil).
-    raw_tag: Option<&'rope str>,
+    pub raw_tag: Option<&'rope str>,
     /// Parsed item's tag, if any (secondary string or nil).
-    tag: Option<&'rope str>,
+    pub tag: Option<&'rope str>,
 }
 
 #[derive(Debug)]
@@ -216,7 +216,7 @@ fn desc_content_start(input: &str, from: usize, limit: usize) -> Option<usize> {
     }
     best.map(|sep| {
         let after = from + sep + 2; // byte just past "::"
-                                    // Skip one mandatory space/tab (already verified above), plus any extras.
+        // Skip one mandatory space/tab (already verified above), plus any extras.
         let mut pos = after;
         while pos < limit && (bytes[pos] == b' ' || bytes[pos] == b'\t') {
             pos += 1;
@@ -360,9 +360,8 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                             None => after_blank,
                         };
                         if !next_nonblank.is_empty() {
-                            let (next_indent, _) = Self::get_indent(
-                                std::str::from_utf8(next_nonblank).unwrap_or(""),
-                            );
+                            let (next_indent, _) =
+                                Self::get_indent(std::str::from_utf8(next_nonblank).unwrap_or(""));
                             if next_indent <= item_indent {
                                 return pos;
                             }

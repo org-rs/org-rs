@@ -37,13 +37,13 @@ lazy_static! {
 #[derive(Debug)]
 pub struct DynamicBlockData<'a> {
     /// Block's parameters (string).
-    arguments: &'a str,
+    pub arguments: &'a str,
 
     /// Block's name (string).
-    block_name: &'a str,
+    pub block_name: &'a str,
 
     /// Drawer's name (string).
-    drawer_name: &'a str,
+    pub drawer_name: &'a str,
 }
 
 /// Packed bitflags shared by [`ExampleBlockData`] and [`SrcBlockData`].
@@ -88,31 +88,31 @@ impl BlockFlags {
 pub struct ExampleBlockData<'a> {
     /// Format string used to write labels in current block,
     /// if different from org_coderef_label_format (string or nil).
-    label_fmt: Option<&'a str>,
+    pub label_fmt: Option<&'a str>,
 
     ///Language of the code in the block, if specified (string or nil).
-    language: Option<&'a str>,
+    pub language: Option<&'a str>,
 
     /// Non_nil if code lines should be numbered.
     /// A `new` value starts numbering from 1 wheareas
     /// `continued` resume numbering from previous numbered block
     /// (symbol new, continued or nil).
-    number_lines: Option<LineNumberingMode>,
+    pub number_lines: Option<LineNumberingMode>,
 
     /// Block's options located on the block's opening line (string)
-    options: &'a str,
+    pub options: &'a str,
 
     /// Optional header arguments (string or nil)
-    parameters: Option<&'a str>,
+    pub parameters: Option<&'a str>,
 
     /// Packed flags.
-    flags: BlockFlags,
+    pub flags: BlockFlags,
 
     /// Optional switches for code block export (string or nil).
-    switches: Option<&'a str>,
+    pub switches: Option<&'a str>,
 
     /// Contents (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug)]
@@ -121,22 +121,22 @@ pub struct ExportBlockData<'a> {
     pub type_s: &'a str,
 
     ///Contents (string)
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug)]
 pub struct SpecialBlockData<'a> {
     /// Block's name (string).
-    type_s: &'a str,
+    pub type_s: &'a str,
     /// Raw contents in block (string).
-    raw_value: &'a str,
+    pub raw_value: &'a str,
 }
 
 #[derive(Debug)]
 pub struct SrcBlockData<'a> {
     /// Format string used to write labels in current block,
     /// if different from org_coderef_label_format (string or nil).
-    label_fmt: Option<&'a str>,
+    pub label_fmt: Option<&'a str>,
 
     /// Language of the code in the block, if specified (string or nil).
     pub language: Option<&'a str>,
@@ -145,19 +145,19 @@ pub struct SrcBlockData<'a> {
     /// A `new` value starts numbering from 1 wheareas
     /// `continued` resume numbering from previous
     /// numbered block (symbol new, continued or nil).
-    number_lines: Option<LineNumberingMode>,
+    pub number_lines: Option<LineNumberingMode>,
 
     /// Optional header arguments (string or nil).
-    parameters: Option<&'a str>,
+    pub parameters: Option<&'a str>,
 
     /// Packed flags.
-    flags: BlockFlags,
+    pub flags: BlockFlags,
 
     /// Optional switches for code block export (string or nil).
-    switches: Option<&'a str>,
+    pub switches: Option<&'a str>,
 
     ///Source code (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 /// Spans for a parsed block.

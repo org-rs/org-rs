@@ -1401,7 +1401,10 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         Some((timestamp_data, close + 1))
     }
 
-    #[inline(never)]
+    #[expect(
+        clippy::missing_inline_in_public_items,
+        reason = "This function is both huge, so adding `inline` to it might cause problems downstream, and on the hot path, meaning that `inline(never)` would disable inlining"
+    )]
     pub fn try_parse_timestamp(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         let (timestamp_data, consumed) = self.parse_timestamp(text)?;
 

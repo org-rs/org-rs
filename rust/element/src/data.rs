@@ -31,7 +31,6 @@ use memchr::memchr;
 use std::num::NonZeroUsize;
 
 pub use bumpalo::collections::Vec as BumpVec;
-use strum_macros::EnumDiscriminants;
 
 pub type NodeId = usize;
 
@@ -461,10 +460,135 @@ impl<'s, 'a, 'b> Iterator for Nodes<'s, 'a, 'b> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum SyntaxT {
+    OrgData,
+    BabelCall,
+    CenterBlock,
+    Clock,
+    Comment,
+    CommentBlock,
+    DiarySexp,
+    Drawer,
+    DynamicBlock,
+    ExampleBlock,
+    ExportBlock,
+    FixedWidth,
+    FootnoteDefinition,
+    Headline,
+    HorizontalRule,
+    InlineTask,
+    Item,
+    Keyword,
+    LatexEnvironment,
+    NodeProperty,
+    Paragraph,
+    PlainList,
+    Planning,
+    PropertyDrawer,
+    QuoteBlock,
+    Section,
+    SpecialBlock,
+    SrcBlock,
+    Table,
+    Spreadsheet,
+    TableRow,
+    SpreadsheetRow,
+    SpreadsheetCell,
+    VerseBlock,
+    Bold,
+    Code,
+    Citation,
+    Entity,
+    ExportSnippet,
+    FootnoteReference,
+    InlineBabelCall,
+    InlineSrcBlock,
+    Italic,
+    LineBreak,
+    LatexFragment,
+    Link,
+    Macro,
+    RadioTarget,
+    StatisticsCookie,
+    StrikeThrough,
+    Script,
+    TableCell,
+    Target,
+    Timestamp,
+    Underline,
+    Verbatim,
+    PlainText,
+}
+
+impl<'a> From<&'a Syntax<'_, '_>> for SyntaxT {
+    #[inline]
+    fn from(value: &'a Syntax) -> Self {
+        match value {
+            Syntax::OrgData => SyntaxT::OrgData,
+            Syntax::BabelCall(_) => SyntaxT::BabelCall,
+            Syntax::CenterBlock => SyntaxT::CenterBlock,
+            Syntax::Clock(_) => SyntaxT::Clock,
+            Syntax::Comment(_) => SyntaxT::Comment,
+            Syntax::CommentBlock(_) => SyntaxT::CommentBlock,
+            Syntax::DiarySexp(_) => SyntaxT::DiarySexp,
+            Syntax::Drawer(_) => SyntaxT::Drawer,
+            Syntax::DynamicBlock(_) => SyntaxT::DynamicBlock,
+            Syntax::ExampleBlock(_) => SyntaxT::ExampleBlock,
+            Syntax::ExportBlock(_) => SyntaxT::ExportBlock,
+            Syntax::FixedWidth(_) => SyntaxT::FixedWidth,
+            Syntax::FootnoteDefinition(_) => SyntaxT::FootnoteDefinition,
+            Syntax::Headline(_) => SyntaxT::Headline,
+            Syntax::HorizontalRule => SyntaxT::HorizontalRule,
+            Syntax::InlineTask(_) => SyntaxT::InlineTask,
+            Syntax::Item(_) => SyntaxT::Item,
+            Syntax::Keyword(_) => SyntaxT::Keyword,
+            Syntax::LatexEnvironment(_) => SyntaxT::LatexEnvironment,
+            Syntax::NodeProperty(_) => SyntaxT::NodeProperty,
+            Syntax::Paragraph => SyntaxT::Paragraph,
+            Syntax::PlainList(_) => SyntaxT::PlainList,
+            Syntax::Planning(_) => SyntaxT::Planning,
+            Syntax::PropertyDrawer => SyntaxT::PropertyDrawer,
+            Syntax::QuoteBlock => SyntaxT::QuoteBlock,
+            Syntax::Section => SyntaxT::Section,
+            Syntax::SpecialBlock(_) => SyntaxT::SpecialBlock,
+            Syntax::SrcBlock(_) => SyntaxT::SrcBlock,
+            Syntax::Table => SyntaxT::Table,
+            Syntax::Spreadsheet(_) => SyntaxT::Spreadsheet,
+            Syntax::TableRow(_) => SyntaxT::TableRow,
+            Syntax::SpreadsheetRow(_) => SyntaxT::SpreadsheetRow,
+            Syntax::SpreadsheetCell(_) => SyntaxT::SpreadsheetCell,
+            Syntax::VerseBlock => SyntaxT::VerseBlock,
+            Syntax::Bold => SyntaxT::Bold,
+            Syntax::Code(_) => SyntaxT::Code,
+            Syntax::Citation(_) => SyntaxT::Citation,
+            Syntax::Entity(_) => SyntaxT::Entity,
+            Syntax::ExportSnippet(_) => SyntaxT::ExportSnippet,
+            Syntax::FootnoteReference(_) => SyntaxT::FootnoteReference,
+            Syntax::InlineBabelCall(_) => SyntaxT::InlineBabelCall,
+            Syntax::InlineSrcBlock(_) => SyntaxT::InlineSrcBlock,
+            Syntax::Italic => SyntaxT::Italic,
+            Syntax::LineBreak => SyntaxT::LineBreak,
+            Syntax::LatexFragment(_) => SyntaxT::LatexFragment,
+            Syntax::Link(_) => SyntaxT::Link,
+            Syntax::Macro(_) => SyntaxT::Macro,
+            Syntax::RadioTarget(_) => SyntaxT::RadioTarget,
+            Syntax::StatisticsCookie(_) => SyntaxT::StatisticsCookie,
+            Syntax::StrikeThrough => SyntaxT::StrikeThrough,
+            Syntax::Script(_) => SyntaxT::Script,
+            Syntax::TableCell => SyntaxT::TableCell,
+            Syntax::Target(_) => SyntaxT::Target,
+            Syntax::Timestamp(_) => SyntaxT::Timestamp,
+            Syntax::Underline => SyntaxT::Underline,
+            Syntax::Verbatim(_) => SyntaxT::Verbatim,
+            Syntax::PlainText(_) => SyntaxT::PlainText,
+        }
+    }
+}
+
 /// An enumerated list of all Org syntactic units.
 /// This structure is not meant to be extended.
-#[derive(Debug, EnumDiscriminants)]
-#[strum_discriminants(name(SyntaxT))]
+#[derive(Debug)]
 pub enum Syntax<'a, 'b> {
     /// The root of the parse tree
     OrgData,
@@ -690,7 +814,7 @@ impl SyntaxT {
         )
     }
 
-    fn is_element(self) -> bool {
+    pub fn is_element(self) -> bool {
         use SyntaxT::*;
         matches!(
             self,
@@ -729,7 +853,7 @@ impl SyntaxT {
         )
     }
 
-    fn is_object(self) -> bool {
+    pub fn is_object(self) -> bool {
         use SyntaxT::*;
         matches!(
             self,
@@ -759,7 +883,7 @@ impl SyntaxT {
         )
     }
 
-    fn is_recursive_object(self) -> bool {
+    pub fn is_recursive_object(self) -> bool {
         use SyntaxT::*;
         matches!(
             self,
@@ -775,7 +899,7 @@ impl SyntaxT {
         )
     }
 
-    fn is_object_container(self) -> bool {
+    pub fn is_object_container(self) -> bool {
         use SyntaxT::*;
         matches!(
             self,
@@ -795,7 +919,7 @@ impl SyntaxT {
         )
     }
 
-    fn is_container(self) -> bool {
+    pub fn is_container(self) -> bool {
         self.is_greater_element() || self.is_object_container()
     }
 
@@ -1055,25 +1179,25 @@ impl EntityFlags {
 #[derive(Debug)]
 pub struct EntityData<'a> {
     /// Entity's ASCII representation (string).
-    ascii: &'a str,
+    pub ascii: &'a str,
 
     /// Entity's HTML representation (string).
-    html: &'a str,
+    pub html: &'a str,
 
     /// Entity's LaTeX representation (string).
-    latex: &'a str,
+    pub latex: &'a str,
 
     /// Packed flags.
-    flags: EntityFlags,
+    pub flags: EntityFlags,
 
     /// Entity's Latin-1 encoding representation (string).
-    latin1: &'a str,
+    pub latin1: &'a str,
 
     /// Entity's name, without backslash nor brackets (string).
-    name: &'a str,
+    pub name: &'a str,
 
     /// Entity's UTF-8 encoding representation (string).
-    utf_8: &'a str,
+    pub utf_8: &'a str,
 }
 
 impl<'a> EntityData<'a> {
@@ -1152,10 +1276,10 @@ impl<'a> EntityData<'a> {
 #[derive(Debug)]
 pub struct ExportSnippetData<'a> {
     /// Relative back_end's name (string).
-    back_end: &'a str,
+    pub back_end: &'a str,
 
     /// Export code (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 /// Recursive object.
@@ -1172,31 +1296,31 @@ pub struct FootnoteReferenceData<'a> {
 #[derive(Debug)]
 pub struct InlineBabelCallData<'a> {
     ///Name of code block being called (string).
-    call: &'a str,
+    pub call: &'a str,
 
     ///Header arguments applied to the named code block (string or nil).
-    inside_header: Option<&'a str>,
+    pub inside_header: Option<&'a str>,
 
     ///Arguments passed to the code block (string or nil).
-    arguments: Option<&'a str>,
+    pub arguments: Option<&'a str>,
 
     ///Header arguments applied to the calling instance (string or nil).
-    end_header: Option<&'a str>,
+    pub end_header: Option<&'a str>,
 
     ///Raw call, as Org syntax (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug)]
 pub struct InlineSrcBlockData<'a> {
     ///Language of the code in the block (string).
-    language: &'a str,
+    pub language: &'a str,
 
     ///Optional header arguments (string or nil).
-    parameters: Option<&'a str>,
+    pub parameters: Option<&'a str>,
 
     ///Source code (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1261,22 +1385,22 @@ pub struct LinkData<'a> {
     /// Name of application requested to open the link
     /// in Emacs (string or nil).
     /// It only applies to "file" type links.
-    application: Option<&'a str>,
+    pub application: Option<&'a str>,
 
     /// Packed format + link-type flags.
-    flags: LinkFlags,
+    pub flags: LinkFlags,
 
     /// Identifier for link's destination.
     /// It is usually the link part with type,
     /// if specified, removed (string).
-    path: &'a str,
+    pub path: &'a str,
 
     ///Uninterpreted link part (string).
-    raw_link: &'a str,
+    pub raw_link: &'a str,
 
     /// Additional information for file location (string or nil).
     /// It only applies to "file" type links.
-    search_option: Option<&'a str>,
+    pub search_option: Option<&'a str>,
 }
 
 impl<'a> LinkData<'a> {
@@ -1329,7 +1453,10 @@ impl<'a> LinkData<'a> {
 
     #[inline]
     pub fn new_angle(raw: &'a str) -> Self {
-        let inner = raw.strip_prefix("<").and_then(|s| s.strip_suffix(">")).unwrap_or(raw);
+        let inner = raw
+            .strip_prefix("<")
+            .and_then(|s| s.strip_suffix(">"))
+            .unwrap_or(raw);
         let (link_type, path) = if inner.starts_with("http://") || inner.starts_with("https://") {
             (LinkType::File, inner)
         } else if inner.starts_with("file:") {
@@ -1385,33 +1512,33 @@ pub enum LinkType {
 #[derive(Debug)]
 pub struct MacroData<'a> {
     /// Arguments passed to the macro (list of strings).
-    args: Vec<&'a str>,
+    pub args: Vec<&'a str>,
 
     /// Macro's name (string).
-    key: &'a str,
+    pub key: &'a str,
 
     /// Replacement text (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug)]
 pub struct RadioTargetData<'a> {
     /// Uninterpreted contents (string).
-    raw_value: &'a str,
+    pub raw_value: &'a str,
 }
 
 #[derive(Debug)]
 pub struct StatisticsCookieData<'a> {
     /// Full cookie (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug)]
 pub struct CitationData<'a> {
     /// Full raw citation text, e.g. "[cite/t:@all]".
-    raw: &'a str,
+    pub raw: &'a str,
     /// Optional style suffix, e.g. "t" from "/t" in "[cite/t:@all]".
-    style: Option<&'a str>,
+    pub style: Option<&'a str>,
 }
 
 impl<'a> CitationData<'a> {

@@ -13,10 +13,6 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-#![warn(clippy::all)]
-#![warn(clippy::missing_inline_in_public_items)]
-// This should be eventually turned off, but for now this helps reduce the noise
-#![allow(dead_code)]
 #[macro_use]
 extern crate lazy_static;
 extern crate memchr;
@@ -24,22 +20,22 @@ extern crate regex;
 
 #[macro_use]
 pub mod parser;
-mod affiliated;
-mod babel;
+pub mod affiliated;
+pub mod babel;
 pub mod blocks;
 pub mod cursor;
 pub mod data;
-mod drawer;
+pub mod drawer;
 pub mod environment;
-mod fixed_width;
+pub mod fixed_width;
 pub mod headline;
 pub mod keyword;
-mod latex;
-mod list;
+pub mod latex;
+pub mod list;
 pub mod markup;
-mod paragraph;
-mod planning;
-mod table;
+pub mod paragraph;
+pub mod planning;
+pub mod table;
 
 /// Everything a user of this library is likely to need, in one place.
 ///

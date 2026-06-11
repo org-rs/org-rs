@@ -27,15 +27,12 @@ lazy_static! {
         CachedRegex::new(Regex::new(r"^[ \t]*\\begin\{([A-Za-z0-9*]+)\}").unwrap());
 }
 
-/// Format string matching the ending of a LaTeX environment.
-pub static FMTSTR_LATEX_END_ENVIRONMENT: &str = r"\\end{%s}[ \t]*$";
-
 #[derive(Debug)]
 pub struct LatexEnvironmentData<'a> {
-    begin: usize,
-    end: usize,
-    post_blank: usize,
-    value: &'a str,
+    pub begin: usize,
+    pub end: usize,
+    pub post_blank: usize,
+    pub value: &'a str,
 }
 
 impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
