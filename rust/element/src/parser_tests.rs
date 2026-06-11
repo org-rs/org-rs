@@ -2394,4 +2394,24 @@ mod post_blank {
             starts
         );
     }
+
+    #[test]
+    fn angle_link_parsed_as_link_object() {
+        // "<http://example.com> text\n"
+        //  0                18 19 20 21
+        //         (url ends) > ' ' 't'
+        // Emacs parses this as an Angle link, absorbing trailing space as post-blank.
+        let starts = plain_text_starts("<http://example.com> text\n");
+        assert!(
+            starts.contains(&21),
+            "expected PlainText at byte 21 ('text'), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&0),
+            "expected no PlainText at 0 — angle link should be parsed first, got starts: {:?}",
+            starts
+        );
+    }
 }
+
