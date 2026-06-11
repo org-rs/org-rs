@@ -1578,13 +1578,18 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         }
         let len = bytes.len();
 
-        // Scan command name: letters, optionally ending with '*'
+        // Scan command name: one or more letters, optionally ending with a
+        // single '*' (e.g. `\section*`). Digits terminate the command, so
+        // `\Office16` is the fragment `\Office` followed by plain-text `16`.
         let mut pos = 1;
         if pos >= len || !bytes[pos].is_ascii_alphabetic() {
             return None;
         }
         pos += 1;
-        while pos < len && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'*') {
+        while pos < len && bytes[pos].is_ascii_alphabetic() {
+            pos += 1;
+        }
+        if pos < len && bytes[pos] == b'*' {
             pos += 1;
         }
 
