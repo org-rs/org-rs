@@ -2596,14 +2596,19 @@ mod post_blank {
     }
 
     #[test]
-    fn underline_not_parsed_across_begin_keyword() {
-        // `_#+BEGIN_CENTER_` should NOT be parsed as Underline markup because
-        // `#` is not a valid word-boundary character after `_`.
-        // Rust's parse_emphasis_marker does not check the pre-condition.
-        let count = get_type_count("_#+BEGIN_CENTER_ text\n", SyntaxT::Underline, ParseGranularity::Object);
+    fn underline_not_parsed_after_alphanumeric() {
+        // From `karl_voit_config.org`: in `(#+BEGIN_... and #+END_...)` the
+        // `_` after `BEGIN` must NOT open an Underline, because the preceding
+        // char (`N`) is not a valid emphasis pre-character. Emacs emits no
+        // underline here; Rust did because it skipped the pre-condition check.
+        let count = get_type_count(
+            "within a block (#+BEGIN_... and #+END_...).\n",
+            SyntaxT::Underline,
+            ParseGranularity::Object,
+        );
         assert_eq!(
             count, 0,
-            "expected 0 Underline for '_#+BEGIN_CENTER_', got {} — emphasis pre-condition not checked",
+            "expected 0 Underline for `#+BEGIN_... #+END_...`, got {} — emphasis pre-condition not checked",
             count
         );
     }

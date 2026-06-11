@@ -73,6 +73,7 @@ pub struct Parser<'input, 'bumpalo, Environment: environment::Environment> {
     pub environment: Environment,
     pub arena: NodeArena<'input, 'bumpalo>,
     pub bump: &'bumpalo bumpalo::Bump,
+    pub object_region_start: usize,
 }
 
 macro_rules! looking_at {
@@ -193,6 +194,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             environment,
             arena: NodeArena::new(),
             bump,
+            object_region_start: 0,
         }
     }
 
@@ -605,6 +607,11 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         restriction: impl Fn(SyntaxT) -> bool,
     ) -> BumpVec<'b, NodeId> {
         let interval = interval.into();
+        // Mark this region's start so an emphasis marker sitting at the
+        // boundary passes the pre-character check. Saved/restored to keep the
+        // enclosing region's boundary intact across nested object parsing.
+        let saved_region_start = self.object_region_start;
+        self.object_region_start = interval.start;
         let mut children: BumpVec<'b, NodeId> = BumpVec::new_in(self.bump);
         let mut pos = interval.start;
 
@@ -820,6 +827,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             }
         }
 
+        self.object_region_start = saved_region_start;
         children
     }
 
@@ -1058,9 +1066,13 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             return None;
         }
 
-        // Check PRE condition: start of text (position 0 in slice) is always valid
-        // For non-start positions, would need to check previous char
-        let valid_pre = true; // At start of content, always valid
+        // Check PRE condition: the marker must be at the start of the content
+        // region being parsed (start of buffer, link description, footnote,
+        // nested emphasis, …) or immediately preceded by a valid pre-character
+        // (whitespace or one of `-([{'"`). Without this, the `_` after `BEGIN`
+        // in `(#+BEGIN_... and #+END_...)` is wrongly read as an underline.
+        let valid_pre =
+            start == self.object_region_start || is_pre_char(self.input.as_bytes()[start - 1]);
         if !valid_pre {
             return None;
         }
