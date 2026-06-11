@@ -2413,5 +2413,25 @@ mod post_blank {
             starts
         );
     }
+
+    #[test]
+    fn citation_parsed_as_object() {
+        // "[cite/t:@all] rest\n"
+        //  0            12 13 14
+        //                ] ' ' 'r'
+        // Emacs parses as Citation object, absorbing trailing space as post-blank.
+        // Rust currently has no citation parser, so the whole string is PlainText.
+        let starts = plain_text_starts("[cite/t:@all] rest\n");
+        assert!(
+            starts.contains(&14),
+            "expected PlainText at byte 14 ('rest'), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&0),
+            "expected no PlainText at 0 — citation should be parsed first, got starts: {:?}",
+            starts
+        );
+    }
 }
 
