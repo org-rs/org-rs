@@ -287,8 +287,6 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         };
 
         // Recurse into item content at Element/Object granularity.
-        // Item is a greater element but its children are pre-built here,
-        // so the standard content_location recursion path never fires for them.
         use crate::parser::{ParseGranularity, ParserMode};
         if matches!(
             self.granularity,
@@ -336,6 +334,52 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         ListKind::Unordered
     }
 
+    fn item_content_end(&self, content_start: usize, end: usize, item_indent: usize) -> usize {
+        let bytes = self.input.as_bytes();
+        let mut pos = content_start;
+        // Scan character-by-character looking for blank-line-separated
+        // segments.  A blank line (empty or whitespace-only line) followed
+        // by a line whose indent <= item_indent terminates the item content.
+        while pos < end {
+            let rest = &bytes[pos..];
+            let nl = memchr(b'\n', rest);
+            match nl {
+                None => break,
+                Some(nl_pos) => {
+                    // Check if this line is blank (only contains whitespace up to \n)
+                    let line = &rest[..nl_pos];
+                    let is_blank = line.iter().all(|&b| b == b' ' || b == b'\t');
+                    let next_line_pos = pos + nl_pos + 1;
+                    if is_blank && next_line_pos <= end {
+                        // Check the indent of the next non-blank line
+                        // after the blank line.
+                        let after_blank = &bytes[next_line_pos..end];
+                        let nl2 = memchr(b'\n', after_blank);
+                        let next_nonblank = match nl2 {
+                            Some(pos2) => &after_blank[..pos2],
+                            None => after_blank,
+                        };
+                        if !next_nonblank.is_empty() {
+                            let (next_indent, _) = Self::get_indent(
+                                std::str::from_utf8(next_nonblank).unwrap_or(""),
+                            );
+                            if next_indent <= item_indent {
+                                return pos;
+                            }
+                        } else {
+                            // Blank line at the end of the range with no
+                            // following non-blank content — the blank line
+                            // itself is the boundary.
+                            return pos;
+                        }
+                    }
+                    pos = next_line_pos;
+                }
+            }
+        }
+        end
+    }
+
     fn item_parser_internal(&mut self, item: &ListItem<'a>, end: usize) -> NodeId {
         let bullet = item.bullet;
         let tag = item.tag;
@@ -352,9 +396,14 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             after_bullet
         };
 
-        let content_location = (content_start < end).then_some(Interval {
+        // Cap content end at the first blank-line-separated line whose
+        // indent is <= this item's indent.  This ensures blank lines
+        // before lower-indent elements close the item.
+        let effective_content_end = self.item_content_end(content_start, end, item.indent);
+
+        let content_location = (content_start < effective_content_end).then_some(Interval {
             start: content_start,
-            end,
+            end: effective_content_end,
         });
 
         let item_data = ItemData {
@@ -404,9 +453,14 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             let (indent, rest) = Self::get_indent(line);
 
             // Block-aware skipping: lines between #+BEGIN_ and #+END_
-            // at any indentation must not terminate the list.
+            // at indent > first_indent are body lines inside a list
+            // item and must not terminate the list.  Blocks at the
+            // same-or-lower indent as the list itself are top-level
+            // elements and DO terminate the list.
             let rest_bytes = rest.as_bytes();
             if !in_block
+                && first_indent.is_some()
+                && indent > first_indent.unwrap()
                 && rest_bytes.len() >= 7
                 && rest_bytes[0] == b'#'
                 && rest_bytes[1] == b'+'

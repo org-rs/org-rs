@@ -225,6 +225,26 @@ jq '.fruit | keys' fruit.json
     /// After a blank line closes a nested list, Emacs places a
     /// SrcBlock as a direct Section child. Rust keeps it nested
     /// inside the last list item.
+    fn dump_tree(arena: &NodeArena, root: NodeId, label: &str) {
+        eprintln!("=== TREE: {label} ===");
+        let mut stack: Vec<(NodeId, usize)> = vec![(root, 0)];
+        while let Some((id, depth)) = stack.pop() {
+            let node = &arena[id];
+            let t = format!("{:?}", SyntaxT::from(&node.data));
+            let loc = node.location;
+            let content = node
+                .content_location
+                .map(|c| format!("({},{})", c.start, c.end))
+                .unwrap_or_default();
+            let indent = "  ".repeat(depth);
+            eprintln!("{indent}{t} ({},{}) content=[{content}]", loc.start, loc.end);
+            for &child in node.children.iter().rev() {
+                stack.push((child, depth + 1));
+            }
+        }
+        eprintln!("======================");
+    }
+
     #[test]
     fn src_block_after_blank_line_after_nested_list() {
         let input = r#"- item 1
@@ -238,6 +258,7 @@ jq '.fruit | keys' fruit.json
         let bump = Bump::new();
         let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
+        dump_tree(&arena, root, "nested-list");
 
         let sb_count = count_type(&arena, root, SyntaxT::SrcBlock);
         assert_eq!(sb_count, 1, "Expected exactly one SrcBlock; got {}", sb_count);

@@ -25,7 +25,7 @@ use crate::data::{
 
 use crate::blocks::{REGEX_BLOCK_BEGIN, REGEX_DYNAMIC_BLOCK};
 use crate::drawer::REGEX_DRAWER;
-use crate::headline::{REGEX_CLOCK_LINE, REGEX_PLANNING_LINE, REGEX_PROPERTY_DRAWER};
+use crate::headline::{REGEX_CLOCK_LINE, REGEX_PLANNING_LINE};
 use crate::keyword::*;
 use crate::latex::REGEX_LATEX_BEGIN_ENVIRIONMENT;
 use crate::list::*;
@@ -406,20 +406,6 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
                 if mode == Planning && is_prev_line_headline && is_match_planning {
                     return self.planning_parser(limit);
-                }
-            }
-
-            {
-                let delta = if mode == Planning { 0 } else { -1 };
-                let maybe_headline_offset = self.cursor.line_beginning_position(Some(delta));
-                let is_prev_line_headline =
-                    self.input.as_bytes().get(maybe_headline_offset) == Some(&b'*');
-
-                if (mode == Planning || mode == PropertyDrawer)
-                    && is_prev_line_headline
-                    && self.cursor.looking_at(&REGEX_PROPERTY_DRAWER).is_some()
-                {
-                    return self.property_drawer_parser(limit);
                 }
             }
 

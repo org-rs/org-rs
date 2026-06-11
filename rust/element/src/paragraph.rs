@@ -87,6 +87,8 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     }
                     // Numbered list item
                     _ if bytes[i].is_ascii_digit() && crate::list::starts_with_item(line) => break,
+                    // Fixed-width line or drawer
+                    b':' => break,
                     _ => {}
                 }
             }
