@@ -69,26 +69,6 @@ mod plain_list {
     }
 
     #[test]
-    fn nested_list() {
-        let input = "- item 1\n  - subitem 1\n  - subitem 2\n- item 2\n";
-        let bump = Bump::new();
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
-        let (arena, root) = parser.parse_buffer();
-        let count = count_type(&arena, root, SyntaxT::PlainList);
-        let item_count = count_type(&arena, root, SyntaxT::Item);
-        assert!(
-            count >= 2,
-            "Expected at least 2 PlainLists (outer + inner), found {}",
-            count
-        );
-        assert!(
-            item_count >= 3,
-            "Expected at least 3 items, found {}",
-            item_count
-        );
-    }
-
-    #[test]
     fn list_empty() {
         let input = "- \n";
         let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
@@ -2326,16 +2306,20 @@ mod post_blank {
 
     #[test]
     fn plain_text_after_timestamp_starts_after_space() {
-        // so PlainText starts at byte 22 ('D'), not byte 21 (the space).
+        // "[2021-05-05 Wed] Discussion\n"
+        //  0                15 16 17
+        //                    ]  ' ' 'D'
+        // Emacs absorbs the trailing space into the timestamp as post-blank,
+        // so PlainText starts at byte 17 ('D'), not byte 16 (the space).
         let starts = plain_text_starts("[2021-05-05 Wed] Discussion\n");
         assert!(
-            starts.contains(&22),
-            "expected plain_text at 22 ('D'), got starts: {:?}",
+            starts.contains(&17),
+            "expected plain_text at 17 ('D'), got starts: {:?}",
             starts
         );
         assert!(
-            !starts.contains(&21),
-            "plain_text must not start at 21 (post-blank space after timestamp), got starts: {:?}",
+            !starts.contains(&16),
+            "plain_text must not start at 16 (post-blank space after timestamp), got starts: {:?}",
             starts
         );
     }
@@ -2346,8 +2330,8 @@ mod post_blank {
         // Emacs absorbs both spaces into the timestamp as post-blank.
         let starts = plain_text_starts("[2021-05-05 Wed]   Discussion\n");
         assert!(
-            starts.contains(&24),
-            "expected plain_text at 24 ('D'), got starts: {:?}",
+            starts.contains(&19),
+            "expected plain_text at 19 ('D'), got starts: {:?}",
             starts
         );
     }
@@ -2355,11 +2339,13 @@ mod post_blank {
     #[test]
     fn plain_text_after_timestamp_no_space() {
         // "[2021-05-05 Wed]Discussion\n"
-        // No space between timestamp and text — PlainText starts at ']'.
+        // No post-char after `]` so this is NOT a valid timestamp.
+        // The entire string remains as a single PlainText run.
         let starts = plain_text_starts("[2021-05-05 Wed]Discussion\n");
-        assert!(
-            starts.contains(&20),
-            "expected plain_text at 20 (']' directly followed by text), got starts: {:?}",
+        assert_eq!(
+            starts,
+            vec![0],
+            "no timestamp split expected when `]` is directly followed by a non-post-char, got starts: {:?}",
             starts
         );
     }

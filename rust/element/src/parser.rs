@@ -1267,17 +1267,26 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     pub fn try_parse_timestamp(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         let (timestamp_data, consumed) = self.parse_timestamp(text)?;
 
+        // Absorb trailing spaces/tabs into the timestamp's post-blank,
+        // matching Emacs org-element behaviour.
+        let post_blank = text[consumed..]
+            .bytes()
+            .take_while(|&b| b == b' ' || b == b'\t')
+            .count();
+        let total = consumed + post_blank;
+
         let node = self.arena.alloc(
             SyntaxNode::new(
                 Syntax::Timestamp(self.bump.alloc(timestamp_data)),
-                (start, start + consumed),
+                (start, start + total),
                 self.bump,
             )
             .content((start + 1, start + consumed - 1))
+            .post_blank(post_blank)
             .build(),
         );
 
-        Some((node, consumed))
+        Some((node, total))
     }
 
     fn try_parse_entity(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
