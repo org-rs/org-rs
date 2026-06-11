@@ -89,8 +89,18 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     }
                     // Numbered list item
                     _ if bytes[i].is_ascii_digit() && crate::list::starts_with_item(line) => break,
-                    // Fixed-width line or drawer
-                    b':' => break,
+                    // Fixed-width line or drawer start. Only these actually
+                    // begin a new element; a line like `:one: text` is neither
+                    // (text follows the closing colon), so it stays part of the
+                    // paragraph rather than splitting it.
+                    b':' => {
+                        let is_fixed_width = matches!(bytes.get(i + 1), None | Some(b' ' | b'\n'));
+                        if is_fixed_width
+                            || crate::drawer::REGEX_DRAWER.is_match(&line[i..line_len])
+                        {
+                            break;
+                        }
+                    }
                     // Table row
                     b'|' => break,
                     _ => {}

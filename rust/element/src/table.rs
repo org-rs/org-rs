@@ -150,18 +150,23 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
         // Look for a #+TBLFM: line immediately after the table rows.
         // Emacs absorbs it into the Table's span; Rust must do the same.
-        let formula_end = self.input[end..span.end].lines().next().and_then(|first_line| {
-            if REGEX_TBLFM.is_match(first_line) {
-                let line_end = end + first_line.len();
-                Some(if line_end < span.end && self.input.as_bytes()[line_end] == b'\n' {
-                    line_end + 1
+        let formula_end = self.input[end..span.end]
+            .lines()
+            .next()
+            .and_then(|first_line| {
+                if REGEX_TBLFM.is_match(first_line) {
+                    let line_end = end + first_line.len();
+                    Some(
+                        if line_end < span.end && self.input.as_bytes()[line_end] == b'\n' {
+                            line_end + 1
+                        } else {
+                            line_end
+                        },
+                    )
                 } else {
-                    line_end
-                })
-            } else {
-                None
-            }
-        });
+                    None
+                }
+            });
 
         let actual_end = formula_end.unwrap_or(end);
 

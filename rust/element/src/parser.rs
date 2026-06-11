@@ -131,7 +131,7 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
     let mut p3 = memchr3(b'+', b'=', b'~', bytes);
     let mut p4 = memchr3(b'h', b'f', b'm', bytes);
     let mut p5 = memchr2(b'_', b'^', bytes);
-    let mut p6 = memchr(b'i', bytes); // PERF: wouldn't memmem (id) be faster here? 
+    let mut p6 = memchr(b'i', bytes); // PERF: wouldn't memmem (id) be faster here?
 
     loop {
         let i = match [p1, p2, p3, p4, p5, p6].iter().copied().flatten().min() {
@@ -682,35 +682,44 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                         }),
                         b'[' => {
                             let mut result = None;
-                            if let Some((n, c)) =
-                                self.try_parse_statistics_cookie(remaining, pos)
-                            {
-                                if restriction(SyntaxT::StatisticsCookie) {
+                            // A statistics cookie is only recognised where it is
+                            // permitted (e.g. not inside a table cell); otherwise
+                            // `[/]` stays plain text, matching Emacs.
+                            if restriction(SyntaxT::StatisticsCookie) {
+                                if let Some((n, c)) =
+                                    self.try_parse_statistics_cookie(remaining, pos)
+                                {
                                     children.push(n);
+                                    result = Some(c);
                                 }
-                                result = Some(c);
-                            } else if let Some((n, c)) =
-                                self.try_parse_footnote_reference(remaining, pos)
-                            {
-                                if restriction(SyntaxT::FootnoteReference) {
-                                    children.push(n);
+                            }
+                            if result.is_none() {
+                                if let Some((n, c)) =
+                                    self.try_parse_footnote_reference(remaining, pos)
+                                {
+                                    if restriction(SyntaxT::FootnoteReference) {
+                                        children.push(n);
+                                    }
+                                    result = Some(c);
+                                } else if let Some((n, c)) =
+                                    self.try_parse_timestamp(remaining, pos)
+                                {
+                                    if restriction(SyntaxT::Timestamp) {
+                                        children.push(n);
+                                    }
+                                    result = Some(c);
+                                } else if let Some((n, c)) = self.try_parse_citation(remaining, pos)
+                                {
+                                    if restriction(SyntaxT::Citation) {
+                                        children.push(n);
+                                    }
+                                    result = Some(c);
+                                } else if let Some((n, c)) = self.try_parse_link(remaining, pos) {
+                                    if restriction(SyntaxT::Link) {
+                                        children.push(n);
+                                    }
+                                    result = Some(c);
                                 }
-                                result = Some(c);
-                            } else if let Some((n, c)) = self.try_parse_timestamp(remaining, pos) {
-                                if restriction(SyntaxT::Timestamp) {
-                                    children.push(n);
-                                }
-                                result = Some(c);
-                            } else if let Some((n, c)) = self.try_parse_citation(remaining, pos) {
-                                if restriction(SyntaxT::Citation) {
-                                    children.push(n);
-                                }
-                                result = Some(c);
-                            } else if let Some((n, c)) = self.try_parse_link(remaining, pos) {
-                                if restriction(SyntaxT::Link) {
-                                    children.push(n);
-                                }
-                                result = Some(c);
                             }
                             result
                         }
@@ -1282,7 +1291,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             return None;
         }
         pos += 1; // skip ':'
-        // Scan for closing ']' — must contain at least one '@'
+                  // Scan for closing ']' — must contain at least one '@'
         let close_start = pos;
         while let Some(&b) = bytes.get(pos) {
             if b == b']' {

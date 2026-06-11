@@ -503,7 +503,14 @@ fn timed_stage<T>(
         while !d.load(Ordering::Relaxed) {
             let elapsed = start.elapsed();
             let _g = l.lock().unwrap();
-            eprint!("\r[{}/{}] {}  {} {:.3}s  ", index, total, dn, lb, elapsed.as_secs_f64());
+            eprint!(
+                "\r[{}/{}] {}  {} {:.3}s  ",
+                index,
+                total,
+                dn,
+                lb,
+                elapsed.as_secs_f64()
+            );
             std::io::stderr().flush().ok();
             drop(_g);
             thread::sleep(Duration::from_millis(50));

@@ -216,7 +216,7 @@ fn desc_content_start(input: &str, from: usize, limit: usize) -> Option<usize> {
     }
     best.map(|sep| {
         let after = from + sep + 2; // byte just past "::"
-        // Skip one mandatory space/tab (already verified above), plus any extras.
+                                    // Skip one mandatory space/tab (already verified above), plus any extras.
         let mut pos = after;
         while pos < limit && (bytes[pos] == b' ' || bytes[pos] == b'\t') {
             pos += 1;

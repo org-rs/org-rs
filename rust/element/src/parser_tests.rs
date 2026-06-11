@@ -2454,15 +2454,25 @@ mod post_blank {
         //   Paragraph (0,7)  — location spans "text.\n\n", post_blank=1
         //   Paragraph (7,12) — spans "More\n"
         let bump = Bump::new();
-        let mut parser = Parser::new("text.\n\nMore\n", ParseGranularity::Element, DefaultEnvironment, &bump);
+        let mut parser = Parser::new(
+            "text.\n\nMore\n",
+            ParseGranularity::Element,
+            DefaultEnvironment,
+            &bump,
+        );
         let (arena, root) = parser.parse_buffer();
         let section = arena[root].children.first().expect("section");
-        let paras: Vec<_> = arena[*section].children.iter().map(|&id| {
-            (&arena[id], arena[id].post_blank)
-        }).collect();
+        let paras: Vec<_> = arena[*section]
+            .children
+            .iter()
+            .map(|&id| (&arena[id], arena[id].post_blank))
+            .collect();
         assert_eq!(paras.len(), 2, "expected 2 paragraphs");
         assert_eq!(paras[0].0.location.start, 0);
-        assert_eq!(paras[0].0.location.end, 7, "first paragraph location should include the blank line");
+        assert_eq!(
+            paras[0].0.location.end, 7,
+            "first paragraph location should include the blank line"
+        );
         assert_eq!(paras[0].1, 1, "first paragraph should have post_blank=1");
         assert_eq!(paras[1].0.location.start, 7);
         assert_eq!(paras[1].0.location.end, 12);
@@ -2587,7 +2597,11 @@ mod post_blank {
         //  0    5   8 9
         // Emacs parses [/] as StatisticsCookie object.
         // Rust currently lacks a StatisticsCookie parser.
-        let count = get_type_count("text [/] rest\n", SyntaxT::StatisticsCookie, ParseGranularity::Object);
+        let count = get_type_count(
+            "text [/] rest\n",
+            SyntaxT::StatisticsCookie,
+            ParseGranularity::Object,
+        );
         assert_eq!(
             count, 1,
             "expected 1 StatisticsCookie for '[/]', got {} — StatisticsCookie parser not implemented",
@@ -2632,7 +2646,10 @@ mod post_blank {
             if matches!(arena[id].data, Syntax::Citation(_)) {
                 return Some(id);
             }
-            arena[id].children.iter().find_map(|&c| find_citation(arena, c))
+            arena[id]
+                .children
+                .iter()
+                .find_map(|&c| find_citation(arena, c))
         }
         let citation = find_citation(&arena, root).expect("expected a Citation node");
         assert!(
@@ -2673,4 +2690,3 @@ mod post_blank {
         );
     }
 }
-
