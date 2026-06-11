@@ -1,5 +1,6 @@
 (require 'org)
 (require 'org-element)
+(require 'org-inlinetask)
 
 (defun oracle-emit-children (children pos)
   "Emit CHILDREN as oracle S-expressions, threading POS for plain-text spans.

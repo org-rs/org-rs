@@ -357,6 +357,9 @@ fn rust_type_key(syntax: &Syntax) -> TypeKey {
             ScriptKind::Sub => "subscript",
             ScriptKind::Sup => "superscript",
         }),
+        // Emacs names this `inlinetask` (one word); Rust's `InlineTask`
+        // would normalise to `inline_task` and never match.
+        Syntax::InlineTask(_) => intern_type("inlinetask"),
         _ => intern_type(&format!("{:?}", SyntaxT::from(syntax))),
     }
 }
