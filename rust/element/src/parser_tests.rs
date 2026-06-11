@@ -542,6 +542,24 @@ mod item {
             }
         }
     }
+
+    /// Continuation lines inside a single list item must not create
+    /// extra Paragraph nodes.  Emacs produces one Paragraph per item.
+    #[test]
+    fn no_extra_paragraphs_in_item() {
+        // Indented `:key:` lines are continuation lines of the same item.
+        let input = "- item\n  :one: first\n  :two: second\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        let item_count = count_type(&arena, root, SyntaxT::Item);
+        let para_count = count_type(&arena, root, SyntaxT::Paragraph);
+        assert_eq!(
+            para_count, item_count,
+            "Paragraph count ({}) should equal Item count ({}), got {}",
+            item_count, para_count, para_count
+        );
+    }
 }
 
 mod headline {
@@ -2500,7 +2518,6 @@ mod post_blank {
         //  0            12 13 14
         //                ] ' ' 'r'
         // Emacs parses as Citation object, absorbing trailing space as post-blank.
-        // Rust currently has no citation parser, so the whole string is PlainText.
         let starts = plain_text_starts("[cite/t:@all] rest\n");
         assert!(
             starts.contains(&14),
@@ -2511,6 +2528,33 @@ mod post_blank {
             !starts.contains(&0),
             "expected no PlainText at 0 — citation should be parsed first, got starts: {:?}",
             starts
+        );
+    }
+
+    #[test]
+    fn statistics_cookie_not_plain_text() {
+        // "text [/] rest\n"
+        //  0    5   8 9
+        // Emacs parses [/] as StatisticsCookie object.
+        // Rust currently lacks a StatisticsCookie parser.
+        let count = get_type_count("text [/] rest\n", SyntaxT::StatisticsCookie, ParseGranularity::Object);
+        assert_eq!(
+            count, 1,
+            "expected 1 StatisticsCookie for '[/]', got {} — StatisticsCookie parser not implemented",
+            count
+        );
+    }
+
+    #[test]
+    fn underline_not_parsed_across_begin_keyword() {
+        // `_#+BEGIN_CENTER_` should NOT be parsed as Underline markup because
+        // `#` is not a valid word-boundary character after `_`.
+        // Rust's parse_emphasis_marker does not check the pre-condition.
+        let count = get_type_count("_#+BEGIN_CENTER_ text\n", SyntaxT::Underline, ParseGranularity::Object);
+        assert_eq!(
+            count, 0,
+            "expected 0 Underline for '_#+BEGIN_CENTER_', got {} — emphasis pre-condition not checked",
+            count
         );
     }
 }

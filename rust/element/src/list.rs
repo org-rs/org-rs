@@ -501,8 +501,13 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     && (bs[j] == b'.' || bs[j] == b')')
                     && (j + 1 >= bs.len() || bs[j + 1] == b' ' || bs[j + 1] == b'\t')
             };
-            let starts_with_bullet =
-                rest.starts_with('-') || rest.starts_with('+') || starts_with_ordered;
+            let starts_with_bullet = {
+                let bs = rest.as_bytes();
+                let first = bs.first().copied();
+                (first == Some(b'-') || first == Some(b'+'))
+                    && (bs.len() == 1 || bs[1] == b' ' || bs[1] == b'\t')
+                    || starts_with_ordered
+            };
 
             if starts_with_bullet {
                 first_indent.get_or_insert(indent);
