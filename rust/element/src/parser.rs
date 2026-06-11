@@ -25,6 +25,7 @@ use crate::{
         NodeArena, NodeId, ScriptFlags, ScriptKind, Syntax, SyntaxNode, SyntaxT, TimestampData,
     },
     drawer::REGEX_DRAWER,
+    environment,
     headline::{REGEX_CLOCK_LINE, REGEX_PLANNING_LINE},
     keyword::*,
     latex::REGEX_LATEX_BEGIN_ENVIRIONMENT,
@@ -64,7 +65,7 @@ pub enum ParserMode {
     PropertyDrawer,
 }
 
-pub struct Parser<'input, 'bumpalo, Environment: crate::environment::Environment> {
+pub struct Parser<'input, 'bumpalo, Environment: environment::Environment> {
     pub cursor: Cursor<'input>,
     pub input: &'input str,
     pub granularity: ParseGranularity,
@@ -116,32 +117,19 @@ fn is_post_char(b: u8) -> bool {
     )
 }
 
-/// Scan `bytes` for the first position that ends a plain-text run, returning
-/// the number of bytes that belong to the run.
-///
-/// Four independent SIMD cursors track the next candidate byte for each
-/// mutually-exclusive character group.  When a candidate fails its contextual
-/// check only that group's cursor is advanced; the other three retain their
-/// previously found positions, eliminating the rescanning that a single shared
-/// offset would cause.
-///
-/// Groups and their stop conditions:
-/// - `[` — always a stop (link / footnote / timestamp opener)
-/// - `*` `/` `_` — stop when preceded by a pre-char
-/// - `+` `=` `~` — stop when preceded by a pre-char
-/// - `h` `f` `m` — stop when preceded by a pre-char and followed by a
-///   recognised URL protocol prefix
-///
-/// Returns zero when no plain-text bytes are available at the start of
+/// Scan `bytes` for the first position that ends a plain-text run,
+/// returning the number of bytes that belong to the run.  Returns
+/// zero when no plain-text bytes are available at the start of
 /// `bytes`.
 #[inline]
 fn scan_plain_text_end(bytes: &[u8]) -> usize {
+    // TODO: these are four unthreaded cursors. Wonder if lightweight multithreads could work here.
     let p1 = memchr3(b'[', b'<', b'\\', bytes);
     let mut p2 = memchr2(b'*', b'/', bytes);
     let mut p3 = memchr3(b'+', b'=', b'~', bytes);
     let mut p4 = memchr3(b'h', b'f', b'm', bytes);
     let mut p5 = memchr2(b'_', b'^', bytes);
-    let mut p6 = memchr(b'i', bytes);
+    let mut p6 = memchr(b'i', bytes); // PERF: wouldn't memmem (id) be faster here? 
 
     loop {
         let i = match [p1, p2, p3, p4, p5, p6].iter().copied().flatten().min() {
@@ -159,7 +147,7 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
         if matches!(b, b'_' | b'^') && i > 0 {
             return i;
         }
-        if matches!(b, b'h' | b'f' | b'm')
+        if matches!(b, b'h' | b'f' | b'm') // PERF: We are re-checking the h, could rewrite this with a match on `b`.
             && (i == 0 || is_pre_char(bytes[i - 1]))
             && (bytes[i..].starts_with(b"https://")
                 || bytes[i..].starts_with(b"http://")
@@ -168,16 +156,20 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
         {
             return i;
         }
+        // PERF: again, shouldn't memmem make this a lot faster?
         if b == b'i' && (i == 0 || is_pre_char(bytes[i - 1])) && bytes[i..].starts_with(b"id:") {
             return i;
         }
 
         let next = i + 1;
         let rest = &bytes[next..];
+        // REFACTOR: Consider pulling out the `map`, it seems to be repeated.
         match b {
             b'[' | b'<' => unreachable!(),
+            // PERF: While this semantic grouping is OK, I wonder if we can improve by using e.g. memchr5?
             b'*' | b'/' => p2 = memchr2(b'*', b'/', rest).map(|r| next + r),
             b'+' | b'=' | b'~' => p3 = memchr3(b'+', b'=', b'~', rest).map(|r| next + r),
+            // PERF: Could also group by 4 + 3?
             b'_' | b'^' => p5 = memchr2(b'_', b'^', rest).map(|r| next + r),
             b'i' => p6 = memchr(b'i', rest).map(|r| next + r),
             _ => p4 = memchr3(b'h', b'f', b'm', rest).map(|r| next + r),
@@ -185,7 +177,7 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
     }
 }
 
-impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
+impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> {
     #[inline]
     pub fn new(
         input: &'a str,
