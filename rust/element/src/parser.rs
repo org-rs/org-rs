@@ -22,7 +22,8 @@ use crate::{
     cursor::Cursor,
     data::{
         Brackets, BumpVec, CitationData, EntityData, FootnoteReferenceData, Interval, LinkData,
-        NodeArena, NodeId, ScriptFlags, ScriptKind, Syntax, SyntaxNode, SyntaxT, TimestampData,
+        NodeArena, NodeId, ScriptFlags, ScriptKind, StatisticsCookieData, Syntax, SyntaxNode,
+        SyntaxT, TimestampData,
     },
     drawer::REGEX_DRAWER,
     environment,
@@ -674,7 +675,15 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                         }),
                         b'[' => {
                             let mut result = None;
-                            if let Some((n, c)) = self.try_parse_footnote_reference(remaining, pos)
+                            if let Some((n, c)) =
+                                self.try_parse_statistics_cookie(remaining, pos)
+                            {
+                                if restriction(SyntaxT::StatisticsCookie) {
+                                    children.push(n);
+                                }
+                                result = Some(c);
+                            } else if let Some((n, c)) =
+                                self.try_parse_footnote_reference(remaining, pos)
                             {
                                 if restriction(SyntaxT::FootnoteReference) {
                                     children.push(n);
@@ -1329,6 +1338,53 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             )
             .build(),
             children,
+        );
+        Some((node, total_consumed))
+    }
+
+    /// Parse a statistics cookie: `[n/m]`, `[n/]`, `[/m]`, `[/]` or `[n%]`,
+    /// `[%]`. Mirrors org-element's `\[[0-9]*\(?:%\|/[0-9]*\)\]`.
+    fn try_parse_statistics_cookie(
+        &mut self,
+        text: &'a str,
+        start: usize,
+    ) -> Option<(NodeId, usize)> {
+        let bytes = text.as_bytes();
+        if bytes.first() != Some(&b'[') {
+            return None;
+        }
+        let mut pos = 1;
+        while bytes.get(pos).is_some_and(u8::is_ascii_digit) {
+            pos += 1;
+        }
+        match bytes.get(pos) {
+            Some(&b'%') => pos += 1,
+            Some(&b'/') => {
+                pos += 1;
+                while bytes.get(pos).is_some_and(u8::is_ascii_digit) {
+                    pos += 1;
+                }
+            }
+            _ => return None,
+        }
+        if bytes.get(pos) != Some(&b']') {
+            return None;
+        }
+        pos += 1; // include the closing ']'
+
+        let value = &text[..pos];
+        let post_blank = text[pos..]
+            .bytes()
+            .take_while(|&b| b == b' ' || b == b'\t')
+            .count();
+        let total_consumed = pos + post_blank;
+        let node = self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::StatisticsCookie(StatisticsCookieData { value }),
+                (start, start + total_consumed),
+                self.bump,
+            )
+            .build(),
         );
         Some((node, total_consumed))
     }
