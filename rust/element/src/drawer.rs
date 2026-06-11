@@ -147,20 +147,30 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             }
             .min(2);
 
-            let data = if name.eq_ignore_ascii_case("PROPERTIES") {
+            let is_property = name.eq_ignore_ascii_case("PROPERTIES");
+            let data = if is_property {
                 Syntax::PropertyDrawer
             } else {
                 Syntax::Drawer(name)
             };
 
-            let node = self.arena.alloc(
-                SyntaxNode::new(data, (start, end), self.bump)
-                    .post_blank(post_blank)
-                    .affiliated(affiliated)
-                    .build(),
-            );
+            let mut builder = SyntaxNode::new(data, (start, end), self.bump)
+                .post_blank(post_blank)
+                .affiliated(affiliated);
 
-            if name.eq_ignore_ascii_case("PROPERTIES") {
+            // A regular drawer is a greater element: expose its body as
+            // greater-element content so the element loop parses it
+            // (paragraphs, lists, …). Property drawers instead parse their
+            // node-property lines directly below.
+            if !is_property {
+                if let Some(content) = Self::drawer_content_bounds(self.input, start, end) {
+                    builder = builder.content(content);
+                }
+            }
+
+            let node = self.arena.alloc(builder.build());
+
+            if is_property {
                 let children = self.parse_property_drawer_contents(start, end);
                 self.arena.set_children(node, children);
             }
@@ -170,6 +180,31 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
         self.arena
             .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump))
+    }
+
+    /// Body of a drawer spanning `start..end` (where `end` is past the
+    /// `:END:` line): the region after the `:NAME:` line up to the start of
+    /// the `:END:` line. Returns `None` when the drawer has no body.
+    fn drawer_content_bounds(input: &str, start: usize, end: usize) -> Option<(usize, usize)> {
+        let bytes = input.as_bytes();
+        let content_start = start + memchr(b'\n', &bytes[start..end])? + 1;
+
+        // `end` points past the `:END:\n` line; strip back to the newline
+        // before `:END:` so the content never includes the end marker.
+        let before_end_nl = if end > 0 && bytes.get(end - 1) == Some(&b'\n') {
+            end - 1
+        } else {
+            end
+        };
+        let content_end = if before_end_nl > content_start {
+            memrchr(b'\n', &bytes[content_start..before_end_nl])
+                .map(|i| content_start + i + 1)
+                .unwrap_or(content_start)
+        } else {
+            content_start
+        };
+
+        (content_start < content_end).then_some((content_start, content_end))
     }
 
     fn parse_property_drawer_contents(&mut self, start: usize, end: usize) -> BumpVec<'b, NodeId> {
