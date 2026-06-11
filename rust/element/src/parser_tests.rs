@@ -237,7 +237,10 @@ jq '.fruit | keys' fruit.json
                 .map(|c| format!("({},{})", c.start, c.end))
                 .unwrap_or_default();
             let indent = "  ".repeat(depth);
-            eprintln!("{indent}{t} ({},{}) content=[{content}]", loc.start, loc.end);
+            eprintln!(
+                "{indent}{t} ({},{}) content=[{content}]",
+                loc.start, loc.end
+            );
             for &child in node.children.iter().rev() {
                 stack.push((child, depth + 1));
             }
@@ -261,7 +264,11 @@ jq '.fruit | keys' fruit.json
         dump_tree(&arena, root, "nested-list");
 
         let sb_count = count_type(&arena, root, SyntaxT::SrcBlock);
-        assert_eq!(sb_count, 1, "Expected exactly one SrcBlock; got {}", sb_count);
+        assert_eq!(
+            sb_count, 1,
+            "Expected exactly one SrcBlock; got {}",
+            sb_count
+        );
 
         let root_kids = &arena[root].children;
         let section = root_kids.first().expect("Expected Section");
@@ -294,12 +301,7 @@ jq '.fruit | keys' fruit.json
         let (arena, root) = parser.parse_buffer();
 
         let mut found_inside_item = false;
-        fn walk_for_fw(
-            arena: &NodeArena,
-            id: NodeId,
-            inside_item: bool,
-            found: &mut bool,
-        ) {
+        fn walk_for_fw(arena: &NodeArena, id: NodeId, inside_item: bool, found: &mut bool) {
             if *found {
                 return;
             }
@@ -838,10 +840,9 @@ mod table {
         let row = find_first(&arena, root, SyntaxT::TableRow).expect("Expected a TableRow");
         let row_children = &arena[row].children;
         assert!(
-            row_children.iter().all(|&child| matches!(
-                &arena[child].data,
-                Syntax::TableCell
-            )),
+            row_children
+                .iter()
+                .all(|&child| matches!(&arena[child].data, Syntax::TableCell)),
             "All children of TableRow must be TableCell, got {:?}",
             row_children
                 .iter()
@@ -893,7 +894,8 @@ mod table {
 
     #[test]
     fn table_with_tblfm_absorbed_no_results_prefix() {
-        let input = " =code= simple case\n| 13:59 | 839 |\n| 13:59:05 | 50345 |\n#+TBLFM: $2=formula($1)\n";
+        let input =
+            " =code= simple case\n| 13:59 | 839 |\n| 13:59:05 | 50345 |\n#+TBLFM: $2=formula($1)\n";
         let bump = Bump::new();
         let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
@@ -920,7 +922,11 @@ mod table {
         let table = find_first(&arena, root, SyntaxT::Table).unwrap();
         let table_children = &arena[table].children;
         // Only the 2 rows, not the config.el line
-        assert_eq!(table_children.len(), 2, "Table should contain exactly 2 rows, not the mid-line pipe line");
+        assert_eq!(
+            table_children.len(),
+            2,
+            "Table should contain exactly 2 rows, not the mid-line pipe line"
+        );
     }
 
     fn find_first(arena: &NodeArena, id: NodeId, target: SyntaxT) -> Option<NodeId> {
@@ -2314,6 +2320,46 @@ mod post_blank {
         assert!(
             !starts.contains(&19),
             "PlainText must not start at byte 19 (first trailing space); spaces must be absorbed by plain link. starts: {:?}",
+            starts
+        );
+    }
+
+    #[test]
+    fn plain_text_after_timestamp_starts_after_space() {
+        // so PlainText starts at byte 22 ('D'), not byte 21 (the space).
+        let starts = plain_text_starts("[2021-05-05 Wed] Discussion\n");
+        assert!(
+            starts.contains(&22),
+            "expected plain_text at 22 ('D'), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&21),
+            "plain_text must not start at 21 (post-blank space after timestamp), got starts: {:?}",
+            starts
+        );
+    }
+
+    #[test]
+    fn plain_text_after_timestamp_with_extra_spaces() {
+        // "[2021-05-05 Wed]   Discussion\n"
+        // Emacs absorbs both spaces into the timestamp as post-blank.
+        let starts = plain_text_starts("[2021-05-05 Wed]   Discussion\n");
+        assert!(
+            starts.contains(&24),
+            "expected plain_text at 24 ('D'), got starts: {:?}",
+            starts
+        );
+    }
+
+    #[test]
+    fn plain_text_after_timestamp_no_space() {
+        // "[2021-05-05 Wed]Discussion\n"
+        // No space between timestamp and text — PlainText starts at ']'.
+        let starts = plain_text_starts("[2021-05-05 Wed]Discussion\n");
+        assert!(
+            starts.contains(&20),
+            "expected plain_text at 20 (']' directly followed by text), got starts: {:?}",
             starts
         );
     }
