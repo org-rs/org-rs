@@ -147,56 +147,34 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         }
 
         // Look for a #+TBLFM: line immediately after the table rows.
-        let formula = self.input[end..span.end].lines().find_map(|line| {
-            REGEX_TBLFM
-                .captures(line)
-                .map(|c| c.get(1).map_or("", |m| m.as_str().trim()))
+        // Emacs absorbs it into the Table's span; Rust must do the same.
+        let formula_end = self.input[end..span.end].lines().next().and_then(|first_line| {
+            if REGEX_TBLFM.is_match(first_line) {
+                let line_end = end + first_line.len();
+                Some(if line_end < span.end && self.input.as_bytes()[line_end] == b'\n' {
+                    line_end + 1
+                } else {
+                    line_end
+                })
+            } else {
+                None
+            }
         });
 
-        let post_blank = if end < span.end {
-            let remaining = &self.input[end..span.end];
+        let actual_end = formula_end.unwrap_or(end);
+
+        let post_blank = if actual_end < span.end {
+            let remaining = &self.input[actual_end..span.end];
             remaining.len() - remaining.trim_start().len()
         } else {
             0
         };
 
-        match formula {
-            None => {
-                let node = SyntaxNode::new(Syntax::Table, (span.start, end), self.bump)
-                    .post_blank(post_blank)
-                    .affiliated(element_span.affiliated)
-                    .build();
-                self.arena.alloc_with_children(node, children)
-            }
-            Some(formula) => {
-                let row_count = Row(children
-                    .iter()
-                    .filter(|&&r| {
-                        matches!(
-                            &self.arena[r].data,
-                            Syntax::TableRow(TableRowType::Standard)
-                        )
-                    })
-                    .count());
-                let col_count = Col(children
-                    .first()
-                    .map(|&r| self.arena[r].children.len())
-                    .unwrap_or(0));
-                let node = SyntaxNode::new(
-                    Syntax::Spreadsheet(self.bump.alloc(SpreadsheetData {
-                        formula,
-                        row_count,
-                        col_count,
-                    })),
-                    (span.start, end),
-                    self.bump,
-                )
-                .post_blank(post_blank)
-                .affiliated(element_span.affiliated)
-                .build();
-                self.arena.alloc_with_children(node, children)
-            }
-        }
+        let node = SyntaxNode::new(Syntax::Table, (span.start, actual_end), self.bump)
+            .post_blank(post_blank)
+            .affiliated(element_span.affiliated)
+            .build();
+        self.arena.alloc_with_children(node, children)
     }
 
     fn parse_table_row_at(&mut self, start: usize, end: usize) -> NodeId {
