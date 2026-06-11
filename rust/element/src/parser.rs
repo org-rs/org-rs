@@ -141,9 +141,10 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
     let mut p3 = memchr3(b'+', b'=', b'~', bytes);
     let mut p4 = memchr3(b'h', b'f', b'm', bytes);
     let mut p5 = memchr2(b'_', b'^', bytes);
+    let mut p6 = memchr(b'i', bytes);
 
     loop {
-        let i = match [p1, p2, p3, p4, p5].iter().copied().flatten().min() {
+        let i = match [p1, p2, p3, p4, p5, p6].iter().copied().flatten().min() {
             None => return bytes.len(),
             Some(pos) => pos,
         };
@@ -167,6 +168,12 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
         {
             return i;
         }
+        if b == b'i'
+            && (i == 0 || is_pre_char(bytes[i - 1]))
+            && bytes[i..].starts_with(b"id:")
+        {
+            return i;
+        }
 
         let next = i + 1;
         let rest = &bytes[next..];
@@ -175,6 +182,7 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
             b'*' | b'/' => p2 = memchr2(b'*', b'/', rest).map(|r| next + r),
             b'+' | b'=' | b'~' => p3 = memchr3(b'+', b'=', b'~', rest).map(|r| next + r),
             b'_' | b'^' => p5 = memchr2(b'_', b'^', rest).map(|r| next + r),
+            b'i' => p6 = memchr(b'i', rest).map(|r| next + r),
             _ => p4 = memchr3(b'h', b'f', b'm', rest).map(|r| next + r),
         }
     }
@@ -717,7 +725,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                             }
                             result
                         }
-                        b'h' | b'f' | b'm' => {
+                        b'h' | b'f' | b'm' | b'i' => {
                             self.try_parse_plain_link(remaining, pos).map(|(n, c)| {
                                 if restriction(SyntaxT::Link) {
                                     children.push(n);
@@ -1126,7 +1134,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     }
 
     fn try_parse_plain_link(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
-        const PROTOCOLS: &[&[u8]] = &[b"https://", b"http://", b"ftp://", b"mailto:"];
+        const PROTOCOLS: &[&[u8]] = &[b"https://", b"http://", b"ftp://", b"mailto:", b"id:"];
         let bytes = text.as_bytes();
         let proto_len = PROTOCOLS.iter().find_map(|&p| {
             if bytes.starts_with(p) {

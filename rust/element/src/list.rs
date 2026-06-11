@@ -392,6 +392,8 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         // there, so the paragraph :begin must match.
         let content_start = if tag.is_some() {
             desc_content_start(self.input, after_bullet, end).unwrap_or(after_bullet)
+        } else if item.checkbox.is_some() {
+            after_bullet + 4 // skip "[ ] " (checkbox + trailing space)
         } else {
             after_bullet
         };

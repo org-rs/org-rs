@@ -1263,6 +1263,8 @@ impl<'a> LinkData<'a> {
             || raw.starts_with("ftp://")
         {
             LinkType::File
+        } else if raw.starts_with("id:") {
+            LinkType::Id
         } else {
             LinkType::Fuzzy
         };
@@ -1286,6 +1288,8 @@ impl<'a> LinkData<'a> {
             (LinkType::File, inner)
         } else if inner.starts_with("file:") {
             (LinkType::File, inner.strip_prefix("file:").unwrap_or(inner))
+        } else if inner.starts_with("id:") {
+            (LinkType::Id, inner.strip_prefix("id:").unwrap_or(inner))
         } else {
             (LinkType::Fuzzy, raw)
         };
