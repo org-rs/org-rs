@@ -1304,6 +1304,28 @@ impl<'a> LinkData<'a> {
     }
 
     #[inline]
+    pub fn new_angle(raw: &'a str) -> Self {
+        let inner = raw.strip_prefix("<").and_then(|s| s.strip_suffix(">")).unwrap_or(raw);
+        let (link_type, path) = if inner.starts_with("http://") || inner.starts_with("https://") {
+            (LinkType::File, inner)
+        } else if inner.starts_with("file:") {
+            (LinkType::File, inner.strip_prefix("file:").unwrap_or(inner))
+        } else if inner.starts_with("id:") {
+            (LinkType::Id, inner.strip_prefix("id:").unwrap_or(inner))
+        } else {
+            (LinkType::Fuzzy, raw)
+        };
+
+        LinkData {
+            application: None,
+            flags: LinkFlags::new(LinkFormat::Angle, link_type),
+            path,
+            raw_link: raw,
+            search_option: None,
+        }
+    }
+
+    #[inline]
     pub fn link_type(&self) -> LinkType {
         self.flags.link_type()
     }

@@ -136,7 +136,7 @@ fn is_post_char(b: u8) -> bool {
 /// `bytes`.
 #[inline]
 fn scan_plain_text_end(bytes: &[u8]) -> usize {
-    let p1 = memchr(b'[', bytes);
+    let p1 = memchr2(b'[', b'<', bytes);
     let mut p2 = memchr2(b'*', b'/', bytes);
     let mut p3 = memchr3(b'+', b'=', b'~', bytes);
     let mut p4 = memchr3(b'h', b'f', b'm', bytes);
@@ -150,7 +150,7 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
         };
         let b = bytes[i];
 
-        if b == b'[' {
+        if matches!(b, b'[' | b'<') {
             return i;
         }
         if matches!(b, b'*' | b'/' | b'+' | b'=' | b'~') && i > 0 && is_pre_char(bytes[i - 1]) {
@@ -178,7 +178,7 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
         let next = i + 1;
         let rest = &bytes[next..];
         match b {
-            b'[' => unreachable!(),
+            b'[' | b'<' => unreachable!(),
             b'*' | b'/' => p2 = memchr2(b'*', b'/', rest).map(|r| next + r),
             b'+' | b'=' | b'~' => p3 = memchr3(b'+', b'=', b'~', rest).map(|r| next + r),
             b'_' | b'^' => p5 = memchr2(b'_', b'^', rest).map(|r| next + r),
@@ -722,6 +722,11 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                                     children.push(n);
                                 }
                                 result = Some(c);
+                            } else if let Some((n, c)) = self.try_parse_angle_link(remaining, pos) {
+                                if restriction(SyntaxT::Link) {
+                                    children.push(n);
+                                }
+                                result = Some(c);
                             }
                             result
                         }
@@ -1175,6 +1180,40 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let node = self.arena.alloc(
             SyntaxNode::new(
                 Syntax::Link(self.bump.alloc(LinkData::new_plain(raw))),
+                (start, start + consumed),
+                self.bump,
+            )
+            .build(),
+        );
+        Some((node, consumed))
+    }
+
+    /// Parse an angle link: `<protocol://...>`.
+    fn try_parse_angle_link(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
+        let bytes = text.as_bytes();
+        if bytes.first() != Some(&b'<') {
+            return None;
+        }
+        // Closing `>` must exist within the remaining text
+        let close = memchr(b'>', &bytes[1..]).map(|i| i + 1)?;
+        if close < 2 {
+            return None;
+        }
+        // Inner content must start with a recognized protocol
+        let inner = &text[1..close];
+        const PROTOCOLS: &[&[u8]] = &[b"https://", b"http://", b"ftp://", b"mailto:", b"id:", b"file:"];
+        if !PROTOCOLS.iter().any(|p| inner.as_bytes().starts_with(p)) {
+            return None;
+        }
+        let raw = &text[..close + 1];
+        let post_blank = text[close + 1..]
+            .bytes()
+            .take_while(|&b| b == b' ' || b == b'\t')
+            .count();
+        let consumed = close + 1 + post_blank;
+        let node = self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::Link(self.bump.alloc(LinkData::new_angle(raw))),
                 (start, start + consumed),
                 self.bump,
             )
