@@ -880,6 +880,60 @@ mod table {
             spreadsheet_count, keyword_count
         );
     }
+
+    #[test]
+    fn results_preceded_by_blank_line_absorbed_into_table() {
+        let input = "#+END_SRC\n\n#+RESULTS:\n| a | b |\n| c | d |\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        assert!(find_first(&arena, root, SyntaxT::Table).is_some());
+        assert!(find_first(&arena, root, SyntaxT::Keyword).is_none());
+    }
+
+    #[test]
+    fn table_with_tblfm_absorbed_no_results_prefix() {
+        let input = " =code= simple case\n| 13:59 | 839 |\n| 13:59:05 | 50345 |\n#+TBLFM: $2=formula($1)\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        assert!(find_first(&arena, root, SyntaxT::Table).is_some());
+        assert!(find_first(&arena, root, SyntaxT::Keyword).is_none());
+    }
+
+    #[test]
+    fn non_table_line_not_absorbed_after_results_table() {
+        let input = "#+RESULTS:\n| a | b |\n|---+---|\nnot a table row\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        assert!(find_first(&arena, root, SyntaxT::Table).is_some());
+        assert!(find_first(&arena, root, SyntaxT::Paragraph).is_some());
+    }
+
+    #[test]
+    fn mid_line_pipe_not_treated_as_table_row() {
+        let input = "#+RESULTS:\n| a | b |\n|---+---|\nconfig.el: (foo | bar)\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        let table = find_first(&arena, root, SyntaxT::Table).unwrap();
+        let table_children = &arena[table].children;
+        // Only the 2 rows, not the config.el line
+        assert_eq!(table_children.len(), 2, "Table should contain exactly 2 rows, not the mid-line pipe line");
+    }
+
+    fn find_first(arena: &NodeArena, id: NodeId, target: SyntaxT) -> Option<NodeId> {
+        if SyntaxT::from(&arena[id].data) == target {
+            return Some(id);
+        }
+        for &child in &arena[id].children {
+            if let found @ Some(_) = find_first(arena, child, target) {
+                return found;
+            }
+        }
+        None
+    }
 }
 
 mod blocks {

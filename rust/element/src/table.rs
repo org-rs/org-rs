@@ -23,7 +23,7 @@ use regex::Regex;
 
 lazy_static! {
     pub static ref REGEX_TABLE_BORDER: CachedRegex =
-        CachedRegex::new(Regex::new(r"[ \t]*\|").unwrap());
+        CachedRegex::new(Regex::new(r"^[ \t]*\|").unwrap());
     pub static ref REGEX_TABLE_RULE: Regex = Regex::new(r"^[ \t]*\|-+").unwrap();
     pub static ref REGEX_TABLE_PRE_BORDER: Regex = Regex::new(r"^[ \t]*($|[^|])").unwrap();
     static ref REGEX_TBLFM: Regex = Regex::new(r"(?i)^[ \t]*#\+TBLFM:(.*)").unwrap();
@@ -122,7 +122,9 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     pub fn table_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let span = element_span.span;
         let (end, children) = {
-            let mut current = span.start;
+            // Start row collection at the cursor position (past any
+            // affiliated keywords that were consumed, e.g. #+RESULTS:).
+            let mut current = self.cursor.pos().max(span.start);
             let mut rows: BumpVec<'b, NodeId> = BumpVec::new_in(self.bump);
             loop {
                 if current >= span.end {
