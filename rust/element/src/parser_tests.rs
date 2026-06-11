@@ -2374,4 +2374,24 @@ mod post_blank {
         assert_eq!(paras[1].0.location.start, 7);
         assert_eq!(paras[1].0.location.end, 12);
     }
+
+    #[test]
+    fn plain_link_does_not_absorb_trailing_punctuation() {
+        // "https://example.com. more\n"
+        //  0           18 19 20 21
+        // The '.' at 19 is NOT part of the plain link in Emacs —
+        // it is trailing punctuation that starts a new PlainText run.
+        // Rust currently absorbs '.' into the link and starts PlainText at 21.
+        let starts = plain_text_starts("https://example.com. more\n");
+        assert!(
+            starts.contains(&19),
+            "expected PlainText at byte 19 (the '.' after the URL), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&21),
+            "PlainText must not start at byte 21 (the space should be absorbed as post-blank), got starts: {:?}",
+            starts
+        );
+    }
 }
