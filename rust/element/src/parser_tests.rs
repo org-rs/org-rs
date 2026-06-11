@@ -2415,6 +2415,61 @@ mod post_blank {
     }
 
     #[test]
+    fn latex_fragment_parsed_as_object() {
+        // "\texttt{C-c ,} rest\n"
+        //  0                14 15
+        //                   } ' ' 'r'
+        // Emacs parses \texttt{...} as a LatexFragment object.
+        // The string is 14 bytes (\ + 6-letter "texttt" + {C-c ,}),
+        // + 1 trailing space absorbed as post-blank = total consumed 15.
+        let starts = plain_text_starts(r"\texttt{C-c ,} rest\n");
+        assert!(
+            starts.contains(&15),
+            "expected PlainText at byte 15 ('rest'), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&0),
+            "expected no PlainText at 0 — LaTeX fragment should be parsed first, got starts: {:?}",
+            starts
+        );
+    }
+
+    #[test]
+    fn latex_fragment_bare_command() {
+        // "\Program rest\n"
+        //  0         8  9
+        //           ' ' 'r'
+        // Emacs parses \Program (no braces) as a LatexFragment object.
+        let starts = plain_text_starts(r"\Program rest\n");
+        assert!(
+            starts.contains(&9),
+            "expected PlainText at byte 9 ('rest'), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&0),
+            "expected no PlainText at 0 — LaTeX fragment should be parsed first, got starts: {:?}",
+            starts
+        );
+    }
+
+    #[test]
+    fn latex_fragment_non_entity_not_stolen() {
+        // "\notanentity rest\n"
+        //  0            11 12
+        // Bare LaTeX fragment should handle \notanentity (not a known entity),
+        // consuming it + trailing space → PlainText at 13.
+        let starts = plain_text_starts(r"\notanentity rest\n");
+        assert_eq!(
+            starts,
+            vec![13],
+            "expected PlainText at byte 13 ('rest'), got starts: {:?}",
+            starts
+        );
+    }
+
+    #[test]
     fn citation_parsed_as_object() {
         // "[cite/t:@all] rest\n"
         //  0            12 13 14
