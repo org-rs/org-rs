@@ -19,8 +19,8 @@ use crate::affiliated::ElementSpan;
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
 use crate::data::{
-    Brackets, BumpVec, CitationData, EntityData, FootnoteReferenceData, Interval, LinkData, NodeArena, NodeId,
-    ScriptFlags, ScriptKind, Syntax, SyntaxNode, SyntaxT, TimestampData,
+    Brackets, BumpVec, CitationData, EntityData, FootnoteReferenceData, Interval, LinkData,
+    NodeArena, NodeId, ScriptFlags, ScriptKind, Syntax, SyntaxNode, SyntaxT, TimestampData,
 };
 
 use crate::blocks::{REGEX_BLOCK_BEGIN, REGEX_DYNAMIC_BLOCK};
@@ -168,10 +168,7 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
         {
             return i;
         }
-        if b == b'i'
-            && (i == 0 || is_pre_char(bytes[i - 1]))
-            && bytes[i..].starts_with(b"id:")
-        {
+        if b == b'i' && (i == 0 || is_pre_char(bytes[i - 1])) && bytes[i..].starts_with(b"id:") {
             return i;
         }
 
@@ -259,7 +256,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     }
 
     /// Parse elements between BEG and END positions.
-    #[inline]
+    #[inline(never)]
     pub fn parse_elements(
         &mut self,
         span: impl Into<Interval>,
@@ -369,7 +366,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     }
 
     /// Parse the element starting at cursor position (point).
-    #[inline]
+    #[inline(never)]
     pub fn current_element(
         &mut self,
         limit: usize,
@@ -608,7 +605,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     }
 
     /// Parse objects between `beg` and `end` and return recursive structure.
-    #[inline]
+    #[inline(never)]
     pub fn parse_objects(
         &mut self,
         interval: impl Into<Interval>,
@@ -1215,7 +1212,14 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         }
         // Inner content must start with a recognized protocol
         let inner = &text[1..close];
-        const PROTOCOLS: &[&[u8]] = &[b"https://", b"http://", b"ftp://", b"mailto:", b"id:", b"file:"];
+        const PROTOCOLS: &[&[u8]] = &[
+            b"https://",
+            b"http://",
+            b"ftp://",
+            b"mailto:",
+            b"id:",
+            b"file:",
+        ];
         if !PROTOCOLS.iter().any(|p| inner.as_bytes().starts_with(p)) {
             return None;
         }
@@ -1358,7 +1362,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     /// Parse a timestamp from `text` and return the data + bytes consumed.
     /// Does NOT allocate an arena node — use [`try_parse_timestamp`] when a
     /// node is needed in the parse tree.
-    #[inline]
+    #[inline(never)]
     pub fn parse_timestamp(&self, text: &'a str) -> Option<(TimestampData<'a>, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || (bytes[0] != b'<' && bytes[0] != b'[') {
@@ -1397,7 +1401,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         Some((timestamp_data, close + 1))
     }
 
-    #[inline]
+    #[inline(never)]
     pub fn try_parse_timestamp(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         let (timestamp_data, consumed) = self.parse_timestamp(text)?;
 
