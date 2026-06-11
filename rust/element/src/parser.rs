@@ -1285,13 +1285,50 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         let total_consumed = consumed + post_blank;
         let raw = &text[..consumed];
         let data = CitationData::new(raw, style);
-        let node = self.arena.alloc(
+
+        // Split the citation body (between ':' and ']') into ';'-separated
+        // segments — ';' is the only reference delimiter in org-cite, and a
+        // key (`@...`) can never contain one. Each segment that holds an '@'
+        // key is a citation reference; key-less leading/trailing segments are
+        // the citation's global prefix/suffix and produce no node.
+        let mut seg_starts: BumpVec<'b, usize> = BumpVec::new_in(self.bump);
+        seg_starts.push(close_start);
+        for j in close_start..close {
+            if bytes[j] == b';' {
+                seg_starts.push(j + 1);
+            }
+        }
+        let n = seg_starts.len();
+
+        let mut children: BumpVec<'b, NodeId> = BumpVec::new_in(self.bump);
+        for i in 0..n {
+            let seg_start = seg_starts[i];
+            // The reference spans up to the next segment's start, so the
+            // trailing ';' delimiter is included (matching Emacs).
+            let seg_end = if i + 1 < n { seg_starts[i + 1] } else { close };
+            let segment = &text[seg_start..seg_end];
+            if !segment.contains('@') {
+                continue;
+            }
+            let child = self.arena.alloc(
+                SyntaxNode::new(
+                    Syntax::CitationReference(segment),
+                    (start + seg_start, start + seg_end),
+                    self.bump,
+                )
+                .build(),
+            );
+            children.push(child);
+        }
+
+        let node = self.arena.alloc_with_children(
             SyntaxNode::new(
                 Syntax::Citation(self.bump.alloc(data)),
                 (start, start + total_consumed),
                 self.bump,
             )
             .build(),
+            children,
         );
         Some((node, total_consumed))
     }

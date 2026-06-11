@@ -499,6 +499,7 @@ pub enum SyntaxT {
     Bold,
     Code,
     Citation,
+    CitationReference,
     Entity,
     ExportSnippet,
     FootnoteReference,
@@ -562,6 +563,7 @@ impl<'a> From<&'a Syntax<'_, '_>> for SyntaxT {
             Syntax::Bold => SyntaxT::Bold,
             Syntax::Code(_) => SyntaxT::Code,
             Syntax::Citation(_) => SyntaxT::Citation,
+            Syntax::CitationReference(_) => SyntaxT::CitationReference,
             Syntax::Entity(_) => SyntaxT::Entity,
             Syntax::ExportSnippet(_) => SyntaxT::ExportSnippet,
             Syntax::FootnoteReference(_) => SyntaxT::FootnoteReference,
@@ -716,6 +718,10 @@ pub enum Syntax<'a, 'b> {
 
     /// Recursive object.
     Citation(&'b mut CitationData<'a>),
+
+    /// A single reference inside a citation (`@key` with optional
+    /// prefix/suffix). Holds the raw reference text.
+    CitationReference(&'a str),
 
     /// Object
     Entity(&'b mut EntityData<'a>),
@@ -1006,7 +1012,9 @@ impl SyntaxT {
             // citation can contain the same set as link
             Citation => matches!(
                 that,
-                Bold | Code
+                CitationReference
+                    | Bold
+                    | Code
                     | Entity
                     | ExportSnippet
                     | InlineBabelCall
