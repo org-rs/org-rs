@@ -83,7 +83,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                             // Bullet followed by space / tab / EOL → list item
                             Some(b' ' | b'\t') | None => break,
                             // Could be a horizontal rule if 5+ hyphens
-                            _ if crate::markup::is_horizontal_rule(&line[i..]) => break,
+                            _ if crate::markup::is_horizontal_rule(&line[i..line_len]) => break,
                             _ => {}
                         }
                     }
