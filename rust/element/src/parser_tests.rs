@@ -822,26 +822,63 @@ mod table {
         fn find_first(
             arena: &crate::data::NodeArena<'_, '_>,
             id: NodeId,
-            t: SyntaxT,
+            typ: SyntaxT,
         ) -> Option<NodeId> {
-            if SyntaxT::from(&arena[id].data) == t {
+            if SyntaxT::from(&arena[id].data) == typ {
                 return Some(id);
             }
-            arena[id]
-                .children
-                .iter()
-                .find_map(|&c| find_first(arena, c, t))
+            for &child in &arena[id].children {
+                if let Some(found) = find_first(arena, child, typ) {
+                    return Some(found);
+                }
+            }
+            None
         }
 
-        let row = find_first(&arena, root, SyntaxT::TableRow).expect("TableRow not found");
-        for &child in &arena[row].children {
-            assert_eq!(
-                SyntaxT::from(&arena[child].data),
-                SyntaxT::TableCell,
-                "direct child of TableRow must be TableCell, got {:?}",
-                SyntaxT::from(&arena[child].data)
-            );
-        }
+        let row = find_first(&arena, root, SyntaxT::TableRow).expect("Expected a TableRow");
+        let row_children = &arena[row].children;
+        assert!(
+            row_children.iter().all(|&child| matches!(
+                &arena[child].data,
+                Syntax::TableCell
+            )),
+            "All children of TableRow must be TableCell, got {:?}",
+            row_children
+                .iter()
+                .map(|&c| SyntaxT::from(&arena[c].data))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn tblfm_line_is_absorbed_into_table() {
+        let input = "| a | b |\n| c | d |\n#+TBLFM: $2=$1*2\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+
+        let root_children = &arena[root].children;
+        let section = root_children.first().expect("Expected section");
+        let section_children = &arena[*section].children;
+
+        let table_count = section_children
+            .iter()
+            .filter(|&&id| matches!(&arena[id].data, Syntax::Table))
+            .count();
+        let spreadsheet_count = section_children
+            .iter()
+            .filter(|&&id| matches!(&arena[id].data, Syntax::Spreadsheet(_)))
+            .count();
+        let keyword_count = section_children
+            .iter()
+            .filter(|&&id| matches!(&arena[id].data, Syntax::Keyword(_)))
+            .count();
+
+        assert_eq!(
+            table_count, 1,
+            "Expected 1 Table node (Emacs absorbs #+TBLFM: into Table), found {} Spreadsheet, {} Keyword",
+            spreadsheet_count, keyword_count
+        );
     }
 }
 
