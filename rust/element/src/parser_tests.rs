@@ -2349,4 +2349,27 @@ mod post_blank {
             starts
         );
     }
+
+    #[test]
+    fn paragraph_boundary_at_blank_line() {
+        // "text.\n\nMore\n"
+        //  0    5 6 7
+        //            ^ 'M'
+        // Emacs absorbs the blank line as post-blank of the first paragraph:
+        //   Paragraph (0,6)  — "text.\n"  (post_blank=1)
+        //   Paragraph (6,11) — "More\n"
+        // Rust must NOT split a PlainText at byte 6 (the second \n).
+        let bump = Bump::new();
+        let mut parser = Parser::new("text.\n\nMore\n", ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        // Collect paragraph location.ends
+        let section = arena[root].children.first().expect("section");
+        let paras: Vec<_> = arena[*section].children.iter().map(|&id| {
+            arena[id].location
+        }).collect();
+        assert_eq!(paras.len(), 2, "expected 2 paragraphs");
+        assert_eq!(paras[0].start, 0);
+        assert_eq!(paras[0].end, 6, "first paragraph should end at byte 6 (text. + \\n), not further");
+        assert_eq!(paras[1].start, 6);
+    }
 }
