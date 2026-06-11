@@ -15,23 +15,23 @@
 
 use memchr::{memchr, memchr2, memchr3, memmem};
 
-use crate::affiliated::ElementSpan;
-use crate::babel::REGEX_BABEL_CALL;
-use crate::cursor::Cursor;
-use crate::data::{
-    Brackets, BumpVec, CitationData, EntityData, FootnoteReferenceData, Interval, LinkData,
-    NodeArena, NodeId, ScriptFlags, ScriptKind, Syntax, SyntaxNode, SyntaxT, TimestampData,
+use crate::{
+    affiliated::ElementSpan,
+    babel::REGEX_BABEL_CALL,
+    blocks::{REGEX_BLOCK_BEGIN, REGEX_DYNAMIC_BLOCK},
+    cursor::Cursor,
+    data::{
+        Brackets, BumpVec, CitationData, EntityData, FootnoteReferenceData, Interval, LinkData,
+        NodeArena, NodeId, ScriptFlags, ScriptKind, Syntax, SyntaxNode, SyntaxT, TimestampData,
+    },
+    drawer::REGEX_DRAWER,
+    headline::{REGEX_CLOCK_LINE, REGEX_PLANNING_LINE},
+    keyword::*,
+    latex::REGEX_LATEX_BEGIN_ENVIRIONMENT,
+    list::*,
+    markup::{REGEX_DIARY_SEXP, REGEX_FOOTNOTE_DEFINITION},
+    table::REGEX_TABLE_BORDER,
 };
-
-use crate::blocks::{REGEX_BLOCK_BEGIN, REGEX_DYNAMIC_BLOCK};
-use crate::drawer::REGEX_DRAWER;
-use crate::headline::{REGEX_CLOCK_LINE, REGEX_PLANNING_LINE};
-use crate::keyword::*;
-use crate::latex::REGEX_LATEX_BEGIN_ENVIRIONMENT;
-use crate::list::*;
-use crate::markup::REGEX_DIARY_SEXP;
-use crate::markup::REGEX_FOOTNOTE_DEFINITION;
-use crate::table::REGEX_TABLE_BORDER;
 
 /// determines the depth of the recursion.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,13 +64,13 @@ pub enum ParserMode {
     PropertyDrawer,
 }
 
-pub struct Parser<'a, 'b, Environment: crate::environment::Environment> {
-    pub cursor: Cursor<'a>,
-    pub input: &'a str,
+pub struct Parser<'input, 'bumpalo, Environment: crate::environment::Environment> {
+    pub cursor: Cursor<'input>,
+    pub input: &'input str,
     pub granularity: ParseGranularity,
     pub environment: Environment,
-    pub arena: NodeArena<'a, 'b>,
-    pub bump: &'b bumpalo::Bump,
+    pub arena: NodeArena<'input, 'bumpalo>,
+    pub bump: &'bumpalo bumpalo::Bump,
 }
 
 macro_rules! looking_at {
