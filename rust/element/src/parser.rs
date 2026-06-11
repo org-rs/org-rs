@@ -1143,9 +1143,26 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 None
             }
         })?;
-        let url_end = text[proto_len..]
-            .find(|c: char| c.is_whitespace() || matches!(c, '[' | ']' | '<' | '>'))
+        let url_end_raw = text[proto_len..]
+            .find(|c: char| c.is_whitespace() || matches!(c, '[' | ']' | '<' | '>' | '(' | ')'))
             .map_or(text.len(), |i| proto_len + i);
+        if url_end_raw <= proto_len {
+            return None;
+        }
+        // Trim trailing punctuation that Emacs excludes from plain links.
+        // Characters like `.` and `:` are valid URL-internal but not as the
+        // last character in a plain link.  Walking backwards from url_end_raw
+        // strips them so the link ends before e.g. `https://x.com.` → `https://x.com`.
+        let url_end = text[proto_len..url_end_raw]
+            .char_indices()
+            .rev()
+            .find(|&(_, c)| {
+                !matches!(
+                    c,
+                    '.' | ',' | ':' | ';' | '!' | '?' | '\u{00AB}' | '\u{00BB}'
+                )
+            })
+            .map_or(proto_len, |(i, c)| proto_len + i + c.len_utf8());
         if url_end <= proto_len {
             return None;
         }
