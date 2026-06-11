@@ -12,12 +12,16 @@ regex = "1"
 lazy_static = "^1.3.0"
 strum = "0.28"
 strum_macros = "0.28"
-lexpr = "0.2"
-goof = "0.3"
+
 bumpalo = { version = "3", features = ["collections"] }
 
 [dev-dependencies]
 criterion = "0.5"
+lexpr = "0.2"
+goof = "0.3"
+
+[lib]
+name = "org_element"
 
 [[bench]]
 name = "parse"
@@ -28,7 +32,3 @@ harness = false
 name = "pattern"
 path = "benches/pattern.rs"
 harness = false
-
-[[bin]]
-name = "corpus-check"
-path = "src/bin/corpus_check.rs"
