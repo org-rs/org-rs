@@ -1,0 +1,65 @@
+# -*- after-save-hook: (org-md-export-to-markdown); -*-
+#+options: toc:nil
+
+* Literate configuration for Emacs and Gentoo Linux
+
+This repository contains the (almost) complete system configuration,
+as literate config. I even use it when I install the system on new
+machines, semi-automatically, thanks to Org babel and Org tangle :)
+
+I am a researcher and Org mode maintainer, and the config reflects my
+workflows:
+
+- Custom agenda views with =org-ql=, email/RSS integration
+- Modal editing
+- Gentoo with LUKS encryption, Secure Boot, and BTRFS subvolumes
+- A working example of managing an entire OS from Org mode
+
+* Repository layout
+
+| File                          | Description                                            |
+|-------------------------------+--------------------------------------------------------|
+| =config.org=                  | Main Emacs configuration (tangles to =~/.emacs.d/=).   |
+| =system-config.org=           | Gentoo system configuration and installation guide     |
+| =config_archive_*.org=        | Archived entries from =config.org=, organized by year |
+| =system-config_archive_*.org= | Archived entries from =system-config.org=             |
+| =LICENSE=                     | GNU General Public License version 3                  |
+
+* Emacs
+
+   - Multi-layer custom agenda via =org-ql=
+   - Project management
+   - =helm-org-ql= search across Org files, emails (Notmuch), and buffer history
+   - Elisp development setup to work with mailing lists and high message inflow
+
+
+   - =notmuch= with automatic tagging and multi-account support
+   - =elfeed= for RSS, combined with =urlwatch= for web-page diff monitoring
+
+
+   - Modal editing via =boon= and navigation with =avy=
+   - Startup optimizations and garbage-collection tuning
+   - All configuration is literate – tangled to =init.el= and =early-init.el=
+
+* Gentoo
+
+   - Full-disk encryption with LUKS2 on LVM and BTRFS subvolumes.
+   - YubiKey integration for LUKS decryption (optional password fallback).
+   - Secure Boot enabled via =shim= with custom keys.
+
+
+   - The Org file tangles to =/etc/portage/make.conf=, =/etc/fstab=,
+     kernel config, and Portage’s world file.
+   - Automated update scripts and cleanup routines
+
+
+   - Awesome WM as the primary window manager, with Picom for compositing
+   - Qutebrowser as the default browser, configured with custom keybindings
+   - System-wide theming (GTK/Qt, fonts, icons), all derived from the Emacs theme
+
+
+   - =rclone= and =restic= for encrypted remote backups.
+
+* License
+
+GNU General Public License v3 (see =LICENSE=).

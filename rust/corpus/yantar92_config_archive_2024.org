@@ -1,0 +1,1541 @@
+
+Archived entries from file /home/yantar92/Git/emacs-config/config.org
+* 2024
+** 2024-07 July
+*** 2024-07-03 Wednesday
+**** Archived Tasks
+***** COMMENT Hunt for the commands causing hangs =explain-pause-mode= :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:CREATED:  [2020-05-25 Mon 18:45]
+:ID:       e55d91e3-562c-465b-a564-82729edad44d
+:ARCHIVE_TIME: 2024-05-14 Tue 00:06
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Debugging
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+[2020-09-18 Fri] Profiler cache eats a lot of memory. Should only use it when I need to debug
+[2021-03-21 Sun] Enabling again. Emacs is pretty fast now, so it could be useful to narrow non-obvious bottlenecks
+[2021-04-02 Fri] Again too much memory usage. Ether because of this or I am just playing with something else.
+
+#+begin_src emacs-lisp
+(use-package explain-pause-mode
+  :if init-flag
+  :demand t
+  :straight (explain-pause-mode :host github :repo "lastquestion/explain-pause-mode")
+  :custom (explain-pause-slow-too-long-ms 400)
+  :config
+  ;; (diminish 'explain-pause-mode " ⌚")
+  (diminish 'explain-pause-mode (concat " "
+					(propertize (all-the-icons-material "watch" :v-adjust 0.04)
+						    'face `((
+							     :family "Material Icons"
+							     ;; :height 1.1
+                                                             ))
+						    ;; 'display '(raise -0.1)
+                                                    )))
+  ;; (explain-pause-mode +1)
+  )
+#+end_src
+
+***** COMMENT Smart garbage collect. :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ARCHIVE_TIME: 2024-03-20 Wed 13:37
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Performance
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+Though I don't want it in batch mode because it is optimised for interactive use.
+
+[2020-05-29 Fri] [[notmuch:id:note_351562434@gitlab.com][Email from Koral: Re: gcmh | Commands invoking garbage-collect directly can hang emacs when non-idle (#6)]]
+Reducing help:gcmh-cons-threshold to avoid hangs on undo.
+
+#+begin_src emacs-lisp :tangle no
+(when init-flag
+  (use-package gcmh
+    :straight (gcmh :type git :host gitlab :repo "koral/gcmh")
+    :demand t
+    :diminish gcmh-mode
+    :hook (after-init . gcmh-mode)
+    :custom
+    (gcmh-verbose t)))
+#+end_src
+
+***** COMMENT Resize windows with =golden-ratio= mode :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ARCHIVE_TIME: 2024-03-21 Thu 17:09
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Appearance/Frame
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+Resize windows automatically making sure that active window is enlarged ([[id:3e7e8b3a9f65a4f6d7bfa710a7ec7a5c62a19619][[Git.Sr] ~wklew/golden - sourcehut git]])
+#+begin_src emacs-lisp
+(use-package golden-ratio
+  :straight (golden-ratio :type git :url "https://git.sr.ht/~wklew/golden")
+  :diminish golden-ratio-mode
+  :custom
+  (golden-ratio-exclude-modes '(notmuch-tree-mode
+                                calendar-mode
+                                ;; This is needed to avoid resizing todo selection window.
+                                fundamental-mode))
+  :config
+  (golden-ratio-mode +1))
+#+end_src
+
+***** COMMENT Show subtrees - org-mode-like directory folding :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ID:       cca7f06f-35f7-4921-9b9d-d93b6967a95a
+:ARCHIVE_TIME: 2023-05-12 Fri 22:50
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Directories/=Dired= (=dirvish=)
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+#+begin_src emacs-lisp
+(use-package dired-subtree
+  :if init-flag
+  :straight t
+  :after dired
+  :config
+  (setq dired-subtree-use-backgrounds nil)
+  (unbind-key "<C-tab>" override-global-map)
+  (bind-keys :map dired-mode-map
+	     ("<tab>" . dired-subtree-toggle)
+	     ("<C-tab>" . dired-subtree-cycle)
+	     ("<S-iso-lefttab>" . dired-subtree-remove)))
+#+end_src
+
+***** TODO COMMENT Auto-revert =dired= buffers :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:CREATED:  [2020-04-14 Tue 14:11]
+:ID:       6ac566c7-dbe9-4329-9710-ad05293d7b78
+:ARCHIVE_TIME: 2023-05-12 Fri 22:50
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Directories/=Dired= (=dirvish=)
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: TODO
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+Some large dired buffers take a while to update, especially when there are multiple such buffers.
+This gets really annoying if I change some directory externally, switch to Emacs, and have to wait several seconds until Emacs unhangs.
+Instead of using =auto-revert=, I just update dired buffers when they become active.
+
+#+BEGIN_SRC emacs-lisp
+(use-package dired
+  :if init-flag
+  :hook (dired-mode . auto-revert-mode)
+  :init
+  (use-package autorevert))
+#+END_SRC
+
+***** COMMENT Async operations :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:CREATED:  [2018-04-09 Mon 21:56]
+:ID:       06e9d624-67fe-42cb-acca-44c1e5e1fde1
+:ARCHIVE_TIME: 2023-05-12 Fri 22:50
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Directories/=Dired= (=dirvish=)
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+#+BEGIN_SRC emacs-lisp
+(use-package dired
+  :if init-flag
+  :init
+  (use-package async
+    :straight t
+    :config
+    (use-package dired-async))
+  :hook (dired-mode . dired-async-mode))
+#+END_SRC
+
+***** COMMENT Do not update mode-line info as in =dired+= :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:CREATED:  [2020-07-15 Wed 09:23]
+:ID:       d97e39ed-f771-4675-9cee-dd499e7f53e0
+:ARCHIVE_TIME: 2023-05-12 Fri 22:50
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Directories/=Dired= (=dirvish=)
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+=diredp-nb-marked-in-mode-name= from =dired+= is very too slow.
+Disabling it
+
+#+begin_src emacs-lisp
+(use-package dired+
+  :if init-flag
+  :after dired+
+  :config
+  (remove-hook 'dired-after-readin-hook 'diredp-nb-marked-in-mode-name)
+  (remove-hook 'dired-mode-hook         'diredp-nb-marked-in-mode-name))
+
+#+end_src
+
+***** Show last commit in Git repos :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ID:       cb3cf7cb-c376-4ffc-9b56-a6056c44429f
+:ARCHIVE_TIME: 2023-05-12 Fri 22:57
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Directories/=Dired= (=dirvish=)/COMMENT Appearance
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+Credit: [[id:Reddit:planetemacs_/u/negativeoilprice2021show_hide_emacs_dired_detail_in_stylebeb][/u/negativeoilprice [Reddit:planetemacs] (2021) Show/hide Emacs dired details in style]]
+#+begin_src emacs-lisp
+(use-package dired-git-info
+  :if init-flag
+  :straight t
+  :bind (:map dired-mode-map
+              (")" . dired-git-info-mode)))
+#+end_src
+
+
+***** Narrowing \ live filter =dired-narrow= :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ARCHIVE_TIME: 2023-05-12 Fri 22:50
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Directories/=Dired= (=dirvish=)
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+Credit: [[id:ee0f2275-09e0-443d-b2de-50bd0311d3c1][Dynamically filter directory listing with dired-narrow | Pragmatic Emacs]]
+Repo: [[id:Github-fuco1-fuco1-dired-hacks-707][Fuco1 [Github] Fuco1/dired-hacks: Collection of useful dired additions]]
+
+#+begin_src emacs-lisp
+(use-package dired-narrow
+  :if init-flag
+  :straight t
+  :bind (:map dired-mode-map
+              ("/" . dired-narrow)))
+#+end_src
+
+***** Search via helm :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ID:       9d973bbc-f8ce-4c35-87e5-67c6a3bebe49
+:SUMMARY:  I am not really using it
+:ARCHIVE_TIME: 2021-09-21 Tue 20:21
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/News & email/=Notmuch=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+- Note taken on [2021-09-21 Tue 20:21] \\
+  I am not really using it
+#+begin_src emacs-lisp
+(use-package helm
+  :if init-flag
+  :defer t
+  :config
+  (use-package helm-notmuch
+    :after notmuch
+    :straight t))
+#+end_src
+
+***** TODO COMMENT Mode line :EMACS:COMMON:
+:PROPERTIES:
+:ID:       ca75c464-f35c-43ed-a90e-d78d4cfaa99a
+:ARCHIVE_TIME: 2020-09-05 Sat 17:42
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Appearance
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: TODO
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "TODO"       from              [2018-09-05 Wed 08:57]
+:END:
+
+I moved the mode line to [[id:e0d58345-6e68-4672-a9d7-37ff73717cf3][header]]
+Also, I do not use fancy spaceline or powerline anymore.
+Profiling showed that they take too much CPU time.
+
+- =Powerline= + =smart-mode-line=
+  - triangular arrow shape
+  - set the foreground manually because =boon-powerline= default background is not good with [[id:404c54f5-26eb-4ada-8a0f-c27efc714238][Flatui]] 
+    #+begin_src emacs-lisp
+(use-package powerline
+  :if init-flag
+  :straight t
+  :config
+  ;; (powerline-vim-theme)
+  (use-package smart-mode-line
+    :straight t
+    :config
+    (setq powerline-arrow-shape 'arrow14)
+    (sml/setup))
+  (use-package spaceline
+    :if init-flag
+    :demand t
+    :straight t
+    :config
+    (setq powerline-default-separator 'arrow-fade
+          spaceline-minor-modes-separator " ")
+    (require 'spaceline-config)
+    ;; (spaceline-emacs-theme)
+    ))
+
+(use-package spaceline-all-the-icons
+  :demand t
+  :custom
+  (spaceline-all-the-icons-slim-render t)
+  (spaceline-all-the-icons-hide-long-buffer-path t)
+  (spaceline-all-the-icons-minor-modes-p t))
+  #+end_src
+- Show column numbers
+  #+begin_src emacs-lisp
+    (when init-flag
+      (setq column-number-mode t))
+        #+end_src
+- Show total lines
+  #+begin_src emacs-lisp
+    (when init-flag
+      (setf size-indication-mode t))
+      #+end_src
+
+By default, the position in buffer =mode-line-position= is shown in %. However, I only need this in pdf-view, where I want to see the page number. Since the pdf-view changes this value anyway, I just let the buffer position be blank most of time, unless something (pdf-view) changes it to more useful value.
+****************** TODO move it close to the definition
+****************** END
+
+Show boon state
+  #+begin_src emacs-lisp
+(use-package boon
+  :if init-flag
+  :defer t
+  :config
+  (use-package boon-powerline
+    :config
+    (custom-set-faces '(mode-line-inactive ((t (:background "#dfe4ea" :foreground "dim gray" :box nil)))))
+    (custom-set-faces '(mode-line ((t (:foreground "DarkSeaGreen" :box nil)))))
+    (custom-set-faces '(sml/prefix ((t (:foreground "DarkSeaGreen")))))
+    (custom-set-faces '(boon-modeline-ins ((t (:foreground "White" :background "Brown2")))))
+    (custom-set-faces '(boon-modeline-spc ((t (:foreground "White" :background "DarkSeaGreen")))))
+    
+    (set-face-foreground 'boon-modeline-cmd "white")
+    (set-face-foreground 'boon-modeline-off "white")
+
+    (set-face-background 'powerline-inactive2 "#dfe4ea")
+    (set-face-background 'powerline-inactive1 "#bfc4ca")
+    (set-face-background 'powerline-active2 "grey25")
+
+
+    (defface mode-line-highlight `((t (:foreground ,(face-background 'region) :box nil :inherit mode-line)))
+      "Highligh on active modeline."
+      :group 'mode-line)
+    (face-spec-set 'mode-line-highlight `((t (:foreground ,(face-background 'region) :box nil :inherit mode-line)))) ;; why is it needed?
+
+    ;; (use-package all-the-icons
+    ;;   :init
+    ;;   (use-package memoize :straight t :demand t)
+    ;;   :config
+    ;;   ;; the functions below constantly create long lists in memory
+    ;;   ;; this triggers GC too often and hangs emacs when I use custom all-the-icons in mode-line
+    ;;   ;; memoize them to cache the results
+    ;;   (memoize #'all-the-icons-material)
+    ;;   (memoize #'all-the-icons-faicon)
+    ;;   (memoize #'all-the-icons-fileicon)
+    ;;   (memoize #'all-the-icons-alltheicon))
+    
+    (defun yant-powerline-theme ()
+      "Set up a powerline based on powerline-default-theme and spaceline-all-the-icons-theme which also displays boon-state."
+      (interactive)
+      (require 'spaceline-all-the-icons-segments)
+      (setq-default mode-line-position " ")
+      (setq-default mode-line-format
+		    '("%e"
+		      (:eval
+		       (let* ((active (powerline-selected-window-active))
+			      (mode-line (if active 'mode-line 'mode-line-inactive))
+			      (mode-line-highlight (if active 'mode-line-highlight 'mode-line-inactive))
+			      (face0 (if active (boon-state-face) 'mode-line-inactive))
+			      (face1 (if active 'powerline-active1 'powerline-inactive1))
+			      (face2 (if active 'powerline-active2 'powerline-inactive2))
+			      (separator-left (intern (format "powerline-%s-%s"
+							      powerline-default-separator
+							      (car powerline-default-separator-dir))))
+			      (separator-right (intern (format "powerline-%s-%s"
+							       powerline-default-separator
+							       (cdr powerline-default-separator-dir))))
+			      (boon (list
+				     (powerline-raw (when current-input-method-title (concat " " (string-trim-right current-input-method-title))) face0)
+				     (powerline-raw (eval (get 'spaceline-all-the-icons-modified-p :code)) face0 'l)
+				     (powerline-raw (eval (get 'spaceline-all-the-icons-buffer-size-p :code)) face0 'l)
+				     (powerline-raw " " face0)
+				     (funcall 'powerline-bar-right mode-line face0)
+				     (when (bound-and-true-p boon-mode) (powerline-raw " " face0))
+				     (when (bound-and-true-p boon-mode) (powerline-raw (boon-state-string) face0 'r))
+				     (when (bound-and-true-p boon-mode) (funcall separator-left face0 mode-line))
+				     ))
+			      (lhs (list
+				    (powerline-raw (eval (get 'spaceline-all-the-icons-mode-icon-p :code)) mode-line 'l)
+				    (powerline-buffer-id mode-line nil)
+				    (when (and (boundp 'which-func-mode) which-func-mode)
+				      (powerline-raw which-func-format mode-line 'l))
+				    (when (eval (get 'spaceline-all-the-icons-narrowed-p :when))
+				      (powerline-raw (eval (get 'spaceline-all-the-icons-narrowed-p :code))
+						     mode-line-highlight 'l))
+				    (powerline-raw (if truncate-lines
+						       (propertize (all-the-icons-faicon "arrow-right")
+								   'face `((
+									    :family "file-icons"
+									    :height 0.6))
+								   'display '(raise 0.3))
+						     (propertize (all-the-icons-fileicon "factor")
+								 'face `((
+									  :family "Material Icons"
+									  :height 0.6))
+								 'display '(raise 0.3)))
+						   mode-line-highlight 'l)
+				    (funcall separator-left mode-line face1)
+				    (powerline-process face1)
+				    (when active (powerline-minor-modes face1 'l))
+				    (powerline-raw " " face1)
+				    (funcall separator-left face1 face2)
+				    (powerline-vc face2 'r)
+				    ))
+			      (rhs (list
+				    (powerline-raw global-mode-string face2 'r)
+				    (funcall separator-right face2 face1)
+				    (powerline-raw "%l" face1 'l)
+				    (powerline-raw ":" face1)
+				    (powerline-raw "%c" face1 'r)
+				    (funcall separator-right face1 mode-line)
+				    (powerline-raw " " mode-line)
+				    (powerline-raw "%p" mode-line)
+				    (powerline-raw mode-line-position mode-line)
+				    (powerline-raw " " mode-line)
+				    )))
+			 (concat (powerline-render boon)
+				 (powerline-render lhs)
+				 (powerline-fill face2 (powerline-width rhs))
+				 (powerline-render rhs)))))))
+    
+    (setq flymake--mode-line-format '(:eval (when flymake-mode (flymake--mode-line-format))))
+    (use-package all-the-icons
+      :init
+      (add-to-list 'all-the-icons-mode-icon-alist '(helpful-mode all-the-icons-faicon "info" :v-adjust -0.1 :face all-the-icons-purple))
+      (add-to-list 'all-the-icons-mode-icon-alist '(pdf-view-mode all-the-icons-octicon "file-pdf" :v-adjust 0.0 :face all-the-icons-dred)))
+    (yant-powerline-theme)
+    (use-package helm
+      :defer t
+      :config
+      (spaceline-helm-mode +1))
+    ))
+#+end_src
+
+Fancy minor mode lighters
+
+#+begin_src emacs-lisp
+(use-package simple
+  :config
+  (diminish 'auto-fill-function (concat " "
+					(propertize (all-the-icons-material "wrap_text")
+						    'face `((
+							     :family "Material Icons"
+							     ;; :height 1.2
+							     ))))))
+(use-package mml
+  :diminish (mml-mode . " 🖂"))
+(use-package footnote
+  :diminish (footnote-mode . " ¹⁻⁹"))
+#+end_src
+
+***** =auto-save-buffers-enhanced= :EMACS:COMMON:
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-09-24 Thu 18:17
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/History & version control/Auto save
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+[2020-09-24 Thu] This does not work well with large org buffers, especially with my config, which is auto-tangled on save.
+Better auto save.
+
+#+begin_src emacs-lisp
+(use-package auto-save-buffers-enhanced
+  :straight t
+  :config
+  (auto-save-buffers-enhanced t))
+#+end_src
+
+***** COMMENT Highlight cursor when it moves far
+:PROPERTIES:
+:ID:       c86d4d84-aa19-43e8-990a-6305db525433
+:ARCHIVE_TIME: 2019-12-09 Mon 13:06
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Appearance/Cursor
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- Refiled on [2020-09-24 Thu 21:20]
+:END:
+=beacon-mode= seems to slow down the org movement like =c u=.
+#+begin_src emacs-lisp :tangle no
+(use-package beacon
+  :if init-flag
+  :straight t
+  :diminish beacon-mode
+  :config
+  (beacon-mode 1))
+#+end_src
+***** Show file changes in the fringe
+:PROPERTIES:
+:CREATED:  [2019-07-12 Fri 08:51]
+:ID:       183bac3b-5d30-4123-af4c-6012d7625766
+:ARCHIVE_TIME: 2019-12-25 Wed 14:02
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/History & version control
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: TODO
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- Refiled on [2020-09-24 Thu 21:20]
+:END:
+This slows down emacs on saving large org buffers.
+Disabling
+
+#+begin_src emacs-lisp
+(use-package git-gutter-fringe+
+  :if init-flag
+  :straight t
+  :diminish git-gutter+-mode
+  :init
+  (use-package fringe-helper)
+  :config
+  (global-git-gutter+-mode))
+#+end_src
+***** Highlight uncommitted changes in version-controlled files and dirs
+:PROPERTIES:
+:CREATED:  [2019-04-05 Fri 16:37]
+:ID:       c5fc942a-d468-4102-9c90-6275fd605e92
+:ARCHIVE_TIME: 2020-04-02 Thu 13:40
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Text highlight & colouring
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- Refiled on [2020-09-24 Thu 21:21]
+:END:
+
+It slows down large org files though. Not going to use.
+
+#+begin_src emacs-lisp
+(use-package git-gutter-fringe
+  :if init-flag
+  :straight t
+  :init
+  (setq git-gutter-fr:side 'right-fringe)
+  :config
+  (add-hook 'magit-mode-hook #'git-gutter-mode))
+#+end_src
+***** Execute current buffer (c++,python,bash,...)
+:PROPERTIES:
+:ID:       a57244bb-a617-44b4-a806-7cff82a86ac7
+:ARCHIVE_TIME: 2020-04-09 Thu 00:50
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Programming & emacsing
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- Refiled on [2020-09-24 Thu 21:21]
+:END:
+#+begin_src emacs-lisp
+(use-package quickrun
+  :if init-flag
+  :straight t
+  :bind (
+	 ("<f10>" . quickrun)
+	 ("<C-XF86Search>" . quickrun-with-arg)
+	 ("<C-M-XF86Search>" . quickrun-shell)
+	 ("<C-XF86Explorer>" . quickrun-region)
+	 ("<C-M-XF86Explorer>" . quickrun-replace-region)
+	 ("<f12>" . helm-quickrun)))
+#+end_src
+***** Wind move
+:PROPERTIES:
+:ID:       8cd8df5e-ff33-46ac-9864-38e990f745de
+:ARCHIVE_TIME: 2020-04-09 Thu 17:36
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Windows
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- Refiled on [2020-09-24 Thu 21:21]
+:END:
+#+begin_src emacs-lisp
+(use-package boon
+  :if init-flag
+  :config
+  (bind-keys :map boon-forward-search-map
+	     ("j" . windmove-down)
+             ("k" . windmove-up)
+             ("i". windmove-left)
+             ("o" . windmove-right)
+             ("l" . other-window)
+             :map boon-backward-search-map
+	     ("j" . windmove-down)
+             ("k" . windmove-up)
+             ("i". windmove-left)
+             ("o" . windmove-right)
+	     ("l" . other-window)))
+#+end_src
+***** Show recursive directory size
+:PROPERTIES:
+:CREATED:  [2020-04-14 Tue 14:20]
+:ARCHIVE_TIME: 2020-04-14 Tue 14:58
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Files/Search directories/=Dired=/Appearance
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- Refiled on [2020-09-24 Thu 21:21]
+:END:
+#+begin_src emacs-lisp
+(use-package dired-du
+  :if init-flag
+  :straight t
+  :diminish dired-du-mode
+  :custom
+  ;; human readable size
+  (dired-du-size-format t))
+#+end_src
+***** Do not use mouse
+:PROPERTIES:
+:CREATED:  [2019-08-02 Fri 15:44]
+:ID:       1edf3f36-6a30-4374-a47d-2d1b9c7a889a
+:ARCHIVE_TIME: 2020-05-28 Thu 12:58
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Command loop
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- Refiled on [2020-09-24 Thu 21:22]
+:END:
+[2020-05-28 Thu] This interferes with pdf-view annoyingly. Easier to disable mouse globally when needed.
+
+I can force no mouse in emacs (see [[https://www.emacswiki.org/emacs/EmacsNiftyTricks][emacswiki]]).
+Note that it does not interfere with [[id:201475d1-64b3-4e1d-8e78-d850c6067761][pdf-tools]].
+#+begin_src emacs-lisp
+(when init-flag
+    (mouse-avoidance-mode 'banish))
+#+end_src
+
+***** Company completion :EMACS:COMMON:
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-09-25 Fri 08:37
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Ledger
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+[2020-09-25 Fri] This prevents completing the account name
+Source: [[id:github_debanjum_deban_compan_ledger][debanjum [Github] Debanjum Company-Ledger]]
+#+begin_src emacs-lisp
+(use-package company-ledger
+  :if init-flag
+  :straight (company-ledger :host github :repo "debanjum/company-ledger")
+  :after company
+  :init
+  (add-to-list 'company-backends 'company-ledger))
+#+end_src
+
+***** Never save some buffers :EMACS:COMMON:
+:PROPERTIES:
+:ID:       7d188a71-560a-4d37-8037-2f2e44726a06
+:ARCHIVE_TIME: 2020-09-25 Fri 10:38
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+[2020-09-24 Thu] Seems to be fixed
+I got an issue with =org-src= block editing buffers. They are saved
+under some weird name beside the actual org file when some command,
+saving all the buffers, is executed.
+#+begin_src emacs-lisp
+(defvar yant/never-save-buffer-list nil
+  "The buffers, matching any of the regexps in this list will never be saved.")
+#+end_src
+
+***** Warning when I try to send a message mentioning attachments in text, but without actual attachments :EMACS:COMMON:
+:PROPERTIES:
+:CREATED:  [2020-05-05 Tue 15:01]
+:ID:       dbd472e2-2ab2-4a8d-bd6c-d28acc48e2dc
+:ARCHIVE_TIME: 2020-09-26 Sat 15:10
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/News & email
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+[2020-09-26 Sat] Use notmuch built-in system instead
+#+begin_src emacs-lisp
+(use-package message-attachment-reminder
+  :if init-flag
+  :straight t)
+#+end_src
+
+***** Preview screenshot on mouse hover :ATTACH:
+:PROPERTIES:
+:CREATED:  [2019-12-15 Sun 03:00]
+:ID:       806164fd-46b1-405c-a1a8-140603466651
+:ARCHIVE_TIME: 2020-11-28 Sat 14:04
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Software/mpv/User-scripts/OSC menu
+:ARCHIVE_CATEGORY: config
+:END:
+
+=T= to start generation
+
+#+name: osc-url
+https://github.com/TheAMM/mpv_thumbnail_script
+#+begin_src bash :var url=osc-url
+git clone $url
+cd mpv_thumbnail_script
+make
+cp mpv_thumbnail_script_server.lua ~/.config/mpv/scripts/
+cp mpv_thumbnail_script_client_osc.lua ~/.config/mpv/scripts/
+#+end_src
+
+***** Allow more space for the function name in profiler report :EMACS:COMMON:HOLD:
+:PROPERTIES:
+:ARCHIVE_TIME: 2021-01-03 Sun 19:04
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Debugging/Profiler/Appearance
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON HOLD
+:END:
+[2021-01-03 Sun] They actually changed it on master
+Credit: [[id:955b94c1-776d-4e1f-8ca0-fe0a3923192b][#email -> Alan Mackenzie <acm@muc.de> A tip: how to display longer function names in profiler-report]]
+
+#+begin_src emacs-lisp
+(use-package profiler
+  :init
+  (setq profiler-report-cpu-line-format '((70 left)
+					  (14 right ((9 right) (5 right))))))
+#+end_src
+
+***** TODO Fixing slow org priority regexp :EMACS:COMMON:HOLD:
+:PROPERTIES:
+:ID:       d7b2907d-ac99-4d08-ac79-eee90d1381f2
+:ARCHIVE_TIME: 2021-03-13 Sat 18:21
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: TODO
+:ARCHIVE_ITAGS: EMACS COMMON HOLD
+:END:
+[2021-03-13 Sat] Should be fixed on master
+#+begin_src emacs-lisp
+(setq org-priority-regexp "^\\*+.*\\(\\[#\\([A-Z0-9]+\\)\\] ?\\)")
+#+end_src
+
+***** TODO COMMENT Hyperbole :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:CREATED:  [2019-03-21 Thu 13:52]
+:ID:       40c2aac3-517c-45cd-bfe4-aa5465e4c3e6
+:SUMMARY:  Does not play well with Org mode and helm
+:ARCHIVE_TIME: 2021-08-11 Wed 22:25
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: TODO
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+:LOGBOOK:
+- State "NEXT"       from "TODO"       [2019-03-21 Thu 13:52]
+:END:
+
+- Note taken on [2021-08-11 Wed 22:24] \\
+  Does not play well with Org mode and helm
+
+[2022-12-10 Sat] [[id:Debbugs-<rswgnu@gmailcom>2022-re-bug59903-bug-68e][Robert Weiner [Debbugs] (2022) Re: bug#59903: [BUG] Unable to load hyperbole]] suggested to set ~hyperbole~ to a custom binding to avoid issues with loading when =C-h= is locally re-bound from the default.
+
+#+begin_src emacs-lisp
+(use-package hyperbole
+  :if init-flag
+  :init
+  :straight (hyperbole :type git :host nil :repo "yantar92@git.savannah.gnu.org:/srv/git/hyperbole.git")
+  :defer 1
+  :config
+  ;; Clashes with `org-sparse-tree' binding.
+  (unbind-key "C-c /" global-map)
+  (unbind-key "C-h" hyperbole-mode-map)
+  (bind-key "C-c C-o" #'hkey-either global-map)
+  (bind-key* "<tab>" #'action-key)
+  (bind-key* "<backtab>" #'assist-key))
+#+end_src
+
+***** Use [[id:Github-dandavison-dandavison-delta-viewer-c9d][dandavison [Github] dandavison/delta: A viewer for git and diff output]] to show diffs :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ID:       ccf5be93-81a8-4566-a30c-b11b29df9c64
+:SUMMARY:  Performance is too low on large diffs (like in Org files)
+:ARCHIVE_TIME: 2021-08-13 Fri 15:09
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/History & version control/=Magit=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2021-08-13 Fri 15:09] \\
+  Performance is too low on large diffs (like in Org files)
+[[id:Github-dandavison-github-dandavison-magit-213][dandavison [Github] dandavison/magit-delta: Use delta (https://github.com/dandavison/delta) when viewing diffs in Magit]]
+
+Gentoo: =dev-util/git-delta=
+
+#+begin_src emacs-lisp
+(use-package magit-delta
+  :straight t
+  :after magit
+  :hook (magit-mode . magit-delta-mode))
+#+end_src
+
+***** Archive logbook :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ARCHIVE_TIME: 2021-08-17 Tue 15:13
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Workflow/Archiving
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+Credit: https://www.reddit.com/r/orgmode/comments/dg43hs/can_i_archive_a_property_drawer/f3frk2n/
+
+#+begin_src emacs-lisp
+(defun my/org-archive-delete-logbook ()
+  (save-excursion
+   (org-end-of-meta-data)
+   (let ((elm (org-element-at-point)))
+     (when (and
+            (equal (org-element-type elm) 'drawer)
+            (equal (org-element-property :drawer-name elm) "LOGBOOK"))
+       (delete-region (org-element-property :begin elm)
+                      (org-element-property :end elm))))))
+
+(defun my/org-archive-without-delete ()
+  (cl-letf (((symbol-function 'org-cut-subtree) (lambda () nil)))
+    (org-archive-subtree)))
+
+(defun my/org-archive-logbook ()
+  (interactive)
+  (my/org-archive-without-delete)
+  (my/org-archive-delete-logbook))
+#+end_src
+
+***** FAILED Use git for backups: =helm-backup= :EMACS:COMMON:SOMEDAY:
+CLOSED: [2021-08-22 Sun 16:38]
+:PROPERTIES:
+:SUMMARY:  I do not like that it is using ediff
+:ARCHIVE_TIME: 2021-08-22 Sun 16:49
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/History & version control
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: FAILED
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2021-08-22 Sun 16:38] \\
+  I do not like that it is using ediff
+#+begin_src emacs-lisp
+(use-package helm-backup
+  :straight t
+  :hook (after-save-hook . helm-backup-versioning))
+#+end_src
+
+***** FAILED Sorting with =dired-quick-sort= :EMACS:COMMON:SOMEDAY:
+CLOSED: [2021-08-27 Fri 21:48]
+:PROPERTIES:
+:SUMMARY:  Does not play well with dired hide dotfiles
+:ARCHIVE_TIME: 2021-08-27 Fri 21:48
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Directories/=Dired=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: FAILED
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+:LOGBOOK:
+- State "FAILED"     from              [2021-08-27 Fri 21:48] \\
+  Does not play well with dired hide dotfiles
+:END:
+
+#+begin_src emacs-lisp
+(use-package dired-quick-sort
+  :if init-flag
+  :straight t
+  :after diredp
+  :init
+  (setq dired-quick-sort-suppress-setup-warning nil)
+  :config
+  (dired-quick-sort-setup))
+#+end_src
+
+***** =org-graph-view= :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:SUMMARY:  Looks cool, but too messy on large complex files
+:ARCHIVE_TIME: 2021-08-28 Sat 14:06
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Knowledge graph view
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2021-08-28 Sat 14:06] \\
+  Looks cool, but too messy on large complex files
+Requires [[id:069366f4-0eac-4d23-b186-7020185e1bcb][=media-gfx/graphviz=: LaTeX for diagrams]]
+
+#+begin_src emacs-lisp
+(use-package org-graph-view
+  :if init-flag
+  :straight (org-graph-view :host github :repo "alphapapa/org-graph-view"))
+#+end_src
+
+***** Integrate =languagetool= with flycheck :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:SUMMARY:  This is checking whole buffer - inefficient on large buffers
+:ARCHIVE_TIME: 2021-10-04 Mon 16:56
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Text highlight & colouring/Spell\grammar checking/Language tool
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2021-10-04 Mon 16:56] \\
+  This is checking whole buffer - inefficient on large buffers
+#+begin_src emacs-lisp
+(use-package flycheck-languagetool
+  :if init-flag
+  :straight t
+  :custom
+  (flycheck-languagetool-server-jar nil))
+#+end_src
+
+***** COMMENT Pydoc :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:SUMMARY:  replaced by elpy
+:ARCHIVE_TIME: 2021-12-26 Sun 20:59
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Programming & emacsing/Python
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2021-12-26 Sun 20:58] \\
+  replaced by elpy
+#+begin_src emacs-lisp
+(use-package pydoc
+ :if init-flag
+ :straight t)
+#+end_src
+
+***** Inline documentation in tooltip :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:SUMMARY:  too large for my screen
+:ARCHIVE_TIME: 2021-12-26 Sun 21:01
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Programming & emacsing/Python
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2021-12-26 Sun 21:01] \\
+  too large for my screen
+#+begin_src emacs-lisp
+(use-package company-quickhelp
+  :straight t
+  :if init-flag
+  :after company
+  :config
+  (company-quickhelp-mode +1))
+#+end_src
+
+***** =define-word= at point :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:SUMMARY:  format is not very good
+:ARCHIVE_TIME: 2022-02-20 Sun 15:18
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Text highlight & colouring/Spell\grammar checking/Dictionary
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+- Note taken on [2022-02-20 Sun 15:18] \\
+  format is not very good
+#+begin_src emacs-lisp
+(use-package define-word
+  :if init-flag
+  :straight t
+  :custom
+  (define-word-default-service 'offline-wikitionary)
+  (define-word-offline-dict-directory "/home/yantar92/.emacs.d/dictionaries_enwiktionary_ding_20200401")
+  :config
+  (bind-key ";" #'define-word-at-point boon-goto-map))
+#+end_src
+
+***** Icons =helm-icons= :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:SUMMARY:  There is now built-in helm-ff-icon-mode
+:ARCHIVE_TIME: 2022-03-18 Fri 22:41
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Completion/Helm
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2022-03-18 Fri 22:40] \\
+  There is now built-in helm-ff-icon-mode
+#+begin_src emacs-lisp
+(use-package helm-icons
+  :straight t
+  :if init-flag
+  :after helm
+  :custom
+  (helm-icons-provider 'all-the-icons)
+  (helm-icons-mode->icon
+   '((dired-mode . "file-directory")))
+  :config
+  (helm-icons-enable))
+#+end_src
+
+***** Record point movement history beyond mark-ring =gumshoe= :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ARCHIVE_TIME: 2022-04-19 Tue 21:20
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+[[id:Github-overdr0ne-overdr0ne-gumshoe-0c9][Overdr0ne [Github] Overdr0ne/gumshoe]]
+
+#+begin_src emacs-lisp
+(use-package gumshoe
+  :if init-flag
+  :straight t
+  :diminish 'global-gumshoe-mode
+  :init
+  (global-gumshoe-mode +1)
+  :config
+  (bind-key "n" #'gumshoe-buf-backtrack-back boon-command-map)
+  (bind-key "m" #'gumshoe-buf-backtrack-forward boon-command-map)
+  (bind-key "M-n" #'gumshoe-backtrack-back)
+  (bind-key "M-m" #'gumshoe-backtrack-forward)
+  (bind-key "m" #'gumshoe-peruse-globally boon-goto-map))
+#+end_src
+
+***** Find emacs lisp definitions (=elisp-def=) :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ARCHIVE_TIME: 2022-04-24 Sun 16:01
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Programming & emacsing/Elisp coding
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+#+begin_src emacs-lisp
+(use-package elisp-def
+  :straight t
+  :if init-flag
+  :init
+  (dolist (hook '(emacs-lisp-mode-hook ielm-mode-hook))
+    (add-hook hook #'elisp-def-mode)))
+#+end_src
+
+***** Remind me about adding Woof headers when sending messages to org-mode maillist :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ID:       5b1ce8da-875f-4e49-9d8d-8b0a4814c3c9
+:SUMMARY:  Woof will not support X-Woof-* headers in future releases. No need in this
+:ARCHIVE_TIME: 2022-05-26 Thu 20:21
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/News & email/=Notmuch=/Message verification before sending
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2022-05-26 Thu 20:21] \\
+  Woof will not support X-Woof-* headers in future releases. No need in this
+Making sure to conform to Bastein's [[notmuch:id:87o8lwhek2.fsf@gnu.org][request]] asking to use Woof conventions when sending emails. [[id:74d229fc782c20a7f32a04f07863af51598994b5][[Github] woof: Watch Over Our Folders]]
+
+#+begin_src emacs-lisp
+(use-package notmuch
+  :if init-flag
+  :defer t
+  :config
+  (defun yant/notmuch-mua-woof-check-maybe ()
+    "Remind to use Woof headers when sending email to org-mode maillist."
+    (let ((case-fold-search t))
+      (save-excursion
+	(goto-char (point-min))
+	(when (re-search-forward "^\\(To:\\|Cc:\\).+emacs-orgmode@gnu\\.org" nil t)
+          (goto-char (point-min))
+          (unless (re-search-forward "^X-Woof-\\(Bug\\|Help\\|Change\\|Release\\|Patch\\):" nil t)
+            (unless (yes-or-no-p "No Woof-(Bug|Help|Patch): t/nil headers found in message being sent to emacs-orgmode@gnu.org. Send anyway? ")
+	      (error "Forgot Woof headers")))))))
+  (add-hook 'notmuch-mua-send-hook #'yant/notmuch-mua-woof-check-maybe))
+#+end_src
+
+***** Speed up agenda by caching some built-in functions :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ID:       c180f2bc-c331-4804-9f53-f502032ee91b
+:SUMMARY:  These functions are now fast enough using org-element-cache. Calculating buffer hash is actually slowing things down.
+:ARCHIVE_TIME: 2022-06-08 Wed 12:19
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Workflow/Agenda & scheduling
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2022-06-08 Wed 12:18] \\
+  These functions are now fast enough using org-element-cache. Calculating buffer hash is actually slowing things down.
+#+begin_src emacs-lisp
+(memoize-by-buffer-contents #'org-get-buffer-tags)
+;; (memoize-by-buffer-contents #'org-refresh-category-properties)
+;; (memoize-by-buffer-contents #'org-refresh-effort-properties)
+#+end_src
+
+***** Telegram :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ARCHIVE_TIME: 2023-04-15 Sat 13:29
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+#+begin_src emacs-lisp
+(use-package telega
+  :straight t
+  :custom
+  (telega-server-libs-prefix "/home/yantar92/.local")
+  :config
+  (define-key global-map (kbd "C-c t") telega-prefix-map)
+  (unbind-key "l" telega-msg-button-map)
+  (unbind-key "L" telega-msg-button-map)
+  (meta-defun meta-down :mode telega-root-mode telega-button-forward)
+  (meta-defun meta-up :mode telega-root-mode telega-button-backward)
+  (meta-defun meta-down-element :mode telega-chat-mode telega-button-forward)
+  (meta-defun meta-up-element :mode telega-chat-mode telega-button-backward))
+#+end_src
+
+***** COMMENT Make key bindings work in Ukrainian/Russian =keymap= :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ID:       943917fe-aecf-45a7-bc0d-591492d17898
+:SUMMARY:  I am using built-in input methods these days
+:ARCHIVE_TIME: 2024-04-08 Mon 10:52
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Command loop/Key bindings
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2024-04-08 Mon 10:51] \\
+  I am using built-in input methods these days
+#+begin_src emacs-lisp
+(use-package reverse-im
+  :straight t
+  :if init-flag
+  :config
+  (reverse-im-activate "russian-computer"))
+(when init-flag
+  (cl-loop
+   for from across "йцукенгшщзхїфівапролджєячсмитьбюЙЦУКЕНГШЩЗХЇФІВАПРОЛДЖЄЯЧСМИТЬБЮ№"
+   for to   across "qwertyuiop[]asdfghjkl;'zxcvbnm,.QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>#"
+   do
+   (eval `(define-key local-function-key-map
+	    (kbd ,(concat "C-"
+			  (string from)))
+	    (kbd ,(concat "C-"
+			  (string to)))))
+   (eval `(define-key local-function-key-map
+	    (kbd ,(concat "M-"
+			  (string from)))
+	    (kbd ,(concat "M-"
+			  (string to)))))
+   (eval `(define-key local-function-key-map
+	    (kbd ,(concat "C-M-"
+			  (string from)))
+	    (kbd ,(concat "C-M-"
+			  (string to)))))
+   (eval `(define-key local-function-key-map
+	    (kbd ,(string from))
+	    (kbd ,(string to))))))
+#+end_src
+
+***** COMMENT Company :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ID:       8ca3a911-ad9d-43a6-83a6-a7b12b383984
+:ARCHIVE_TIME: 2024-04-12 Fri 11:16
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Completion
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+:LOGBOOK:
+- State "CANCELLED"  from              [2017-09-22 Fri 07:58]
+:END:
+
+Context completion is *very* useful, especially if a major mode supports the completion. 
+I use company for completion just because it is easy to use.
+
+#+begin_src emacs-lisp
+(use-package company
+  :if init-flag
+  :straight t
+  :diminish (company-mode . " ⭿")
+  :hook ((prog-mode ledger-mode) . company-mode)
+  :custom
+  (company-idle-delay 0.05)
+  (company-minimum-prefix-length 2)
+  (company-selection-wrap-around t)
+  (company-require-match nil)
+  (company-transformers '(company-sort-by-occurrence))
+  :config
+  (bind-key* "M-/" #'company-complete)
+  :bind (:map company-active-map
+	      ("<tab>" . nil)
+	      ("M-j" . company-select-next)
+	      ("M-k" . company-select-previous)
+	      ("C-h" . backward-delete-char-untabify)
+              ("C-M-h" . backward-kill-word)
+              ("M-l" . nil)
+              ("M-h" . company-show-doc-buffer)
+              ("M-s" . company-filter-candidates)))
+#+end_src
+
+***** COMMENT Use =helm-mini= to switch buffers :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ARCHIVE_TIME: 2024-04-22 Mon 12:05
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Buffers/Switching buffers
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+#+begin_src emacs-lisp
+(use-package helm
+  :if init-flag
+  :bind (:map boon-forward-search-map
+	      ("b" . helm-mini)
+	      :map boon-backward-search-map
+	      ("b" . helm-mini))
+  :after boon)
+#+end_src
+
+***** COMMENT Code review: support comments to code from Github :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ARCHIVE_TIME: 2024-04-24 Wed 11:33
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/History & version control/=Magit=/Interaction with Github \ other forges
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+[[id:Github-wandersoncferreira-wandersoncferreira-code-review-10c][wandersoncferreira [Github] wandersoncferreira/code-review: Code Reviews with Emacs]]
+#+begin_src emacs-lisp
+(use-package code-review
+  :if init-flag
+  :after forge
+  :straight t
+  :config
+  (define-advice forge-visit-pullreq (:override () use-code-review)
+    "Call `code-review-forge-pr-at-point'."
+    (interactive)
+    (funcall-interactively #'code-review-forge-pr-at-point)))
+#+end_src
+
+***** Opening repository file in remote =browse-at-remote= :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ID:       b8072b8b-115e-4791-865f-cbe3fc272a8d
+:SUMMARY:  I am not really using it
+:ARCHIVE_TIME: 2024-04-25 Thu 20:19
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/History & version control/=Magit=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2024-04-25 Thu 20:19] \\
+  I am not really using it
+#+begin_src emacs-lisp
+(use-package browse-at-remote
+  :if init-flag
+  :straight t
+  :config
+  (bind-key "C-x M-o" #'browse-at-remote))
+#+end_src
+
+***** Persistent profiling :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ARCHIVE_TIME: 2024-05-14 Tue 12:54
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Debugging
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+Emacs provides an excelled profiler via ~M-x profiler-start~ ~M-x profiler-report~.
+However, it has a disadvantage - you need to know in advance that some slowness is about to happen.
+If the profiler is started too early, a lot of recorded information will be useless and, more importantly, shadow the actual slowdown of interest.
+
+The solution is tripping the profiler data periodically on timer.
+This way, only last minutes of the profiling will be shown even if the profiler is running continuously.
+
+#+begin_src emacs-lisp
+(if init-flag
+    (defvar yant/profiler--start-time (current-time)
+      "Starting time of the last profiler call.")
+  (defvar yant/profiler-max-time (* 60 5)
+    "Maximum time allowed for profiler to run continuously.")
+  (defun yant/profiler-restart-maybe ()
+    "Restart profiler running for too long.
+Too long is defined by `yant/profiler-max-time'."
+    (when (and (or (profiler-cpu-running-p)
+		   (profiler-memory-running-p))
+	       (> (float-time (time-since yant/profiler--start-time))
+		  yant/profiler-max-time))
+      (setq yant/profiler--start-time (current-time))
+      (cond
+       ((and (profiler-cpu-running-p)
+	     (profiler-memory-running-p))
+        (profiler-stop)
+        (profiler-start 'cpu+mem))
+       ((profiler-cpu-running-p)
+        (profiler-stop)
+        (profiler-start 'cpu))
+       ((profiler-memory-running-p)
+        (profiler-stop)
+        (profiler-start 'mem)))
+      (message "Profiler restarted.")))
+  (run-with-timer 1 yant/profiler-max-time #'yant/profiler-restart-maybe))
+#+end_src
+
+***** COMMENT Mingus (=mpd=) :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:ID:       dad9e1d1-308f-4706-900e-3ec546e6eb58
+:ARCHIVE_TIME: 2024-05-29 Wed 11:14
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Utils/Music
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+I usually run =mingus= in a new frame using global WM key binding.
+Hence, delete frame instead of burying the =mingus= buffer.
+
+#+begin_src emacs-lisp
+(use-package mingus
+  :if init-flag
+  :straight t
+  :bind (:map mingus-playlist-map
+	      ("q" . (lambda() (interactive) (mingus-git-out) (delete-frame)))))
+#+end_src
+
+When listening a new band/album, I usually go through all the songs and delete what I do no like until several song remain in the playlist. It is much more convenient to have a global command to delete currently playing song if I do not like it instead of opening =mingus= frame and doing it manually.
+
+#+begin_src emacs-lisp
+(use-package mingus
+  :defer t
+  :if init-flag
+  :config
+  (defun yant/mingus-delete-currently-playing ()
+    "Remove currently playing song from playlist."
+    (interactive)
+    (when (and (get-buffer "*Mingus*")
+	       (mingus-cur-song-number))
+      (with-current-buffer "*Mingus*"
+	(mingus-goto-current-song)
+	(mingus-del)))))
+#+end_src
+
+****** Boon special mode bindings
+:PROPERTIES:
+:ID:       336d16e1-7a21-44c1-8469-15a8658871a3
+:END:
+
+#+begin_src emacs-lisp
+(use-package meta-functions
+  :if init-flag
+  :config
+  (meta-defun meta-move-line-down :mode mingus-playlist-mode mingus-move-down)
+  (meta-defun meta-move-line-up :mode mingus-playlist-mode mingus-move-up)
+  (meta-defun meta-new-line :mode mingus-playlist-mode mingus-play)
+  (meta-defun meta-new-line :mode mingus-browse-mode mingus-down-dir-or-play-song)
+  (meta-defun meta-up-element :mode mingus-browse-mode mingus-open-parent))
+#+end_src
+
+***** Journal :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:CREATED:  [2018-10-23 Tue 18:19]
+:ID:       46346e6b-4ed8-4570-bf4c-05639c125046
+:SUMMARY:  Alas, ain't working in practice
+:ARCHIVE_TIME: 2024-06-10 Mon 10:13
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Workflow
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+:LOGBOOK:
+CLOCK: [2019-07-29 Mon 13:33]--[2019-07-29 Mon 14:06] =>  0:33
+- State "NEXT"       from              [2018-10-23 Tue 18:50]
+:END:
+
+- Note taken on [2024-06-10 Mon 10:12] \\
+  Alas, ain't working in practice
+
+Sometimes, I do some trial tasks for my projects or just try random
+things with programming.  These things are unlikely to go into my
+actual notes or projects files.  Not always though.  It is always
+frustrating when I remember trying something and want to move it to
+actual notes of project file, but lose what I did.
+
+Journal seems to be a good solution for it.  I can dump all kind of
+staff there instead of having it spread over the bash history or just
+lost.  I can write notes, run shell commands, calculations, etc
+without loosing what I have done.  I may not even need to run terminal
+in such a case!
+
+I have tried [[https://github.com/bastibe/org-journal][org-journal]], but it does not really work for me because
+it creates too many files. A simple =date-tree= capture works just fine.
+
+#+begin_src emacs-lisp
+(use-package org-capture
+  :if init-flag
+  :after org
+  :requires org
+  :config
+  (defvar yant/org-journal-file "~/Org/Journal.org"
+    "Filename of the journal file")
+  (use-package doct
+    :defer t
+    :config
+    (setf
+     (alist-get "j" org-capture-templates nil nil #'equal)
+     (cdar (doct '("Journal entry"
+		   :keys "j"
+		   :type entry
+		   :file yant/org-journal-file
+		   :datetree t
+		   :clock-in t
+		   :clock-resume t
+		   :jump-to-captured t
+		   :template
+		   ("* %?"
+		    ":PROPERTIES:"
+		    "CREATED: %U"
+		    ":END:\n")))))))
+#+end_src
+
+***** Disable terminal key aliases (I don't use console emacs anyway) :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:CREATED:  [2019-11-18 Mon 10:24]
+:ID:       5656ef63-a887-47c0-9427-f7d53d9ddc13
+:SUMMARY:  disabling the aliases is problematic in practice - is makes it impossible to use C-m keymap prefix (in magit commit, C-m v is used to set version)
+:ARCHIVE_TIME: 2024-06-20 Thu 08:49
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Command loop/Key bindings
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+- Note taken on [2024-06-20 Thu 08:48] \\
+  disabling the aliases is problematic in practice - is makes it impossible to use C-m keymap prefix (in magit commit, C-m v is used to set version)
+Source: https://www.reddit.com/r/emacs/comments/auwzjr/weekly_tipstricketc_thread/ehcg919/
+#+begin_src emacs-lisp
+  (when init-flag
+    ;; free up blocked keys (GUI only)
+    ;; add to your init.el
+    (define-key input-decode-map [?\C-m] [C-m])
+    (define-key input-decode-map [?\C-i] [C-i])
+    ;; https://debbugs.gnu.org/cgi/bugreport.cgi?bug=55672
+    ;; (define-key input-decode-map (kbd "C-[") [C-\[])
+    )
+#+end_src
+
+***** Saving web pages into notes :EMACS:COMMON:SOMEDAY:
+:PROPERTIES:
+:CREATED:  [2017-12-30 Sat 22:20]
+:ID:       8e1af85e-3e47-40c3-9b33-34a5e848b483
+:ARCHIVE_TIME: 2024-06-20 Thu 11:11
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Workflow/Attach
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+:LOGBOOK:
+- State "DONE"       from "NEXT"       [2018-09-06 Thu 20:53]
+- State "TODO"       from              [2017-12-30 Sat 22:20]
+:END:
+
+Sometimes, I want to save certain interesting online articles to disk to make sure that all the content and comments are preserved regardless of the website changes.
+
+****** COMMENT org-web-tools
+:PROPERTIES:
+:CREATED:  [2019-04-23 Tue 23:44]
+:ID:       f8a52437-48d9-418a-a00d-c1af5680c230
+:END:
+:LOGBOOK:
+- State "DONE"       from "NEXT"       [2019-04-24 Wed 15:43]
+CLOCK: [2019-04-24 Wed 15:23]--[2019-04-24 Wed 15:43] =>  0:20
+- State "NEXT"       from "TODO"       [2019-04-23 Tue 23:45]
+:END:
+
+With =org-webtools=, I can download and attach web pages to an entry or even insert them converted into org format.
+
+****************** TODO make the web-pages open on C-c C-o
+****************** END
+
+
+#+begin_src emacs-lisp
+(use-package org-web-tools
+  :if init-flag
+  :after org
+  :straight (org-web-tools :host github :repo "alphapapa/org-web-tools" :local-repo "~/Git/org-web-tools"
+			   :fork (:host github :repo "yantar92/org-web-tools"))
+  :bind (:map org-mode-map
+	      ("C-c C-S-u a" . org-web-tools-archive-attach)
+	      ("C-c C-S-u o" . org-web-tools-archive-view)
+	      ("C-c C-S-u i" . org-web-tools-insert-web-page-as-entry))
+  :config
+  (use-package org-web-tools-archive)
+  ;; (setq org-web-tools-archive-fn #'org-web-tools-archive--wget-tar)
+  (setq org-web-tools-archive-wget-options
+	(append (-remove-item  "--execute robots=off" org-web-tools-archive-wget-options) (list "--max-redirect=100")))
+  (setq org-web-tools-archive-wget-html-only-options
+	(append (-remove-item  "--execute robots=off" org-web-tools-archive-wget-html-only-options) (list "--max-redirect=100")))
+  (setq org-web-tools-pandoc-sleep-time 1.0))
+#+end_src
+
+*** 2024-07-22 Monday
+**** Archived Tasks
+***** Chinese input
+:PROPERTIES:
+:CREATED:  [2019-08-03 Sat 17:01]
+:ID:       c822d425-3cfa-4cb7-bf1e-9ea893fbee5c
+:ARCHIVE_TIME: 2024-07-22 Mon 11:56
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Command loop
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON SOMEDAY
+:END:
+
+#+begin_src emacs-lisp
+  (use-package pyim 
+    :if init-flag
+    :straight t
+    :demand t
+    :config
+    (setq default-input-method "pyim")
+    (setq-default pyim-english-input-switch-functions
+		  '(pyim-probe-isearch-mode
+		    pyim-probe-program-mode
+		    pyim-probe-org-structure-template)))
+#+end_src
+

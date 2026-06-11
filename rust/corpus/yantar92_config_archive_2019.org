@@ -1,0 +1,875 @@
+#    -*- mode: org -*-
+
+
+Archived entries from file /home/yantar92/Git/emacs-config/config.org
+* 2019
+** 2019-08 August
+*** 2019-08-15 Thursday
+**** Archived inline tasks
+***** CANCELLED [#A] Maybe use built-in prettify-symbols-mode or pretty-mode or ligatures :CANCELLED:
+CLOSED: [2019-08-15 Thu 17:09] SCHEDULED: <2019-08-13 Tue>
+:PROPERTIES:
+:SHOWFROMDATE: 2019-08-14 18:00
+:ARCHIVE_TIME: 2019-08-19 Mon 08:33
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Appearance/Text in buffers/Visual text transformation/Pretty symbols
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: CANCELLED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "CANCELLED"  from "NEXT"       [2019-08-15 Thu 17:09]
+:END:
+** 2019-11 November
+*** 2019-11-19 Tuesday
+**** Archived Tasks
+***** DONE Debugging current issues
+CLOSED: [2019-11-19 Tue 23:12]
+:PROPERTIES:
+:CREATED:  [2019-04-03 Wed 10:42]
+:ID:       d7431e10-411b-456f-ab6e-76aa07300712
+:ARCHIVE_TIME: 2019-11-19 Tue 23:12
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "NEXT"          [2019-11-19 Tue 23:12]
+- State "NEXT"       from "TODO"       [2019-04-03 Wed 10:42]
+- State "TODO"       from              [2019-04-03 Wed 10:42]
+:END:
+
+Trying to debug "Re-entering top level after C stack overflow", as suggested in [[https://www.reddit.com/r/emacs/comments/9fs8pp/reentering_top_level_after_c_stack_overflow/][reddit]]
+#+begin_src emacs-lisp
+(setq max-lisp-eval-depth 6000
+      max-specpdl-size 6000)
+#+end_src
+
+**** Archived inline tasks
+***** DONE Make it faster
+CLOSED: [2019-11-19 Tue 11:16]
+:PROPERTIES:
+:ARCHIVE_TIME: 2019-11-21 Thu 10:00
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Appearance/Items
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"          [2019-11-19 Tue 11:16]
+:END:
+*** 2019-11-25 Monday
+**** Archived inline tasks
+***** DONE Make it work
+CLOSED: [2019-11-25 Mon 11:50]
+:PROPERTIES:
+:ARCHIVE_TIME: 2019-11-25 Mon 23:38
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Babel/Tangle
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"          [2019-11-25 Mon 11:50]
+:END:
+** 2019-12 December
+*** 2019-12-09 Monday
+**** Archived Tasks
+**** Archived inline tasks
+***** CANCELLED do not use it. Instead store meta- keys names in constants and bind them later. There will be no overhead in the code anyway. [2019-11-28 Thu 10:59] Hmm.... What about depending on buffer contents :CANCELLED:
+CLOSED: [2019-12-09 Mon 13:13]
+:PROPERTIES:
+:ARCHIVE_TIME: 2019-12-09 Mon 13:13
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Command loop/Key bindings/Modal setup
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: CANCELLED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "CANCELLED"  from "TODO"          [2019-12-09 Mon 13:13]
+:END:
+*** 2019-12-15 Sunday
+**** Archived Tasks
+***** centered cursor mode
+:PROPERTIES:
+:CREATED:  [2019-12-15 Sun 06:22]
+:ARCHIVE_TIME: 2019-12-15 Sun 06:46
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Text
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+
+It's still experimental, but I am trying to use centered cursor mode everywhere.
+
+#+begin_src emacs-lisp
+(use-package centered-cursor-mode
+  :if init-flag
+  :straight t
+  :config
+  (global-centered-cursor-mode +1))
+#+end_src
+***** Text file hygiene
+:PROPERTIES:
+:CREATED:  [2019-11-23 Sat 17:35]
+:ID:       24457871-908c-48f3-ae65-3a64fad75eba
+:ARCHIVE_TIME: 2019-12-15 Sun 18:39
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Editing
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+
+Avoid trailing white-spaces at the end of the lines
+
+#+begin_src emacs-lisp
+(add-hook 'before-save-hook #'delete-trailing-whitespace)
+#+end_src
+*** 2019-12-17 Tuesday
+**** Archived inline tasks
+***** DONE make recursive conditions like :mode org-mode :cond org-at-heading-p body
+CLOSED: [2019-12-17 Tue 06:33]
+:PROPERTIES:
+:ARCHIVE_TIME: 2019-12-18 Wed 00:13
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Command loop/Key bindings/Modal setup
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"          [2019-12-17 Tue 06:33]
+:END:
+*** 2019-12-18 Wednesday
+**** Archived inline tasks
+***** CANCELLED Just use threads instead                          :CANCELLED:
+CLOSED: [2019-12-18 Wed 16:27]
+:PROPERTIES:
+:ARCHIVE_TIME: 2019-12-22 Sun 00:40
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: CANCELLED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "CANCELLED"  from "TODO"          [2019-12-18 Wed 16:27] \\
+  Threads will always slow down emacs. It often make sense to just run separate process
+:END:
+*** 2019-12-19 Thursday
+**** Archived inline tasks
+***** DONE make a babel :wrap snippet aka (when init-flag BODY)
+CLOSED: [2019-12-19 Thu 12:52] SCHEDULED: <2019-12-19 Thu>
+:PROPERTIES:
+:ARCHIVE_TIME: 2019-12-22 Sun 00:40
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "NEXT"          [2019-12-19 Thu 12:52]
+CLOCK: [2019-12-19 Thu 12:11]--[2019-12-19 Thu 12:52] =>  0:41
+- State "DONE"       from "DOING"      [2019-12-18 Wed 18:16]
+- State "DONE"       from "NEXT"          [2019-12-18 Wed 18:16]
+CLOCK: [2019-12-18 Wed 17:05]--[2019-12-18 Wed 18:16] =>  1:11
+CLOCK: [2019-12-18 Wed 16:46]--[2019-12-18 Wed 17:04] =>  0:18
+:END:
+
+*** 2019-12-21 Saturday
+**** Archived Tasks
+***** CANCELLED Formatting messages                               :CANCELLED:
+CLOSED: [2019-12-21 Sat 16:36]
+:PROPERTIES:
+:CREATED:  [2019-12-21 Sat 16:29]
+:ARCHIVE_TIME: 2019-12-21 Sat 16:37
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/News & email/=Notmuch=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: CANCELLED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "CANCELLED"  from              [2019-12-21 Sat 16:36] \\
+  Do not need it because the problem with scrolling was in scroll-down-line scrolling beyond the end of buffer
+:END:
+
+Remove trailing newlines in messages
+#+begin_src emacs-lisp
+(use-package notmuch
+  :if init-flag
+  :config
+  (add-hook 'notmuch-show-insert-text/plain-hook (lambda (&rest args) (interactive) (delete-trailing-whitespace))))
+#+end_src
+***** DONE honor inherit export directory
+CLOSED: [2019-12-21 Sat 20:30]
+:PROPERTIES:
+:CREATED:  [2018-07-09 Mon 13:01]
+:ARCHIVE_TIME: 2019-12-22 Sun 00:40
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Attach/Store files in folder structure, following my org tree structure
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"          [2019-12-21 Sat 20:30]
+:END:
+*** 2019-12-22 Sunday
+**** Archived Tasks
+*** 2019-12-25 Wednesday
+**** Archived Tasks
+***** TODO Show file changes in the fringe
+:PROPERTIES:
+:CREATED:  [2019-07-12 Fri 08:51]
+:ID:       183bac3b-5d30-4123-af4c-6012d7625766
+:ARCHIVE_TIME: 2019-12-25 Wed 14:02
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/History & version control
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: TODO
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+This slows down emacs on saving large org buffers.
+Disabling
+
+#+begin_src emacs-lisp
+(use-package git-gutter-fringe+
+  :if init-flag
+  :straight t
+  :diminish git-gutter+-mode
+  :init
+  (use-package fringe-helper)
+  :config
+  (global-git-gutter+-mode))
+#+end_src
+***** TODO COMMENT =Paredit= - read my mind when I write elisp
+:PROPERTIES:
+:CREATED:  [2019-12-20 Fri 00:09]
+:ARCHIVE_TIME: 2019-12-25 Wed 14:37
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Programming & emacsing/Elisp coding
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: TODO
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- Refiled on [2019-12-21 Sat 15:31]
+:END:
+Too much unusual behaviour. 
+I would rather use smartparens
+*************** NEXT look at the editing commands
+:LOGBOOK:
+- State "CANCELLED"  from "TODO"          [2019-12-20 Fri 23:59]
+:END:
+*************** END
+*************** NEXT make it work well with meta-functions
+:LOGBOOK:
+- State "CANCELLED"  from "TODO"          [2019-12-20 Fri 23:59]
+:END:
+*************** END
+#+begin_src emacs-lisp :tangle no
+(use-package paredit
+  :if init-flag
+  :straight t
+  :hook ((emacs-lisp-mode lisp-interaction-mode) . paredit-mode)
+  :config
+  (meta-defun meta-move-line-right :mode emacs-lisp-mode paredit-forward-slurp-sexp)
+  (meta-defun meta-move-line-left :mode emacs-lisp-mode paredit-backward-slurp-sexp)
+  (bind-keys :map emacs-lisp-mode-map
+	     ("M-o" . paredit-forward-slurp-sexp)
+             ("M-i" . paredit-forward-slurp-sexp))
+  )
+#+end_src
+*** 2019-12-27 Friday
+**** Archived inline tasks
+***** DONE [#A] make sure it works
+CLOSED: [2019-12-27 Fri 23:03] SCHEDULED: <2019-12-22 Sun>
+:PROPERTIES:
+:ARCHIVE_TIME: 2019-12-30 Mon 10:38
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Appearance/Mini-buffer/Stack messages in mini-buffer when they appear quickly after each other
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "NEXT"          [2019-12-27 Fri 23:03]
+CLOCK: [2019-12-27 Fri 22:57]--[2019-12-27 Fri 23:03] =>  0:06
+CLOCK: [2019-12-22 Sun 16:22]--[2019-12-22 Sun 17:13] =>  0:51
+:END:
+**** Archived Tasks
+***** FAILED [#A] this example seems to be wrong |- (alphapapa/org-ql: An Org-mode query language, including search commands and saved views) :BOOKMARK:
+CLOSED: [2019-12-27 Fri 16:52] SCHEDULED: <2019-12-23 Mon>
+:PROPERTIES:
+:CREATED: [2019-12-22 Sun 19:27]
+:Source: https://github.com/alphapapa/org-ql
+:ARCHIVE_TIME: 2019-12-30 Mon 10:38
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Agenda & scheduling/Trying =org-ql=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: FAILED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "FAILED"     from "NEXT"          [2019-12-27 Fri 16:52] \\
+  It's fine
+CLOCK: [2019-12-27 Fri 16:35]--[2019-12-27 Fri 16:52] =>  0:17
+- Refiled on [2019-12-23 Mon 18:08]
+- Refiled on [2019-12-23 Mon 10:57]
+:END:
+ ((org-ql-block-header "SOMEDAY :Emacs: High-priority")))
+***** DONE [#A] ignoring "B" default priority in org-ql is not in github page
+CLOSED: [2019-12-27 Fri 16:57] SCHEDULED: <2019-12-23 Mon>
+:PROPERTIES:
+:CREATED: [2019-12-22 Sun 19:43]
+:ARCHIVE_TIME: 2019-12-30 Mon 10:38
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Agenda & scheduling/Trying =org-ql=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "NEXT"          [2019-12-27 Fri 16:57]
+CLOCK: [2019-12-27 Fri 16:52]--[2019-12-27 Fri 16:57] =>  0:05
+- Refiled on [2019-12-23 Mon 18:08]
+- Refiled on [2019-12-23 Mon 10:57]
+CLOCK: [2019-12-22 Sun 19:43]--[2019-12-22 Sun 19:44] =>  0:01
+:END:
+***** DONE [#A] org-ql-block does not apply link face when link is in heading
+CLOSED: [2019-12-27 Fri 16:59] SCHEDULED: <2019-12-23 Mon>
+:PROPERTIES:
+:CREATED: [2019-12-22 Sun 19:55]
+:ARCHIVE_TIME: 2019-12-30 Mon 10:38
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Agenda & scheduling/Trying =org-ql=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "NEXT"          [2019-12-27 Fri 16:59]
+CLOCK: [2019-12-27 Fri 16:57]--[2019-12-27 Fri 16:59] =>  0:02
+- Refiled on [2019-12-23 Mon 18:08]
+- Refiled on [2019-12-23 Mon 10:57]
+:END:
+***** MERGED [#A] helm-org-ql search does not seem to understand outline path by default. It would make sense....
+CLOSED: [2019-12-27 Fri 16:59] SCHEDULED: <2019-12-23 Mon>
+:PROPERTIES:
+:CREATED: [2019-12-22 Sun 20:48]
+:ARCHIVE_TIME: 2019-12-30 Mon 10:38
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Agenda & scheduling/Trying =org-ql=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: MERGED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "MERGED"     from "NEXT"          [2019-12-27 Fri 16:59]
+- Refiled on [2019-12-23 Mon 18:08]
+- Refiled on [2019-12-23 Mon 10:57]
+:END:
+***** CANCELLED [#A] how to emulate org-tags-match-list-sublevels from agenda in org-ql? :CANCELLED:
+CLOSED: [2019-12-27 Fri 17:27] SCHEDULED: <2019-12-23 Mon>
+:PROPERTIES:
+:CREATED: [2019-12-23 Mon 14:39]
+:ARCHIVE_TIME: 2019-12-30 Mon 10:38
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Agenda & scheduling/Trying =org-ql=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: CANCELLED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "CANCELLED"  from "NEXT"          [2019-12-27 Fri 17:27]
+CLOCK: [2019-12-27 Fri 17:12]--[2019-12-27 Fri 17:27] =>  0:15
+- Refiled on [2019-12-23 Mon 18:08]
+- Refiled on [2019-12-23 Mon 18:05]
+:END:
+***** MERGED [#A] What about looking at ancestors?
+CLOSED: [2019-12-27 Fri 17:12] SCHEDULED: <2019-12-24 Tue>
+:PROPERTIES:
+:CREATED:  [2019-12-24 Tue 14:48]
+:ARCHIVE_TIME: 2019-12-30 Mon 10:38
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Agenda & scheduling/Trying =org-ql=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: MERGED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "MERGED"     from "NEXT"          [2019-12-27 Fri 17:12]
+CLOCK: [2019-12-27 Fri 17:10]--[2019-12-27 Fri 17:12] =>  0:02
+:END:
+***** DONE [#A] the following happens when I try to change the todo state of a task in org-ql
+CLOSED: [2019-12-27 Fri 17:06] SCHEDULED: <2019-12-26 Thu>
+:PROPERTIES:
+:CREATED: [2019-12-25 Wed 15:46]
+:ID:       afafd4b1-fdca-4126-a69f-e690373e662f
+:ARCHIVE_TIME: 2019-12-30 Mon 10:38
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Agenda & scheduling/Trying =org-ql=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "NEXT"          [2019-12-27 Fri 17:06]
+CLOCK: [2019-12-27 Fri 17:04]--[2019-12-27 Fri 17:06] =>  0:02
+- Refiled on [2019-12-26 Thu 13:51]
+CLOCK: [2019-12-25 Wed 15:46]--[2019-12-25 Wed 15:47] =>  0:01
+:END:
+#+begin_quote
+  DOING [#A] try this email |- Adam Porter <adam@alphapapa.net>: Re: Asynchronous org-agenda-redo  2d ago                                                :COMMON:EMAIL:
+            	get_started_org_mode:	 -0.9x	DONE [#A] try to play with options by removing DOUG_LEA_MALLOC conds email |- Eli Zaretskii <eliz@gnu.org>: Re: bug#38345: 27.0.50; Permanent increase in memory consumption after opening images (or pdfs) :COMMON::EMAIL:
+            	get_started_org_mode:	 -0.9x	DOING [#A] benchmark agenda after 1 day running                                                            :COMMON::
+#+end_quote
+***** DONE [#A] subtree agenda restriction seems to be ignored
+CLOSED: [2019-12-27 Fri 17:10] SCHEDULED: <2019-12-27 Fri>
+:PROPERTIES:
+:CREATED:  [2019-12-27 Fri 16:34]
+:ARCHIVE_TIME: 2019-12-30 Mon 10:38
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Agenda & scheduling/Trying =org-ql=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "NEXT"          [2019-12-27 Fri 17:10]
+CLOCK: [2019-12-27 Fri 17:06]--[2019-12-27 Fri 17:10] =>  0:04
+:END:
+*** 2019-12-30 Monday
+**** Archived Tasks
+***** MERGED [#A] make org-ql format agenda items better
+CLOSED: [2019-12-30 Mon 11:52] SCHEDULED: <2020-01-04 Sat>
+:PROPERTIES:
+:CREATED: [2019-12-22 Sun 21:35]
+:SHOWFROMDATE: 2019-12-28
+:ARCHIVE_TIME: 2020-01-09 Thu 16:02
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Agenda & scheduling/Trying =org-ql=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: MERGED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "MERGED"     from "NEXT"          [2019-12-30 Mon 11:52]
+CLOCK: [2019-12-27 Fri 16:59]--[2019-12-27 Fri 17:04] =>  0:05
+- Refiled on [2019-12-23 Mon 18:08]
+- Refiled on [2019-12-23 Mon 10:57]
+:END:
+* 2020
+** 2020-03 March
+*** 2020-03-11 Wednesday
+**** Archived inline tasks
+***** DONE adjust the width for various symbols 
+CLOSED: [2020-03-11 Wed 23:44]
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-03-28 Sat 15:00
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Appearance/Theme
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"          [2020-03-11 Wed 23:44]
+:END:
+***** DONE this thing should be smarter and consider that multibyte characters can have different width. I will try to keep 2-byte double width. Then the string should be trimmed to certain number of bytes, but not certain character number
+CLOSED: [2020-03-11 Wed 23:17]
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-03-28 Sat 15:00
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Appearance/Agenda
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"          [2020-03-11 Wed 23:17]
+:END:
+*** 2020-03-30 Monday
+**** Archived Tasks
+***** FAILED Make it work everywhere
+CLOSED: [2020-03-30 Mon 22:51]
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-03-30 Mon 22:51
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Command loop/Key bindings/Make key bindings work in Ukrainian/Russian =keymap=
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: FAILED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "FAILED"     from "TODO"          [2020-03-30 Mon 22:51]
+:END:
+- +This does not work with things like =C-c 'symbol= for now.+
+- +This does not work with boon =command mode= and =special mode=.+
+- this does not work with key chords (again read-event)
+- this does not work with region specifiers on boon (it uses read-event!)
+**** Archived inline tasks
+***** DONE ask in org mail-list about save-window-config in emacs src execution
+CLOSED: [2020-03-30 Mon 22:00]
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-03-31 Tue 22:53
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Links/Internal/=Src= block links
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"          [2020-03-30 Mon 22:00]
+:END:
+***** DONE ask mail-list about what "internal link means" in org-agenda-open-link. Condition look strange. Why just non-bracket link?
+CLOSED: [2020-03-30 Mon 22:00]
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-03-31 Tue 22:53
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Links/Internal/=Src= block links
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"          [2020-03-30 Mon 22:00]
+:END:
+***** DONE my changes broke some C-c C-o behaviour. reverted for now, but need to investigate
+CLOSED: [2020-03-30 Mon 22:00]
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-03-31 Tue 22:53
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Links/Internal/=Src= block links
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"          [2020-03-30 Mon 22:00]
+:END:
+** 2020-04 April
+*** 2020-04-02 Thursday
+**** Archived Tasks
+***** Highlight uncommitted changes in version-controlled files and dirs
+:PROPERTIES:
+:CREATED:  [2019-04-05 Fri 16:37]
+:ID:       c5fc942a-d468-4102-9c90-6275fd605e92
+:ARCHIVE_TIME: 2020-04-02 Thu 13:40
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Text highlight & colouring
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+
+It slows down large org files though. Not going to use.
+
+#+begin_src emacs-lisp
+(use-package git-gutter-fringe
+  :if init-flag
+  :straight t
+  :init
+  (setq git-gutter-fr:side 'right-fringe)
+  :config
+  (add-hook 'magit-mode-hook #'git-gutter-mode))
+#+end_src
+*** 2020-04-08 Wednesday
+**** Archived inline tasks
+***** CANCELLED do not show changes if the old todo was actually the same                       :CANCELLED:
+CLOSED: [2020-04-08 Wed 12:39]
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-04-08 Wed 12:40
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Appearance/Agenda
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: CANCELLED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "CANCELLED"  from "TODO"          [2020-04-08 Wed 12:39]
+:END:
+***** DONE I solved the issue with losing fontification of todo keywords when keyword actually does not change, but if it changes, still have problem 
+CLOSED: [2020-04-08 Wed 12:39]
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-04-08 Wed 12:40
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Appearance/Agenda
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: DONE
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "DONE"       from "TODO"          [2020-04-08 Wed 12:39]
+:END:
+***** CANCELLED maybe only show done?                                                           :CANCELLED:
+CLOSED: [2020-04-08 Wed 12:39]
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-04-08 Wed 12:40
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Appearance/Agenda
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: CANCELLED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "CANCELLED"  from "TODO"          [2020-04-08 Wed 12:39]
+:END:
+*** 2020-04-09 Thursday
+**** Archived Tasks
+***** Execute current buffer (c++,python,bash,...)
+:PROPERTIES:
+:ID:       a57244bb-a617-44b4-a806-7cff82a86ac7
+:ARCHIVE_TIME: 2020-04-09 Thu 00:50
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Programming & emacsing
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+#+begin_src emacs-lisp
+(use-package quickrun
+  :if init-flag
+  :straight t
+  :bind (
+	 ("<f10>" . quickrun)
+	 ("<C-XF86Search>" . quickrun-with-arg)
+	 ("<C-M-XF86Search>" . quickrun-shell)
+	 ("<C-XF86Explorer>" . quickrun-region)
+	 ("<C-M-XF86Explorer>" . quickrun-replace-region)
+	 ("<f12>" . helm-quickrun)))
+#+end_src
+***** CANCELLED Bookmarks                                                                       :CANCELLED:
+CLOSED: [2020-04-09 Thu 17:22]
+:PROPERTIES:
+:ID:       a3d45efd-52f8-44f7-a699-940033cba429
+:ARCHIVE_TIME: 2020-04-09 Thu 17:22
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: CANCELLED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "CANCELLED"  from "TODO"          [2020-04-09 Thu 17:22]
+:END:
+
+#+BEGIN_SRC emacs-lisp
+(use-package bm
+  :if init-flag
+  :straight t
+  :demand t
+
+  :init
+  ;; restore on load (even before you require bm)
+  (setq bm-restore-repository-on-load t)
+
+
+  :config
+
+  (use-package helm-bm :straight t)
+
+  ;; Allow cross-buffer 'next'
+  (setq bm-cycle-all-buffers t)
+
+  ;; highligh style
+  (setq bm-highlight-style 'bm-highlight-line-and-fringe)
+  (custom-set-faces '(bm-persistent-face ((t (:background "Lightyellow")))))
+  (custom-set-faces '(bm-fringe-persistent-face ((t (:background "Lightyellow")))))
+
+  ;; where to store persistant files
+  (setq bm-repository-file "~/.emacs.d/bm-repository")
+
+  ;; save bookmarks
+  (setq-default bm-buffer-persistence t)
+
+  ;; Loading the repository from file when on start up.
+  (add-hook' after-init-hook 'bm-repository-load)
+
+  ;; Saving bookmarks
+  (add-hook 'kill-buffer-hook #'bm-buffer-save)
+
+  ;; Saving the repository to file when on exit.
+  ;; kill-buffer-hook is not called when Emacs is killed, so we
+  ;; must save all bookmarks first.
+  (add-hook 'kill-emacs-hook #'(lambda nil
+                                 (bm-buffer-save-all)
+                                 (bm-repository-save)))
+
+  ;; The `after-save-hook' is not necessary to use to achieve persistence,
+  ;; but it makes the bookmark data in repository more in sync with the file
+  ;; state.
+  (add-hook 'after-save-hook #'bm-buffer-save)
+
+  ;; Restoring bookmarks
+  (add-hook 'find-file-hooks   #'bm-buffer-restore)
+  (add-hook 'after-revert-hook #'bm-buffer-restore)
+
+  ;; The `after-revert-hook' is not necessary to use to achieve persistence,
+  ;; but it makes the bookmark data in repository more in sync with the file
+  ;; state. This hook might cause trouble when using packages
+  ;; that automatically reverts the buffer (like vc after a check-in).
+  ;; This can easily be avoided if the package provides a hook that is
+  ;; called before the buffer is reverted (like `vc-before-checkin-hook').
+  ;; Then new bookmarks can be saved before the buffer is reverted.
+  ;; Make sure bookmarks is saved before check-in (and revert-buffer)
+  (add-hook 'vc-before-checkin-hook #'bm-buffer-save)
+
+  (use-package meta-functions
+    :defer t
+    :config
+    (meta-defun meta-down-element :mode bm-show-mode bm-show-next)
+    (meta-defun meta-up-element :mode bm-show-mode bm-show-prev))
+
+  :bind (:map boon-command-map
+	      ("N" . bm-toggle)
+	      ("M-n" . bm-bookmark-annotate)
+	      :map boon-insert-map
+	      ("M-N" . bm-toggle)
+	      ("C-M-N" . bm-toggle)
+              :map boon-goto-map
+              ("n" . bm-show)
+              ("N" . helm-bm)
+	      :map boon-forward-search-map
+	      ("n" . bm-next)
+              :map boon-backward-search-map
+              ("n" . bm-previous)
+              :map bm-show-mode-map
+              ("<tab>" . bm-show-goto-bookmark)
+              )
+  )
+#+END_SRC
+***** Wind move
+:PROPERTIES:
+:ID:       8cd8df5e-ff33-46ac-9864-38e990f745de
+:ARCHIVE_TIME: 2020-04-09 Thu 17:36
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Windows
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+#+begin_src emacs-lisp
+(use-package boon
+  :if init-flag
+  :config
+  (bind-keys :map boon-forward-search-map
+	     ("j" . windmove-down)
+             ("k" . windmove-up)
+             ("i". windmove-left)
+             ("o" . windmove-right)
+             ("l" . other-window)
+             :map boon-backward-search-map
+	     ("j" . windmove-down)
+             ("k" . windmove-up)
+             ("i". windmove-left)
+             ("o" . windmove-right)
+	     ("l" . other-window)))
+#+end_src
+*** 2020-04-14 Tuesday
+**** Archived Tasks
+***** Show recursive directory size
+:PROPERTIES:
+:CREATED:  [2020-04-14 Tue 14:20]
+:ARCHIVE_TIME: 2020-04-14 Tue 14:58
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Search & navigation/Files/Search directories/=Dired=/Appearance
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+#+begin_src emacs-lisp
+(use-package dired-du
+  :if init-flag
+  :straight t
+  :diminish dired-du-mode
+  :custom
+  ;; human readable size
+  (dired-du-size-format t))
+#+end_src
+*** 2020-04-20 Monday
+**** Archived inline tasks
+***** CANCELLED Use boon selection here to call org-cut-subtree conditionally                   :CANCELLED:
+CLOSED: [2020-04-20 Mon 21:01]
+:PROPERTIES:
+:ARCHIVE_TIME: 2020-04-20 Mon 21:01
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Org mode/Misc/Org mode editing
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_TODO: CANCELLED
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+:LOGBOOK:
+- State "CANCELLED"  from "TODO"          [2020-04-20 Mon 21:01]
+:END:
+**** Archived Tasks
+***** Comment/uncomment
+:PROPERTIES:
+:ID:       957cd651-ad7a-467d-b6d5-ac8bf92d839d
+:ARCHIVE_TIME: 2020-04-20 Mon 21:09
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Editing
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+#+begin_src emacs-lisp
+(use-package comment-dwim-2
+  :if init-flag
+  :straight t
+  :bind (:map prog-mode-map
+	      ("M-;" . comment-dwim-2)))
+#+end_src
+*** 2020-04-23 Thursday
+**** Archived Tasks
+***** =((((((= auto close parentheses =)))))))=
+:PROPERTIES:
+:CREATED:  [2019-12-23 Mon 19:36]
+:ID:       a8a2499f-32fc-43ee-b9a0-0176bf9f2ee0
+:ARCHIVE_TIME: 2020-04-23 Thu 14:42
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Programming & emacsing
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+
+#+begin_src emacs-lisp
+(use-package elec-pair
+  :if init-flag
+  :hook (emacs-lisp-mode . electric-pair-local-mode))
+#+end_src
+***** Show current value in separate buffer
+:PROPERTIES:
+:CREATED:  [2019-08-11 Sun 15:21]
+:ID:       77bcfa1d-8a0f-47fb-a41b-a41111d5b189
+:ARCHIVE_TIME: 2020-04-23 Thu 14:48
+:ARCHIVE_FILE: ~/Git/emacs-config/config.org
+:ARCHIVE_OLPATH: Emacs configuration/Debugging/Appearance
+:ARCHIVE_CATEGORY: config
+:ARCHIVE_ITAGS: EMACS COMMON
+:END:
+
+#+begin_src emacs-lisp
+;; From https://www.reddit.com/r/emacs/comments/7htdzk/show_reddit_prettyprint_debugger_frames/
+
+(use-package debug
+  :if init-flag
+  :config
+  (defun gk-debugger-pp-frame ()
+    (interactive)
+    (let ((inhibit-read-only t)
+          (frame (backtrace-frame (debugger-frame-number))))
+      (set-buffer (pop-to-buffer "*BT: Frame*"))
+      (destructuring-bind (special fn &rest args) frame
+	(erase-buffer)
+	(progn
+          (insert "(" (pp-to-string fn))
+          (dolist (arg args)
+            (insert "\n" (pp-to-string arg)))
+          (insert ")"))
+	(goto-char (point-min))
+	(indent-pp-sexp))))
+  (define-key debugger-mode-map "r" 'gk-debugger-pp-frame))
+#+end_src
