@@ -136,7 +136,7 @@ fn is_post_char(b: u8) -> bool {
 /// `bytes`.
 #[inline]
 fn scan_plain_text_end(bytes: &[u8]) -> usize {
-    let p1 = memchr2(b'[', b'<', bytes);
+    let p1 = memchr3(b'[', b'<', b'\\', bytes);
     let mut p2 = memchr2(b'*', b'/', bytes);
     let mut p3 = memchr3(b'+', b'=', b'~', bytes);
     let mut p4 = memchr3(b'h', b'f', b'm', bytes);
@@ -150,7 +150,7 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
         };
         let b = bytes[i];
 
-        if matches!(b, b'[' | b'<') {
+        if matches!(b, b'[' | b'<' | b'\\') {
             return i;
         }
         if matches!(b, b'*' | b'/' | b'+' | b'=' | b'~') && i > 0 && is_pre_char(bytes[i - 1]) {
@@ -709,12 +709,21 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                             }
                             result
                         }
-                        b'\\' => self.try_parse_entity(remaining, pos).map(|(n, c)| {
-                            if restriction(SyntaxT::Entity) {
-                                children.push(n);
+                        b'\\' => {
+                            let mut result = None;
+                            if let Some((n, c)) = self.try_parse_latex_fragment(remaining, pos) {
+                                if restriction(SyntaxT::LatexFragment) {
+                                    children.push(n);
+                                }
+                                result = Some(c);
+                            } else if let Some((n, c)) = self.try_parse_entity(remaining, pos) {
+                                if restriction(SyntaxT::Entity) {
+                                    children.push(n);
+                                }
+                                result = Some(c);
                             }
-                            c
-                        }),
+                            result
+                        }
                         b'<' => {
                             let mut result = None;
                             if let Some((n, c)) = self.try_parse_timestamp(remaining, pos) {
@@ -1460,5 +1469,105 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         );
 
         Some((node, end))
+    }
+
+    /// Parse a LaTeX fragment from `text`, consuming the fragment text and
+    /// any trailing whitespace (post-blank).
+    ///
+    /// Recognised patterns:
+    ///
+    /// 1. `\command{...}`           — backslash + letters (optionally `*`) + brace group
+    /// 2. `\command[...]{...}`      — with optional bracket argument
+    /// 3. `\command`               — bare command (no arguments)
+    fn try_parse_latex_fragment(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
+        let bytes = text.as_bytes();
+        if bytes.is_empty() || bytes[0] != b'\\' {
+            return None;
+        }
+        let len = bytes.len();
+
+        // Scan command name: letters, optionally ending with '*'
+        let mut pos = 1;
+        if pos >= len || !bytes[pos].is_ascii_alphabetic() {
+            return None;
+        }
+        pos += 1;
+        while pos < len && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'*') {
+            pos += 1;
+        }
+
+        let mut has_args = false;
+
+        // Skip optional bracket argument [...]
+        if pos < len && bytes[pos] == b'[' {
+            has_args = true;
+            pos += 1;
+            let mut depth = 1;
+            while pos < len && depth > 0 {
+                if bytes[pos] == b'[' {
+                    depth += 1;
+                } else if bytes[pos] == b']' {
+                    depth -= 1;
+                }
+                pos += 1;
+            }
+            if depth != 0 {
+                return None;
+            }
+        }
+
+        // Consume one or more brace groups {...}
+        if pos < len && bytes[pos] == b'{' {
+            has_args = true;
+            loop {
+                let mut depth = 0;
+                while pos < len && bytes[pos] == b'{' {
+                    depth += 1;
+                    pos += 1;
+                }
+                if depth == 0 {
+                    break;
+                }
+                while pos < len && depth > 0 {
+                    if bytes[pos] == b'{' {
+                        depth += 1;
+                    } else if bytes[pos] == b'}' {
+                        depth -= 1;
+                    }
+                    pos += 1;
+                }
+                if depth != 0 {
+                    return None;
+                }
+            }
+        }
+
+        if !has_args {
+            // Bare command — check if this is a known entity; if so, let the
+            // entity parser handle it. Only match non-entity bare commands.
+            if EntityData::new(&text[1..pos]).is_some() {
+                return None;
+            }
+        }
+
+        let consumed = pos; // position after the command name / closing '}'
+        let fragment_text = &text[..consumed];
+
+        let post_blank = text[consumed..]
+            .bytes()
+            .take_while(|&b| b == b' ' || b == b'\t')
+            .count();
+        let total_consumed = consumed + post_blank;
+
+        let node = self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::LatexFragment(fragment_text),
+                (start, start + total_consumed),
+                self.bump,
+            )
+            .build(),
+        );
+
+        Some((node, total_consumed))
     }
 }
