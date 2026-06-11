@@ -2161,6 +2161,8 @@ mod subscript_superscript {
 }
 
 mod post_blank {
+    use crate::data::Interval;
+
     use super::*;
 
     fn plain_text_starts(input: &str) -> Vec<usize> {
@@ -2356,20 +2358,20 @@ mod post_blank {
         //  0    5 6 7
         //            ^ 'M'
         // Emacs absorbs the blank line as post-blank of the first paragraph:
-        //   Paragraph (0,6)  — "text.\n"  (post_blank=1)
-        //   Paragraph (6,11) — "More\n"
-        // Rust must NOT split a PlainText at byte 6 (the second \n).
+        //   Paragraph (0,7)  — location spans "text.\n\n", post_blank=1
+        //   Paragraph (7,12) — spans "More\n"
         let bump = Bump::new();
         let mut parser = Parser::new("text.\n\nMore\n", ParseGranularity::Element, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
-        // Collect paragraph location.ends
         let section = arena[root].children.first().expect("section");
         let paras: Vec<_> = arena[*section].children.iter().map(|&id| {
-            arena[id].location
+            (&arena[id], arena[id].post_blank)
         }).collect();
         assert_eq!(paras.len(), 2, "expected 2 paragraphs");
-        assert_eq!(paras[0].start, 0);
-        assert_eq!(paras[0].end, 6, "first paragraph should end at byte 6 (text. + \\n), not further");
-        assert_eq!(paras[1].start, 6);
+        assert_eq!(paras[0].0.location.start, 0);
+        assert_eq!(paras[0].0.location.end, 7, "first paragraph location should include the blank line");
+        assert_eq!(paras[0].1, 1, "first paragraph should have post_blank=1");
+        assert_eq!(paras[1].0.location.start, 7);
+        assert_eq!(paras[1].0.location.end, 12);
     }
 }

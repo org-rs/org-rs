@@ -31,6 +31,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             affiliated,
         } = element_span;
         let mut end = start;
+        let mut post_blank: usize = 0;
 
         // Advance line by line until we hit a blank line, an element
         // start pattern, or the limit.
@@ -55,6 +56,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
             // Blank line — terminate the paragraph.
             let Some(i) = content_start else {
+                post_blank = 1;
                 end = line_end;
                 break;
             };
@@ -104,11 +106,13 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 .map_or(limit, |i| start + i + 1);
         }
 
-        let children = self.parse_objects((start, end), |_| true);
+        let content_end = end - post_blank;
+        let children = self.parse_objects((start, content_end), |_| true);
 
         self.arena.alloc_with_children(
             SyntaxNode::new(Syntax::Paragraph, (start, end), self.bump)
-                .content((start, end))
+                .content((start, content_end))
+                .post_blank(post_blank)
                 .affiliated(affiliated)
                 .build(),
             children,
