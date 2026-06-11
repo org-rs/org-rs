@@ -590,6 +590,9 @@ pub enum Syntax<'a, 'b> {
     /// Object.
     Code(&'a str),
 
+    /// Recursive object.
+    Citation(&'b mut CitationData<'a>),
+
     /// Object
     Entity(&'b mut EntityData<'a>),
 
@@ -730,7 +733,8 @@ impl SyntaxT {
         use SyntaxT::*;
         matches!(
             self,
-            Bold | Code
+            Bold | Citation
+                | Code
                 | Entity
                 | ExportSnippet
                 | FootnoteReference
@@ -759,7 +763,8 @@ impl SyntaxT {
         use SyntaxT::*;
         matches!(
             self,
-            Bold | FootnoteReference
+            Bold | Citation
+                | FootnoteReference
                 | Italic
                 | Link
                 | RadioTarget
@@ -778,6 +783,7 @@ impl SyntaxT {
                 | TableRow
                 | VerseBlock
                 | Bold
+                | Citation
                 | FootnoteReference
                 | Italic
                 | Link
@@ -857,6 +863,24 @@ impl SyntaxT {
             //       strike-through subscript superscript
             //       underline verbatim)
             Link => matches!(
+                that,
+                Bold | Code
+                    | Entity
+                    | ExportSnippet
+                    | InlineBabelCall
+                    | InlineSrcBlock
+                    | Italic
+                    | LatexFragment
+                    | Macro
+                    | StatisticsCookie
+                    | StrikeThrough
+                    | Script
+                    | Underline
+                    | Verbatim
+            ),
+
+            // citation can contain the same set as link
+            Citation => matches!(
                 that,
                 Bold | Code
                     | Entity
@@ -1380,6 +1404,21 @@ pub struct RadioTargetData<'a> {
 pub struct StatisticsCookieData<'a> {
     /// Full cookie (string).
     value: &'a str,
+}
+
+#[derive(Debug)]
+pub struct CitationData<'a> {
+    /// Full raw citation text, e.g. "[cite/t:@all]".
+    raw: &'a str,
+    /// Optional style suffix, e.g. "t" from "/t" in "[cite/t:@all]".
+    style: Option<&'a str>,
+}
+
+impl<'a> CitationData<'a> {
+    #[inline]
+    pub fn new(raw: &'a str, style: Option<&'a str>) -> Self {
+        CitationData { raw, style }
+    }
 }
 
 /// Whether a subscript or superscript is enclosed in curly brackets.

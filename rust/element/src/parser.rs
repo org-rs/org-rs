@@ -19,7 +19,7 @@ use crate::affiliated::ElementSpan;
 use crate::babel::REGEX_BABEL_CALL;
 use crate::cursor::Cursor;
 use crate::data::{
-    Brackets, BumpVec, EntityData, FootnoteReferenceData, Interval, LinkData, NodeArena, NodeId,
+    Brackets, BumpVec, CitationData, EntityData, FootnoteReferenceData, Interval, LinkData, NodeArena, NodeId,
     ScriptFlags, ScriptKind, Syntax, SyntaxNode, SyntaxT, TimestampData,
 };
 
@@ -696,6 +696,11 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                                     children.push(n);
                                 }
                                 result = Some(c);
+                            } else if let Some((n, c)) = self.try_parse_citation(remaining, pos) {
+                                if restriction(SyntaxT::Citation) {
+                                    children.push(n);
+                                }
+                                result = Some(c);
                             } else if let Some((n, c)) = self.try_parse_link(remaining, pos) {
                                 if restriction(SyntaxT::Link) {
                                     children.push(n);
@@ -1220,6 +1225,70 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             .build(),
         );
         Some((node, consumed))
+    }
+
+    /// Parse a citation object: `[cite/style:@key1; @key2]`.
+    fn try_parse_citation(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
+        let bytes = text.as_bytes();
+        if !bytes.starts_with(b"[cite") {
+            return None;
+        }
+        // After "[cite", look for '/' (style) or ':' (end of keyword)
+        let mut pos = 5; // len("[cite")
+        let style = if bytes.get(pos) == Some(&b'/') {
+            pos += 1;
+            let style_start = pos;
+            while let Some(&b) = bytes.get(pos) {
+                if b == b':' {
+                    break;
+                }
+                pos += 1;
+            }
+            if pos <= style_start {
+                return None;
+            }
+            Some(&text[style_start..pos])
+        } else {
+            None
+        };
+        // Now at ':'
+        if bytes.get(pos) != Some(&b':') {
+            return None;
+        }
+        pos += 1; // skip ':'
+        // Scan for closing ']' — must contain at least one '@'
+        let close_start = pos;
+        while let Some(&b) = bytes.get(pos) {
+            if b == b']' {
+                break;
+            }
+            pos += 1;
+        }
+        if bytes.get(pos) != Some(&b']') {
+            return None;
+        }
+        // Must contain at least one '@' before the closing ']'
+        if !text[close_start..pos].contains('@') {
+            return None;
+        }
+        let close = pos;
+        let consumed = close + 1;
+        let post_blank = text[consumed..]
+            .bytes()
+            .take_while(|&b| b == b' ' || b == b'\t')
+            .count();
+        let total_consumed = consumed + post_blank;
+        let raw = &text[..consumed];
+        let data = CitationData::new(raw, style);
+        let node = self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::Citation(self.bump.alloc(data)),
+                (start, start + total_consumed),
+                self.bump,
+            )
+            .build(),
+        );
+        Some((node, total_consumed))
     }
 
     fn try_parse_footnote_reference(
