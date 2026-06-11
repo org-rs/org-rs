@@ -1115,6 +1115,40 @@ mod drawer {
             "Rust absorbs ':' lines after headline body into Paragraph instead of PropertyDrawer"
         );
     }
+
+    /// A regular drawer placed immediately after a property drawer must
+    /// have its body parsed into a Paragraph. Regression from
+    /// `karl_voit_config.org` (`:LINKS:` drawer): Rust recognises the
+    /// drawer but produces no Paragraph child for its contents.
+    #[test]
+    fn paragraph_inside_drawer() {
+        let input = "* H\n\
+                     :PROPERTIES:\n\
+                     :ID:       x\n\
+                     :END:\n\
+                     :LINKS:\n\
+                     [2026-02-16 Mon 19:10] <- [[id:foo][General]]\n\
+                     :END:\n\n\
+                     text\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+
+        fn drawer_has_para(arena: &NodeArena, id: NodeId, in_drawer: bool) -> bool {
+            if in_drawer && matches!(arena[id].data, Syntax::Paragraph) {
+                return true;
+            }
+            let is_drawer = matches!(arena[id].data, Syntax::Drawer(_));
+            arena[id]
+                .children
+                .iter()
+                .any(|&c| drawer_has_para(arena, c, in_drawer || is_drawer))
+        }
+        assert!(
+            drawer_has_para(&arena, root, false),
+            "Expected a Paragraph inside the :LINKS: drawer; Rust produced none"
+        );
+    }
 }
 
 mod planning {
@@ -1524,6 +1558,22 @@ mod horizontal_rule {
                 granularity, list_count
             );
         }
+    }
+
+    /// A horizontal rule directly after a non-blank paragraph line (no
+    /// intervening blank line) must still break the paragraph and be
+    /// recognised. Regression from `karl_voit_config.org`:
+    /// `about 24 miles per\n--------\n` — Emacs emits paragraph +
+    /// horizontal-rule, but Rust absorbs the dashes into the paragraph.
+    #[test]
+    fn horizontal_rule_directly_after_paragraph_line() {
+        let input = "about 24 miles per\n--------\n\nAnswer\n";
+        let count = get_type_count(input, SyntaxT::HorizontalRule, ParseGranularity::Element);
+        assert_eq!(
+            count, 1,
+            "Expected 1 horizontal rule after a non-blank paragraph line, found {}",
+            count
+        );
     }
 }
 
@@ -2554,6 +2604,66 @@ mod post_blank {
         assert_eq!(
             count, 0,
             "expected 0 Underline for '_#+BEGIN_CENTER_', got {} — emphasis pre-condition not checked",
+            count
+        );
+    }
+
+    #[test]
+    fn citation_reference_inside_citation() {
+        // Emacs parses `[cite/t:@all]` as a Citation that contains a
+        // CitationReference (`@all`). Rust builds the Citation node but
+        // never parses its reference child — the Rust data model has no
+        // CitationReference variant, so the citation comes out childless.
+        let bump = Bump::new();
+        let mut parser = Parser::new(
+            "Hi [cite/t:@all], talk.\n",
+            ParseGranularity::Object,
+            DefaultEnvironment,
+            &bump,
+        );
+        let (arena, root) = parser.parse_buffer();
+
+        fn find_citation(arena: &NodeArena, id: NodeId) -> Option<NodeId> {
+            if matches!(arena[id].data, Syntax::Citation(_)) {
+                return Some(id);
+            }
+            arena[id].children.iter().find_map(|&c| find_citation(arena, c))
+        }
+        let citation = find_citation(&arena, root).expect("expected a Citation node");
+        assert!(
+            !arena[citation].children.is_empty(),
+            "expected the Citation to contain a CitationReference child, got none",
+        );
+    }
+
+    #[test]
+    fn latex_fragment_command_stops_before_digits() {
+        // `\Office16` — Emacs ends the LaTeX command name at the last
+        // letter (`\Office`) and leaves `16` as plain-text. Rust's command
+        // scan uses is_ascii_alphanumeric and swallows the trailing digits.
+        //  \Office16\OUTLOOK rest
+        //  0      7  9
+        let starts = plain_text_starts(r"\Office16\OUTLOOK rest\n");
+        assert!(
+            starts.contains(&7),
+            "expected PlainText '16' at byte 7 (LaTeX command must stop before digits), got starts: {:?}",
+            starts
+        );
+    }
+
+    #[test]
+    fn statistics_cookie_in_link_description() {
+        // `[[id:...][[/] focus proj]]` — the link description contains a
+        // statistics cookie `[/]`. Emacs parses it as a StatisticsCookie
+        // object inside the link; Rust keeps the description as plain-text.
+        let count = get_type_count(
+            "[[id:2021-07-27-focus-proj][[/] focus proj]]\n",
+            SyntaxT::StatisticsCookie,
+            ParseGranularity::Object,
+        );
+        assert_eq!(
+            count, 1,
+            "expected 1 StatisticsCookie inside the link description, got {} — link descriptions not scanned for objects",
             count
         );
     }
