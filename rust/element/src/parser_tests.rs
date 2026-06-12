@@ -2524,6 +2524,22 @@ mod entity {
         );
         assert_eq!(count_lf, 0, "\\le should not produce a LatexFragment");
     }
+
+    #[test]
+    fn s_is_entity_not_latex_fragment() {
+        // \S is an org entity (§), not a LaTeX fragment.
+        // Emacs's entity table includes single-letter entries like "S" (section sign),
+        // but org-rs's EntityData::new() is missing them, so \S falls through to
+        // try_parse_latex_fragment and gets parsed as LatexFragment instead.
+        let count = get_type_count(r"\S100Mb", SyntaxT::Entity, ParseGranularity::Object);
+        assert_eq!(count, 1, "\\S should parse as Entity, not LatexFragment");
+        let count_lf = get_type_count(
+            r"\S100Mb",
+            SyntaxT::LatexFragment,
+            ParseGranularity::Object,
+        );
+        assert_eq!(count_lf, 0, "\\S should not produce a LatexFragment");
+    }
 }
 
 mod post_blank {
