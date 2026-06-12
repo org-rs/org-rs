@@ -119,22 +119,43 @@ fn is_post_char(b: u8) -> bool {
     )
 }
 
+/// If `bytes` begins with one of `link_types` followed by `:`, return the
+/// length of that `type:` prefix. Used to recognise plain links; the type set
+/// is supplied by the [`Environment`](crate::environment::Environment).
+#[inline]
+fn plain_link_proto_len(bytes: &[u8], link_types: &[&str]) -> Option<usize> {
+    link_types.iter().find_map(|ty| {
+        let t = ty.as_bytes();
+        (bytes.starts_with(t) && bytes.get(t.len()) == Some(&b':')).then_some(t.len() + 1)
+    })
+}
+
 /// Scan `bytes` for the first position that ends a plain-text run,
 /// returning the number of bytes that belong to the run.  Returns
 /// zero when no plain-text bytes are available at the start of
 /// `bytes`.
+///
+/// `link_types` / `link_start_bytes` configure plain-link recognition: the
+/// scan pauses at every `link_start_bytes` byte and confirms a real link via
+/// `link_types`.
 #[inline]
-fn scan_plain_text_end(bytes: &[u8]) -> usize {
-    // TODO: these are four unthreaded cursors. Wonder if lightweight multithreads could work here.
+fn scan_plain_text_end(bytes: &[u8], link_types: &[&str], link_start_bytes: &[u8]) -> usize {
+    // Markup delimiters are fixed, so keep SIMD `memchr` for them. Plain-link
+    // start bytes are configurable, so locate them with a membership table.
+    let mut is_link_start = [false; 256];
+    for &c in link_start_bytes {
+        is_link_start[c as usize] = true;
+    }
+    let find_link = |from: &[u8]| from.iter().position(|&b| is_link_start[b as usize]);
+
     let p1 = memchr3(b'[', b'<', b'\\', bytes);
     let mut p2 = memchr2(b'*', b'/', bytes);
     let mut p3 = memchr3(b'+', b'=', b'~', bytes);
-    let mut p4 = memchr3(b'h', b'f', b'm', bytes);
     let mut p5 = memchr2(b'_', b'^', bytes);
-    let mut p6 = memchr(b'i', bytes); // PERF: wouldn't memmem (id) be faster here?
+    let mut pl = find_link(bytes);
 
     loop {
-        let i = match [p1, p2, p3, p4, p5, p6].iter().copied().flatten().min() {
+        let i = match [p1, p2, p3, p5, pl].iter().copied().flatten().min() {
             None => return bytes.len(),
             Some(pos) => pos,
         };
@@ -149,32 +170,21 @@ fn scan_plain_text_end(bytes: &[u8]) -> usize {
         if matches!(b, b'_' | b'^') && i > 0 {
             return i;
         }
-        if matches!(b, b'h' | b'f' | b'm') // PERF: We are re-checking the h, could rewrite this with a match on `b`.
-            && (i == 0 || is_pre_char(bytes[i - 1]))
-            && (bytes[i..].starts_with(b"https://")
-                || bytes[i..].starts_with(b"http://")
-                || bytes[i..].starts_with(b"ftp://")
-                || bytes[i..].starts_with(b"mailto:"))
+        // A plain link must sit at a word boundary and start a known type.
+        if (i == 0 || is_pre_char(bytes[i - 1]))
+            && plain_link_proto_len(&bytes[i..], link_types).is_some()
         {
-            return i;
-        }
-        // PERF: again, shouldn't memmem make this a lot faster?
-        if b == b'i' && (i == 0 || is_pre_char(bytes[i - 1])) && bytes[i..].starts_with(b"id:") {
             return i;
         }
 
         let next = i + 1;
         let rest = &bytes[next..];
-        // REFACTOR: Consider pulling out the `map`, it seems to be repeated.
         match b {
-            b'[' | b'<' => unreachable!(),
-            // PERF: While this semantic grouping is OK, I wonder if we can improve by using e.g. memchr5?
             b'*' | b'/' => p2 = memchr2(b'*', b'/', rest).map(|r| next + r),
             b'+' | b'=' | b'~' => p3 = memchr3(b'+', b'=', b'~', rest).map(|r| next + r),
-            // PERF: Could also group by 4 + 3?
             b'_' | b'^' => p5 = memchr2(b'_', b'^', rest).map(|r| next + r),
-            b'i' => p6 = memchr(b'i', rest).map(|r| next + r),
-            _ => p4 = memchr3(b'h', b'f', b'm', rest).map(|r| next + r),
+            // Any other paused byte is a (possibly non-link) link-start byte.
+            _ => pl = find_link(rest).map(|r| next + r),
         }
     }
 }
@@ -770,7 +780,9 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                             }
                             result
                         }
-                        b'h' | b'f' | b'm' | b'i' => {
+                        // Plain-link start bytes come from the environment so
+                        // the recognised types stay configurable.
+                        _ if self.environment.link_start_bytes().contains(&bytes[0]) => {
                             self.try_parse_plain_link(remaining, pos).map(|(n, c)| {
                                 if restriction(SyntaxT::Link) {
                                     children.push(n);
@@ -1184,15 +1196,8 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
     }
 
     fn try_parse_plain_link(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
-        const PROTOCOLS: &[&[u8]] = &[b"https://", b"http://", b"ftp://", b"mailto:", b"id:"];
         let bytes = text.as_bytes();
-        let proto_len = PROTOCOLS.iter().find_map(|&p| {
-            if bytes.starts_with(p) {
-                Some(p.len())
-            } else {
-                None
-            }
-        })?;
+        let proto_len = plain_link_proto_len(bytes, self.environment.link_types())?;
         let url_end_raw = text[proto_len..]
             .find(|c: char| c.is_whitespace() || matches!(c, '[' | ']' | '<' | '>' | '(' | ')'))
             .map_or(text.len(), |i| proto_len + i);
@@ -1462,7 +1467,11 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
     }
 
     fn try_parse_plain_text(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
-        let consume = scan_plain_text_end(text.as_bytes());
+        let consume = scan_plain_text_end(
+            text.as_bytes(),
+            self.environment.link_types(),
+            self.environment.link_start_bytes(),
+        );
         if consume == 0 {
             return None;
         }

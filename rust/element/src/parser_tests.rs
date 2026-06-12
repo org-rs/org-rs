@@ -1947,6 +1947,19 @@ mod od1_compliance {
                 "bracketed with description",
                 1,
             ),
+            // Plain links use any registered Org link type, not just URLs.
+            // From the Yantar92 corpus: `help:`, `file:` and `elisp:`.
+            ("Reducing help:gcmh-cons-threshold now\n", "bare help: link", 1),
+            (
+                "See file:~/.config/qutebrowser/urls here\n",
+                "bare file: link",
+                1,
+            ),
+            (
+                "Run elisp:all-the-icons-install-fonts\n",
+                "bare elisp: link",
+                1,
+            ),
         ] {
             let found = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
             assert_eq!(
