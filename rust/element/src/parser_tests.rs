@@ -2995,6 +2995,50 @@ mod post_blank {
         );
     }
 
+    /// Items with indentation that goes UP then DOWN must resolve to the
+    /// correct parent.  For example with `- a`, `  - b` (indent 2), ` - c`
+    /// (indent 1), item `c` is a sibling of `b` — both children of `a` —
+    /// NOT a child of `b`.  Rust's current indent-grouping approach
+    /// incorrectly nests `c` inside `b`.
+    ///
+    /// Correct structure (2 PlainLists):
+    ///   (plain-list
+    ///     (item "a"
+    ///       (plain-list
+    ///         (item "b")
+    ///         (item "c"))))
+    #[test]
+    fn list_indent_goes_up_then_down() {
+        let input = "- a\n  - b\n - c\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        let pl_count = count_type(&arena, root, SyntaxT::PlainList);
+        assert_eq!(
+            pl_count, 2,
+            "Expected 2 PlainLists (outer + 1 sub-list), got {} — indent-up-then-down items \
+             should be siblings, not nested",
+            pl_count
+        );
+    }
+
+    /// Same issue with `*` bullets and tab-derived indentation.  Items at
+    /// indent 11 followed by indent 10 should be siblings, not nested.
+    #[test]
+    fn star_list_indent_goes_up_then_down() {
+        let input = "\t* a\n   \t* b\n\t  * c\n   \t* d\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        let pl_count = count_type(&arena, root, SyntaxT::PlainList);
+        assert_eq!(
+            pl_count, 2,
+            "Expected 2 PlainLists (outer + 1 sub-list), got {} — indent-up-then-down star items \
+             should be siblings, not nested",
+            pl_count
+        );
+    }
+
     #[test]
     fn name_affiliated_keyword_not_plain_text() {
         let starts = plain_text_starts(
