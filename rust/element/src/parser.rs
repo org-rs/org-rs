@@ -1700,6 +1700,15 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             }
         };
 
+        // Per Emacs' org-element-entity-parser: when the entity name is
+        // followed by `{}`, the empty brace pair is consumed as part of
+        // the entity (use-brackets-p=true). This terminator lets
+        // `\vert{}def` render without inserting a space between `\vert`
+        // and `def`.
+        if bytes.get(end) == Some(&b'{') && bytes.get(end + 1) == Some(&b'}') {
+            end += 2;
+        }
+
         let node = self.arena.alloc(
             SyntaxNode::new(
                 Syntax::Entity(self.bump.alloc(entity_data)),
@@ -1771,6 +1780,19 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         }
         if pos < len && bytes[pos] == b'*' {
             pos += 1;
+        }
+
+        // Per Emacs' entity regex (org-element-entity-parser), `\NAME`
+        // followed by `{}` is parsed as an Entity with `use-brackets-p=t`,
+        // not as a LaTeX fragment with an empty brace argument. Defer to
+        // the entity parser in that case so `\vert{}def` becomes
+        // Entity + PlainText instead of LatexFragment.
+        if pos + 1 < len
+            && bytes[pos] == b'{'
+            && bytes[pos + 1] == b'}'
+            && EntityData::new(&text[1..pos]).is_some()
+        {
+            return None;
         }
 
         let mut has_args = false;

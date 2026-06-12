@@ -2733,6 +2733,30 @@ mod entity {
         );
         assert_eq!(count_lf, 0, "\\S should not produce a LatexFragment");
     }
+
+    /// `\vert{}` should be an Entity (with use-brackets-p=true),
+    /// not a LaTeX fragment. Emacs' regex matches `\NAME` followed by
+    /// `eol`, `{}`, or a non-letter — `{}` is a terminator marker, not
+    /// a brace argument. Currently `try_parse_latex_fragment` runs
+    /// before `try_parse_entity` and matches `\vert{}` as `\command{...}`
+    /// because of the empty brace group.
+    #[test]
+    fn vert_with_empty_braces_is_entity() {
+        let count = get_type_count(r"\vert{}def", SyntaxT::Entity, ParseGranularity::Object);
+        assert_eq!(
+            count, 1,
+            "\\vert{{}} should parse as Entity, not LatexFragment"
+        );
+        let count_lf = get_type_count(
+            r"\vert{}def",
+            SyntaxT::LatexFragment,
+            ParseGranularity::Object,
+        );
+        assert_eq!(
+            count_lf, 0,
+            "\\vert{{}} should not produce a LatexFragment"
+        );
+    }
 }
 
 mod post_blank {
