@@ -3128,6 +3128,82 @@ mod post_blank {
     }
 
     #[test]
+    fn latex_inline_math_dollar() {
+        // "$E=mc^2$ rest\n"
+        //  0       8 9
+        //          $ ' '
+        // Emacs parses $E=mc^2$ as LatexFragment + trailing space → PlainText at 9.
+        let starts = plain_text_starts("$E=mc^2$ rest\n");
+        assert!(
+            starts.contains(&9),
+            "expected PlainText at byte 9 ('rest'), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&0),
+            "expected no PlainText at 0 — $...$ LaTeX math should be parsed, got starts: {:?}",
+            starts
+        );
+    }
+
+    #[test]
+    fn latex_display_math_dollar() {
+        // "$$E=mc^2$$ rest\n"
+        //  0         10 11
+        //            $  ' '
+        // Emacs parses $$E=mc^2$$ as LatexFragment + trailing space → PlainText at 11.
+        let starts = plain_text_starts("$$E=mc^2$$ rest\n");
+        assert!(
+            starts.contains(&11),
+            "expected PlainText at byte 11 ('rest'), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&0),
+            "expected no PlainText at 0 — $$...$$ LaTeX math should be parsed, got starts: {:?}",
+            starts
+        );
+    }
+
+    #[test]
+    fn latex_inline_math_paren() {
+        // "\\(E=mc^2\\) rest\n"
+        //  0              11 12
+        //                \) ' '
+        // Emacs parses \(E=mc^2\) as LatexFragment + trailing space → PlainText at 11.
+        let starts = plain_text_starts(r"\(E=mc^2\) rest\n");
+        assert!(
+            starts.contains(&11),
+            "expected PlainText at byte 11 ('rest'), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&0),
+            "expected no PlainText at 0 — \\(...\\) LaTeX math should be parsed, got starts: {:?}",
+            starts
+        );
+    }
+
+    #[test]
+    fn latex_display_math_bracket() {
+        // "\\[E=mc^2\\] rest\n"
+        //  0              11 12
+        //                \] ' '
+        // Emacs parses \[E=mc^2\] as LatexFragment + trailing space → PlainText at 11.
+        let starts = plain_text_starts(r"\[E=mc^2\] rest\n");
+        assert!(
+            starts.contains(&11),
+            "expected PlainText at byte 11 ('rest'), got starts: {:?}",
+            starts
+        );
+        assert!(
+            !starts.contains(&0),
+            "expected no PlainText at 0 — \\[...\\] LaTeX math should be parsed, got starts: {:?}",
+            starts
+        );
+    }
+
+    #[test]
     fn statistics_cookie_in_link_description() {
         // `[[id:...][[/] focus proj]]` — the link description contains a
         // statistics cookie `[/]`. Emacs parses it as a StatisticsCookie

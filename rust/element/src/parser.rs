@@ -776,7 +776,12 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                         }
                         b'\\' => {
                             let mut result = None;
-                            if let Some((n, c)) = self.try_parse_line_break(remaining, pos) {
+                            if let Some((n, c)) = self.try_parse_latex_math(remaining, pos) {
+                                if restriction(SyntaxT::LatexFragment) {
+                                    children.push(n);
+                                }
+                                result = Some(c);
+                            } else if let Some((n, c)) = self.try_parse_line_break(remaining, pos) {
                                 if restriction(SyntaxT::LineBreak) {
                                     children.push(n);
                                 }
@@ -790,6 +795,16 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                                 result = Some(c);
                             } else if let Some((n, c)) = self.try_parse_entity(remaining, pos) {
                                 if restriction(SyntaxT::Entity) {
+                                    children.push(n);
+                                }
+                                result = Some(c);
+                            }
+                            result
+                        }
+                        b'$' => {
+                            let mut result = None;
+                            if let Some((n, c)) = self.try_parse_latex_math(remaining, pos) {
+                                if restriction(SyntaxT::LatexFragment) {
                                     children.push(n);
                                 }
                                 result = Some(c);
@@ -1820,6 +1835,92 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             .take_while(|&b| b == b' ' || b == b'\t')
             .count();
         let total_consumed = consumed + post_blank;
+
+        let node = self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::LatexFragment(fragment_text),
+                (start, start + total_consumed),
+                self.bump,
+            )
+            .build(),
+        );
+
+        Some((node, total_consumed))
+    }
+
+    fn try_parse_latex_math(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
+        let bytes = text.as_bytes();
+        if bytes.is_empty() {
+            return None;
+        }
+
+        let after_fragment = match bytes[0] {
+            b'\\' => {
+                if bytes.len() < 2 {
+                    return None;
+                }
+                match bytes[1] {
+                    b'(' => {
+                        // \(...\)
+                        let pos = memmem::find(&text.as_bytes()[2..], b"\\)")?;
+                        2 + pos + 2
+                    }
+                    b'[' => {
+                        // \[...\]
+                        let pos = memmem::find(&text.as_bytes()[2..], b"\\]")?;
+                        2 + pos + 2
+                    }
+                    _ => return None,
+                }
+            }
+            b'$' => {
+                if bytes.len() < 2 {
+                    return None;
+                }
+                if bytes[1] == b'$' {
+                    // $$...$$
+                    let pos = memmem::find(&text.as_bytes()[2..], b"$$")?;
+                    2 + pos + 2
+                } else {
+                    // $...$
+                    if start > 0 && self.input.as_bytes()[start - 1] == b'$' {
+                        return None;
+                    }
+                    match bytes[1] {
+                        b' ' | b'\t' | b'\n' | b',' | b'.' | b';' => return None,
+                        _ => {}
+                    }
+                    let pos = memchr(b'$', text.as_bytes().get(1..)?)?;
+                    let closing = 1 + pos;
+                    if closing <= 1 {
+                        return None;
+                    }
+                    match bytes.get(closing - 1) {
+                        Some(&b' ' | &b'\t' | &b'\n' | &b',' | &b'.') => return None,
+                        _ => {}
+                    }
+                    let after = closing + 1;
+                    if after < bytes.len() {
+                        match bytes[after] {
+                            b if b.is_ascii_whitespace()
+                                || b.is_ascii_punctuation()
+                                || b == b'\'' => {}
+                            _ => return None,
+                        }
+                    }
+                    closing + 1
+                }
+            }
+            _ => return None,
+        };
+
+        let fragment_text = &text[..after_fragment];
+
+        let post_blank = text[after_fragment..]
+            .bytes()
+            .take_while(|&b| b == b' ' || b == b'\t')
+            .count();
+        let total_consumed = after_fragment + post_blank;
 
         let node = self.arena.alloc(
             SyntaxNode::new(
