@@ -1081,25 +1081,59 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             return None;
         }
 
-        // Find closing ]]
+        // Find closing ]], tracking balanced brackets in the description.
         let mut found_close = None;
-        let mut search_pos = 2;
-        while search_pos + 1 < bytes.len() {
-            match memchr(b']', &bytes[search_pos..]) {
-                Some(offset) => {
-                    let i = search_pos + offset;
-                    if i + 1 < bytes.len() && bytes[i + 1] == b']' {
-                        let after = i + 2;
-                        // Bracket links don't need post-char validation —
-                        // any character (including non-ASCII) is valid after `]]`.
-                        found_close = Some(after);
-                        break;
-                    } else {
-                        search_pos = i + 1;
+        let search_pos = 2;
+        // Phase 1: path portion — no ] allowed.
+        match memchr(b']', &bytes[search_pos..]) {
+            Some(offset) => {
+                let i = search_pos + offset;
+                if i + 1 < bytes.len() && bytes[i + 1] == b']' {
+                    // Simple link [[path]] — no description.
+                    found_close = Some(i + 2);
+                } else if i + 1 < bytes.len() && bytes[i + 1] == b'[' {
+                    // ][ separates path from description.
+                    // Phase 2: scan description with balanced bracket tracking.
+                    let mut pos = i + 2; // after ][
+                    let mut depth = 0i32;
+                    while pos + 1 < bytes.len() {
+                        match memchr2(b'[', b']', &bytes[pos..]) {
+                            Some(offset) => {
+                                let j = pos + offset;
+                                if bytes[j] == b'[' {
+                                    depth += 1;
+                                    pos = j + 1;
+                                } else {
+                                    // bytes[j] == b']'
+                                    if j + 1 < bytes.len() && bytes[j + 1] == b']' {
+                                        if depth == 0 {
+                                            found_close = Some(j + 2);
+                                            break;
+                                        }
+                                        depth -= 1;
+                                        pos = j + 2;
+                                    } else if j + 1 < bytes.len() && bytes[j + 1] == b'[' {
+                                        depth -= 1;
+                                        if depth < 0 {
+                                            return None;
+                                        }
+                                        depth += 1; // net 0, skip ][
+                                        pos = j + 2;
+                                    } else {
+                                        depth -= 1;
+                                        if depth < 0 {
+                                            return None;
+                                        }
+                                        pos = j + 1;
+                                    }
+                                }
+                            }
+                            None => break,
+                        }
                     }
                 }
-                None => break,
             }
+            None => {}
         }
 
         let close = found_close?;
