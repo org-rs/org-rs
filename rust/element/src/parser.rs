@@ -999,14 +999,12 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             b'*' => (Brackets::Bare, 2),
             _ => {
                 let content = &text[1..];
-                let first_char = content.chars().next()?;
-                if !first_char.is_alphanumeric() {
-                    return None;
-                }
                 // Bare subscript: matches Emacs regex
                 //   [+-]?[[:alnum:].,\\]*[[:alnum:]]
                 // The content may include `.`, `,`, `\` but MUST end with
                 // an alphanumeric character (backtracking if necessary).
+                // Rust's is_alphanumeric() matches CJK ideographs just
+                // like Emacs' [[:alnum:]], so no special treatment needed.
                 let mut last_alnum = None;
                 for (i, ch) in content.char_indices() {
                     if ch == '+' || ch == '-' {

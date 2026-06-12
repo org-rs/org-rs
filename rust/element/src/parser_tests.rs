@@ -2700,6 +2700,30 @@ mod subscript_superscript {
             );
         }
     }
+
+    #[test]
+    fn custom_id_is_subscript() {
+        // Emacs parses CUSTOM_ID as CUSTOM + subscript _ID.
+        // The _ID is a bare subscript: I and D are both alphanumeric,
+        // and ' (apostrophe) following is not, so subscript ends at ID.
+        let input = "连接到'CUSTOM_ID'属性\n";
+        let bump = Bump::new();
+        let mut parser =
+            Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        let scripts = find_script(&arena, root);
+        assert!(
+            !scripts.is_empty(),
+            "CUSTOM_ID should contain a Subscript node"
+        );
+        let script_id = scripts[0];
+        let loc = arena[script_id].location;
+        assert_eq!(
+            &input[loc.start..loc.end],
+            "_ID",
+            "Subscript should cover '_ID'"
+        );
+    }
 }
 
 mod entity {
