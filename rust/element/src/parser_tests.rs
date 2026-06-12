@@ -2058,6 +2058,19 @@ mod od1_compliance {
                 children
             );
         }
+
+        #[test]
+        fn link_description_no_nested_plain_link() {
+            let input = "[[id:example][See https://example.com for details]]\n";
+            let children = link_children(input);
+            assert_eq!(
+                children.len(),
+                1,
+                "expected single PlainText for entire description, got {:?}",
+                children
+            );
+            assert_eq!(children[0], SyntaxT::PlainText);
+        }
     }
 
     #[test]
