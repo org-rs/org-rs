@@ -2995,35 +2995,68 @@ mod post_blank {
         );
     }
 
-    /// Items with indentation that goes UP then DOWN must resolve to the
-    /// correct parent.  For example with `- a`, `  - b` (indent 2), ` - c`
-    /// (indent 1), item `c` is a sibling of `b` — both children of `a` —
-    /// NOT a child of `b`.  Rust's current indent-grouping approach
-    /// incorrectly nests `c` inside `b`.
-    ///
-    /// Correct structure (2 PlainLists):
-    ///   (plain-list
-    ///     (item "a"
-    ///       (plain-list
-    ///         (item "b")
-    ///         (item "c"))))
-    #[test]
-    fn list_indent_goes_up_then_down() {
-        let input = "- a\n  - b\n - c\n";
-        let bump = Bump::new();
-        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
-        let (arena, root) = parser.parse_buffer();
-        let pl_count = count_type(&arena, root, SyntaxT::PlainList);
-        assert_eq!(
-            pl_count, 2,
-            "Expected 2 PlainLists (outer + 1 sub-list), got {} — indent-up-then-down items \
-             should be siblings, not nested",
-            pl_count
-        );
-    }
+/// Find the first PlainList child of an Item node.
+fn item_a_plainlist_child<'a>(arena: &'a NodeArena, item_id: NodeId) -> Option<NodeId> {
+    arena[item_id]
+        .children
+        .iter()
+        .copied()
+        .find(|&id| matches!(arena[id].data, Syntax::PlainList(_)))
+}
+
+/// Items with indentation that goes UP then DOWN must resolve to the
+/// correct parent.  For example with `- a`, `  - b` (indent 2), ` - c`
+/// (indent 1), item `c` is a sibling of `b` — both children of `a` —
+/// NOT a child of `b`.  Rust's current indent-grouping approach
+/// incorrectly nests `c` inside `b`.
+///
+/// Correct structure (2 PlainLists):
+///   (plain-list
+///     (item "a"
+///       (plain-list
+///         (item "b")
+///         (item "c"))))
+#[test]
+fn list_indent_goes_up_then_down() {
+    let input = "- a\n  - b\n - c\n";
+    let bump = Bump::new();
+    let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+    let (arena, root) = parser.parse_buffer();
+    let pl_count = count_type(&arena, root, SyntaxT::PlainList);
+    // Items b (indent 2) and c (indent 1) share parent a → one sub-list
+    assert_eq!(
+        pl_count, 2,
+        "Expected 2 PlainLists (outer + 1 sub-list), got {} — indent-up-then-down items \
+         should be siblings, not nested",
+        pl_count
+    );
+    // Check that both items are direct children of the sub-list, not nested
+    // Walk: section > plain_list > item > plain_list > [items]
+    assert!(arena[root].children.len() >= 1, "expected section children");
+    let sec = arena[root].children[0];
+    let pl = arena[sec].children[0];
+    let item_a = arena[pl].children[0];
+    let inner_pl = item_a_plainlist_child(&arena, item_a)
+        .expect("item 'a' must contain a PlainList child");
+    assert_eq!(
+        arena[inner_pl].children.len(),
+        2,
+        "inner PlainList should contain exactly 2 items (b and c), not nested items; got {}",
+        arena[inner_pl].children.len()
+    );
+}
 
     /// Same issue with `*` bullets and tab-derived indentation.  Items at
     /// indent 11 followed by indent 10 should be siblings, not nested.
+    ///
+    /// Correct structure (3 PlainLists):
+    ///   (plain-list
+    ///     (item "a"
+    ///       (plain-list           ← children of a: b (indent 11) and c (indent 10)
+    ///         (item "b")
+    ///         (item "c"
+    ///           (plain-list       ← child of c: d (indent 11)
+    ///             (item "d"))))))
     #[test]
     fn star_list_indent_goes_up_then_down() {
         let input = "\t* a\n   \t* b\n\t  * c\n   \t* d\n";
@@ -3032,10 +3065,33 @@ mod post_blank {
         let (arena, root) = parser.parse_buffer();
         let pl_count = count_type(&arena, root, SyntaxT::PlainList);
         assert_eq!(
-            pl_count, 2,
-            "Expected 2 PlainLists (outer + 1 sub-list), got {} — indent-up-then-down star items \
-             should be siblings, not nested",
+            pl_count, 3,
+            "Expected 3 PlainLists (outer + sub for b,c + sub for d), got {}",
             pl_count
+        );
+        // Verify nesting: b and c are siblings, d is under c
+        let sec = arena[root].children[0];
+        let outer_pl = arena[sec].children[0];
+        let item_a = arena[outer_pl].children[0];
+        // item_a children: Paragraph("a") + PlainList
+        let inner_pl_idx = item_a_plainlist_child(&arena, item_a)
+            .expect("item 'a' must contain a PlainList child");
+        let inner_pl = inner_pl_idx;
+        // inner_pl should contain b and c as direct children
+        assert_eq!(
+            arena[inner_pl].children.len(),
+            2,
+            "inner PlainList should contain exactly 2 items (b and c), not 1 with c nested inside; got {}",
+            arena[inner_pl].children.len()
+        );
+        // item d should be nested under item c
+        let item_c = arena[inner_pl].children[1];
+        let c_has_sub = arena[item_c].children.iter().any(|&id| {
+            matches!(arena[id].data, Syntax::PlainList(_))
+        });
+        assert!(
+            c_has_sub,
+            "item 'c' must contain a sub-PlainList for item 'd'"
         );
     }
 

@@ -242,7 +242,39 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         ))
     }
 
-    /// Fallback: plain list parser (not yet fully implemented).
+    /// Build parent relationships for a sequence of list items.
+    /// Each item's parent is the nearest preceding item with strictly
+    /// smaller indentation.  Returns `parent[i] = Some(p)` or `None` for
+    /// top-level items.
+    fn item_parents(items: &[ListItem<'a>]) -> Vec<Option<usize>> {
+        let n = items.len();
+        let mut parent: Vec<Option<usize>> = vec![None; n];
+        let mut stack: Vec<(usize, usize)> = Vec::new();
+        for i in 0..n {
+            let indent = items[i].indent;
+            while let Some(&(top_i, _)) = stack.last() {
+                if top_i >= indent {
+                    stack.pop();
+                } else {
+                    break;
+                }
+            }
+            if let Some(&(_, p)) = stack.last() {
+                parent[i] = Some(p);
+            }
+            stack.push((indent, i));
+        }
+        parent
+    }
+
+    /// Plain list parser — groups items by (parent, indent) to create
+    /// separate PlainLists for each indentation level.  Items with
+    /// parent=None are split by indentation so that items at different
+    /// indentation levels form separate sibling PlainLists.  Items
+    /// with parent=Some(p) are skipped — they are found by recursion
+    /// inside their parent's content via `parse_elements`.
+    /// Fixes the indent‑up‑then‑down bug where a less‑indented child
+    /// got swallowed by a more‑indented preceding sibling.
     #[inline]
     pub fn plain_list_parser(
         &mut self,
@@ -257,27 +289,62 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             ));
         }
 
-        let first_indent = items[0].indent;
+        let parent = Self::item_parents(items);
+
+        // Build groups of consecutive items with same parent and
+        // indentation.  Items with parent=Some(p) already share
+        // the same indent by construction.  Items with parent=None
+        // are split by indent so that each indentation level forms
+        // a separate PlainList.
+        let mut groups: Vec<(usize, usize)> = Vec::new();
+        {
+            let mut i = 0;
+            while i < items.len() {
+                let p = parent[i];
+                let indent = items[i].indent;
+                let mut j = i + 1;
+                while j < items.len() {
+                    if parent[j] != p {
+                        break;
+                    }
+                    if p.is_none() && items[j].indent != indent {
+                        break;
+                    }
+                    j += 1;
+                }
+                groups.push((i, j));
+                i = j;
+            }
+        }
+
         let list_type = Self::get_list_type(items);
-
         let mut children = BumpVec::new_in(self.bump);
-        let mut i = 0;
 
-        while i < items.len() {
-            let item = &items[i];
-            if item.indent != first_indent {
-                i += 1;
-                continue;
+        for &(start, end) in &groups {
+            if parent[start].is_some() {
+                continue; // non-top-level groups found by recursion
             }
 
-            let next_same = items[i + 1..].iter().position(|n| n.indent == first_indent);
-            let end_pos = next_same
-                .map(|offset| items[i + 1 + offset].position)
-                .unwrap_or(structure.end);
+            for idx in start..end {
+                let item = &items[idx];
 
-            let item_node = self.item_parser_internal(item, end_pos);
-            children.push(item_node);
-            i += 1;
+                // End = position of the next item with indent <= this
+                // item's indent (encompasses all descendants), or
+                // structure.end.
+                let end_pos = {
+                    let mut found = None;
+                    for k in (idx + 1)..items.len() {
+                        if items[k].indent <= item.indent {
+                            found = Some(items[k].position);
+                            break;
+                        }
+                    }
+                    found.unwrap_or(structure.end)
+                };
+
+                let item_node = self.item_parser_internal(item, end_pos);
+                children.push(item_node);
+            }
         }
 
         let end = if let Some(last) = children.last() {
