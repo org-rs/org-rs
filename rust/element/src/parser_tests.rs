@@ -124,6 +124,26 @@ mod plain_list {
         );
     }
 
+    /// Two or more blank lines between list items should split them
+    /// into separate PlainLists, matching Emacs behavior.
+    ///
+    /// Correct structure (2 PlainLists):
+    ///   (plain-list         ← first list
+    ///     (item "item 1")
+    ///     (item "item 2"))
+    ///   (plain-list         ← second list, separated by blank lines
+    ///     (item "item 3"))
+    #[test]
+    fn blank_lines_split_plain_list() {
+        let input = "- item 1\n- item 2\n\n\n- item 3\n";
+        let count = get_type_count(input, SyntaxT::PlainList, ParseGranularity::Element);
+        assert_eq!(
+            count, 2,
+            "Expected 2 PlainLists (split by blank lines), found {}",
+            count
+        );
+    }
+
     /// List followed by a headline must not nest the headline or remaining
     /// top-level items inside a sub-list.
     #[test]
