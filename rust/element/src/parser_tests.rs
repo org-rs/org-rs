@@ -2917,6 +2917,54 @@ mod post_blank {
         );
     }
 
+    /// A bare URL `http://orgmode.org` followed by a headline must be
+    /// parsed as a plain Link, not left as PlainText.  The corpus has
+    /// this exact pattern at byte 3048:
+    ///   `...这个网页就是http://orgmode.org\n** 安装`
+    #[test]
+    fn plain_link_before_headline() {
+        let input = "text http://orgmode.org\n* headline\n";
+        let starts = plain_text_starts(input);
+        // PlainText "text " at 0, then http://orgmode.org should be Link,
+        // then PlainText "\n" starts at byte 23.
+        assert!(
+            starts.contains(&23),
+            "expected PlainText at byte 23 ('\\n' after URL), got starts: {:?} — \
+             the bare URL is being left as PlainText instead of parsed as a Link",
+            starts
+        );
+        assert!(
+            !starts.contains(&5),
+            "PlainText must not start at byte 5 ('h' of http://); \
+             http://orgmode.org should be parsed as a Link, got starts: {:?}",
+            starts
+        );
+    }
+
+    /// A bare URL after a non-ASCII character (e.g. CJK) must be parsed
+    /// as a plain Link — `is_pre_char` only accepts ASCII word-boundary
+    /// bytes, so a UTF-8 continuation byte like `0xad` (last byte of `中`)
+    /// incorrectly blocks link detection.
+    #[test]
+    fn plain_link_after_non_ascii_pre_char() {
+        let starts = plain_text_starts("中http://example.org more\n");
+        // URL is at bytes 3..21; PlainText should start at 0 (the `中`)
+        // and at 21 (the space after the URL).
+        assert!(
+            starts.contains(&21),
+            "expected PlainText at byte 21 (' ' after URL), got starts: {:?} — \
+             http:// after a CJK char is being left as PlainText",
+            starts
+        );
+        assert!(
+            !starts.contains(&3),
+            "PlainText must not start at byte 3 ('h' of http://); \
+             the bare URL after non-ASCII text should be parsed as a Link, \
+             got starts: {:?}",
+            starts
+        );
+    }
+
     #[test]
     fn plain_text_after_timestamp_starts_after_space() {
         // "[2021-05-05 Wed] Discussion\n"
