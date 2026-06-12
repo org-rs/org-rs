@@ -120,6 +120,7 @@ fn is_post_char(b: u8) -> bool {
             | b';'
             | b':'
             | b'\''
+            | b'"'
             | b')'
             | b'}'
             | b'\\'
@@ -968,23 +969,27 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                 (Brackets::Bracketed, 2 + close + 1)
             }
             b'*' => (Brackets::Bare, 2),
-            &b if b.is_ascii_alphanumeric() => {
+            _ => {
+                let content = &text[1..];
+                let first_char = content.chars().next()?;
+                if !first_char.is_alphanumeric() {
+                    return None;
+                }
                 // Bare subscript: matches Emacs regex
                 //   [+-]?[[:alnum:].,\\]*[[:alnum:]]
                 // The content may include `.`, `,`, `\` but MUST end with
                 // an alphanumeric character (backtracking if necessary).
-                let content = &bytes[1..];
                 let mut last_alnum = None;
-                for (i, &cb) in content.iter().enumerate() {
-                    if cb == b'+' || cb == b'-' {
+                for (i, ch) in content.char_indices() {
+                    if ch == '+' || ch == '-' {
                         if i != 0 {
                             break;
                         }
                         continue;
                     }
-                    if cb.is_ascii_alphanumeric() {
-                        last_alnum = Some(i + 1);
-                    } else if matches!(cb, b'.' | b',') {
+                    if ch.is_alphanumeric() {
+                        last_alnum = Some(i + ch.len_utf8());
+                    } else if matches!(ch, '.' | ',') {
                         // continue scanning — may or may not be followed by alnum
                     } else {
                         break;
@@ -995,7 +1000,6 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                     None => return None,
                 }
             }
-            _ => return None,
         };
 
         let (content_begin, content_end) = match brackets {
