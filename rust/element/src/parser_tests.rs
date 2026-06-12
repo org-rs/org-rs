@@ -322,6 +322,60 @@ jq '.fruit | keys' fruit.json
     }
 
     #[test]
+    fn tab_indented_continuation_after_blank_line() {
+        // A blank line should terminate the item content even when the
+        // following line has indent > item.indent (but still < what would
+        // be the content-start column in Emacs).
+        // Bug: item_content_end treats indent(10) > item.indent(8) as
+        // a continuation past the blank line, but Emacs always terminates
+        // at a blank line.
+        let input = "   \t* item1\n\n\t  (continuation)\n\n   \t* item2\n\n\t  (cont2)\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+
+        // Count plain lists (should be 2: one before each continuation)
+        let pl = count_type(&arena, root, SyntaxT::PlainList);
+        assert_eq!(pl, 2, "Expected 2 PlainLists (blank line terminates items), got {pl}");
+
+        // Verify continuations are NOT inside list items
+        let mut inside_item = false;
+        let mut misplaced = Vec::new();
+        check_para_placement(&arena, root, input, &mut inside_item, &mut misplaced);
+        assert!(
+            misplaced.is_empty(),
+            "Continuation text should NOT be inside list items: {:?}",
+            misplaced,
+        );
+    }
+
+    fn check_para_placement(
+        arena: &NodeArena,
+        id: NodeId,
+        input: &str,
+        inside_item: &mut bool,
+        misplaced: &mut Vec<(usize, String)>,
+    ) {
+        let prev = *inside_item;
+        if matches!(&arena[id].data, Syntax::Item(_) | Syntax::PlainList(_)) {
+            *inside_item = true;
+        }
+        if matches!(&arena[id].data, Syntax::Paragraph) {
+            let span = &arena[id].location;
+            let txt = &input[span.start..span.end];
+            if txt.contains("continuation") || txt.contains("cont2") {
+                if *inside_item {
+                    misplaced.push((span.start, txt.to_owned()));
+                }
+            }
+        }
+        for &c in &arena[id].children {
+            check_para_placement(arena, c, input, inside_item, misplaced);
+        }
+        *inside_item = prev;
+    }
+
+    #[test]
     fn tab_indented_nested_star_list() {
         // Tab-indented `\t * :term VALUE` inside a `-` outer list.
         // The after_bullet calculation must use byte offset, not
