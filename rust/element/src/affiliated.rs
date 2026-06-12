@@ -383,21 +383,21 @@ mod test {
         let caption_txt = " \n #+caPtion[GIT]: org-rs";
         let mut cursor = Cursor::new(caption_txt, 0);
 
-        assert!(cursor.looking_at(&*REGEX_AFFILIATED).is_none());
+        assert!(cursor.looking_at(&REGEX_AFFILIATED).is_none());
         cursor.goto_next_line();
         assert_eq!(2, cursor.pos());
-        assert!(cursor.looking_at(&*REGEX_AFFILIATED).is_some());
+        assert!(cursor.looking_at(&REGEX_AFFILIATED).is_some());
     }
 
     #[test]
     fn capturing_at_affiliated_re() {
         let mut text = String::new();
         text.push_str(r"#+attr_html: :file filename.ext");
-        text.push_str("\n");
+        text.push('\n');
         text.push_str(r"#+caPtion[GIT]: org-rs");
 
         let cursor = Cursor::new(text.as_str(), 0);
-        let maybe_affiliated = cursor.capturing_at(&*REGEX_AFFILIATED);
+        let maybe_affiliated = cursor.capturing_at(&REGEX_AFFILIATED);
 
         assert!(maybe_affiliated.is_some());
     }
@@ -406,7 +406,7 @@ mod test {
     fn collect_affiliated_small() {
         let mut text = String::new();
         text.push_str(r"#+caPtion[GIT]: org-rs");
-        text.push_str("\n");
+        text.push('\n');
         text.push_str(r"#+attr_html: :file filename.ext");
         text.push_str("\n\n");
         {
@@ -439,12 +439,10 @@ mod test {
         test_attrs.insert("ATTR_HTML".to_string(), vec![":file filename.ext"]);
         assert_eq!(test_attrs, collected.attr);
 
-        let mut test_caption: Vec<DualVal<StringOrObject>> = vec![];
-        test_caption.push(DualVal {
+        let test_caption: Vec<DualVal<StringOrObject>> = vec![DualVal {
             value: StringOrObject::Raw("org-rs"),
             secondary: Some(StringOrObject::Raw("GIT")),
-        });
-
+        }];
         assert_eq!(test_caption, collected.caption);
     }
 }

@@ -9,9 +9,9 @@ use std::fmt;
 use std::io::Write;
 use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -54,7 +54,6 @@ struct FileTimings {
     oracle_conv: Duration,
     rust: Duration,
     compare: Duration,
-    emit: Duration,
     total: Duration,
 }
 
@@ -265,7 +264,7 @@ impl fmt::Display for OracleNode {
 fn from_value(v: &Value, table: &CharByteTable) -> Option<OracleNode> {
     let mut iter = v.list_iter()?;
 
-    let type_name = iter.next()?.as_symbol()?.as_ref();
+    let type_name = iter.next()?.as_symbol()?;
     let type_key = intern_type(type_name);
     let plist_val = iter.next()?;
 
@@ -277,7 +276,7 @@ fn from_value(v: &Value, table: &CharByteTable) -> Option<OracleNode> {
         while let Some(k) = pl.next() {
             let key = k.as_symbol()?;
             let val = pl.next()?;
-            match key.as_ref() {
+            match key {
                 ":begin" => {
                     begin = val
                         .as_u64()
@@ -586,17 +585,86 @@ fn process_file(
             oracle_conv,
             rust,
             compare,
-            emit: Duration::ZERO,
             total,
         },
     ))
 }
 
+fn print_usage() {
+    let bin = std::env::args()
+        .next()
+        .unwrap_or_else(|| "corpus-check".into());
+    eprintln!(
+        "\
+Usage: {bin} [OPTIONS]
+
+Compares org-rs parser output against Emacs org-element for a
+corpus of .org files, reporting any discrepancies found.
+
+Options:
+  -h, --help            Print this help message
+  -c, --corpus <DIR>    Corpus directory (default: <repo_root>/corpus/)
+  -f, --filter <PAT>    Only process files whose name contains <PAT>
+                        (case-insensitive substring match)
+
+The tool requires:
+  - `emacs` on PATH with org-element (built-in since Org 9.0)
+  - `oracle.el` next to the binary or in CARGO_MANIFEST_DIR
+
+Exit codes:
+  0   All files matched the oracle (or no files to check)
+  1   One or more discrepancies were found
+"
+    );
+}
+
 fn main() {
-    let corpus = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("corpus");
+    let args: Vec<String> = std::env::args().collect();
+
+    let mut corpus_path = None;
+    let mut filter: Option<String> = None;
+
+    {
+        let mut i = 1;
+        while i < args.len() {
+            match args[i].as_str() {
+                "-h" | "--help" => {
+                    print_usage();
+                    std::process::exit(0);
+                }
+                "-c" | "--corpus" => {
+                    i += 1;
+                    if i >= args.len() {
+                        eprintln!("error: --corpus requires a path argument");
+                        std::process::exit(1);
+                    }
+                    corpus_path = Some(PathBuf::from(&args[i]));
+                }
+                "-f" | "--filter" => {
+                    i += 1;
+                    if i >= args.len() {
+                        eprintln!("error: --filter requires a pattern argument");
+                        std::process::exit(1);
+                    }
+                    filter = Some(args[i].to_lowercase());
+                }
+                _ => {
+                    eprintln!("error: unknown option '{}'", args[i]);
+                    eprint!("usage: ");
+                    print_usage();
+                    std::process::exit(1);
+                }
+            }
+            i += 1;
+        }
+    }
+
+    let corpus = corpus_path.unwrap_or_else(|| {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("corpus")
+    });
 
     if !corpus.exists() {
         eprintln!("corpus/ not found at {}", corpus.display());
@@ -607,7 +675,16 @@ fn main() {
         .expect("cannot read corpus/")
         .filter_map(|e| {
             let p = e.ok()?.path();
-            (p.extension().and_then(|e| e.to_str()) == Some("org")).then_some(p)
+            if p.extension().and_then(|e| e.to_str()) != Some("org") {
+                return None;
+            }
+            if let Some(ref pat) = filter {
+                let name = p.file_name()?.to_str()?.to_lowercase();
+                if !name.contains(pat.as_str()) {
+                    return None;
+                }
+            }
+            Some(p)
         })
         .collect();
     let n = org_files.len();
@@ -616,6 +693,7 @@ fn main() {
     let stdout_lock = Arc::new(Mutex::new(()));
 
     std::thread::scope(|s| {
+        #[allow(clippy::needless_range_loop)]
         for i in 0..org_files.len() {
             let path = &org_files[i];
             let dn = path.file_name().unwrap().to_str().unwrap().to_string();

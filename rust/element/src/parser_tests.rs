@@ -1665,7 +1665,11 @@ mod line_break {
     /// like `[2019-12-18 Wed 16:27] \\`).
     #[test]
     fn line_break_at_end_of_line() {
-        let count = get_type_count("first \\\\\nsecond\n", SyntaxT::LineBreak, ParseGranularity::Object);
+        let count = get_type_count(
+            "first \\\\\nsecond\n",
+            SyntaxT::LineBreak,
+            ParseGranularity::Object,
+        );
         assert_eq!(count, 1, "expected 1 LineBreak, found {}", count);
     }
 
@@ -1674,7 +1678,11 @@ mod line_break {
     #[test]
     fn non_line_break_backslashes() {
         assert_eq!(
-            get_type_count("a\\\\\\\\\nx\n", SyntaxT::LineBreak, ParseGranularity::Object),
+            get_type_count(
+                "a\\\\\\\\\nx\n",
+                SyntaxT::LineBreak,
+                ParseGranularity::Object
+            ),
             0,
             "four backslashes are not a line break"
         );
@@ -1969,7 +1977,11 @@ mod od1_compliance {
             ),
             // Plain links use any registered Org link type, not just URLs.
             // From the Yantar92 corpus: `help:`, `file:` and `elisp:`.
-            ("Reducing help:gcmh-cons-threshold now\n", "bare help: link", 1),
+            (
+                "Reducing help:gcmh-cons-threshold now\n",
+                "bare help: link",
+                1,
+            ),
             (
                 "See file:~/.config/qutebrowser/urls here\n",
                 "bare file: link",
@@ -2364,13 +2376,16 @@ mod entity {
         // \le is an org entity (≤), not a LaTeX fragment
         let count = get_type_count(r"\le100Mb", SyntaxT::Entity, ParseGranularity::Object);
         assert_eq!(count, 1, "\\le should parse as Entity, not LatexFragment");
-        let count_lf = get_type_count(r"\le100Mb", SyntaxT::LatexFragment, ParseGranularity::Object);
+        let count_lf = get_type_count(
+            r"\le100Mb",
+            SyntaxT::LatexFragment,
+            ParseGranularity::Object,
+        );
         assert_eq!(count_lf, 0, "\\le should not produce a LatexFragment");
     }
 }
 
 mod post_blank {
-    use crate::data::Interval;
 
     use super::*;
 

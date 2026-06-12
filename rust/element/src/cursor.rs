@@ -139,7 +139,18 @@ impl<'a> Cursor<'a> {
 
     #[inline]
     pub fn set(&mut self, pos: usize) {
-        self.pos = pos;
+        if !self.data.is_char_boundary(pos) {
+            // Adjust backward to the nearest valid char boundary.
+            // This prevents panics when an element's location.end lands
+            // inside a multi-byte character (e.g. with non-ASCII text).
+            let mut p = pos.min(self.data.len());
+            while p > 0 && !self.data.is_char_boundary(p) {
+                p -= 1;
+            }
+            self.pos = p;
+        } else {
+            self.pos = pos;
+        }
     }
 
     #[inline]
@@ -649,7 +660,7 @@ mod test {
     #[test]
     fn essentials() {
         let input = "1234567890\nЗдравствуйте";
-        let mut cursor = Cursor::new(&input, 0);
+        let mut cursor = Cursor::new(input, 0);
         assert_eq!('1', cursor.get_next_char().unwrap());
         assert_eq!(1, cursor.pos());
         assert_eq!('2', cursor.get_next_char().unwrap());
@@ -665,26 +676,26 @@ mod test {
     #[test]
     fn count_between() {
         let input = "\n \n \n";
-        let cursor = Cursor::new(&input, 0);
+        let cursor = Cursor::new(input, 0);
         assert_eq!(3, cursor.count_between::<LinesMetric>(0, 5));
     }
 
     #[test]
     fn looking_at_headline() {
         let rope = "Some text\n**** headline\n";
-        let mut cursor = Cursor::new(&rope, 0);
-        assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT).is_none());
+        let mut cursor = Cursor::new(rope, 0);
+        assert!(cursor.looking_at(&REGEX_HEADLINE_SHORT).is_none());
 
         cursor.set(4);
-        assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT).is_none());
+        assert!(cursor.looking_at(&REGEX_HEADLINE_SHORT).is_none());
         assert_eq!(4, cursor.pos());
 
         cursor.set(15);
-        assert!(cursor.looking_at(&*REGEX_HEADLINE_SHORT).is_none());
+        assert!(cursor.looking_at(&REGEX_HEADLINE_SHORT).is_none());
 
         cursor.set(10);
 
-        let m = cursor.looking_at(&*REGEX_HEADLINE_SHORT).unwrap();
+        let m = cursor.looking_at(&REGEX_HEADLINE_SHORT).unwrap();
         assert_eq!(0, m.start());
         assert_eq!(5, m.end());
         assert_eq!("**** ", m.as_str());
@@ -694,21 +705,21 @@ mod test {
     #[test]
     fn looking_at_empty_line_re() {
         let text = "First line\n   \n\nFourth line";
-        let mut cursor = Cursor::new(&text, 0);
+        let mut cursor = Cursor::new(text, 0);
 
-        assert!(cursor.looking_at(&*REGEX_EMPTY_LINE).is_none());
+        assert!(cursor.looking_at(&REGEX_EMPTY_LINE).is_none());
         cursor.goto_next_line();
-        assert!(cursor.looking_at(&*REGEX_EMPTY_LINE).is_some());
+        assert!(cursor.looking_at(&REGEX_EMPTY_LINE).is_some());
         cursor.goto_next_line();
-        assert!(cursor.looking_at(&*REGEX_EMPTY_LINE).is_some());
+        assert!(cursor.looking_at(&REGEX_EMPTY_LINE).is_some());
         cursor.goto_next_line();
-        assert!(cursor.looking_at(&*REGEX_EMPTY_LINE).is_none());
+        assert!(cursor.looking_at(&REGEX_EMPTY_LINE).is_none());
     }
 
     #[test]
     fn on_headline() {
         let rope = "Some text\n**** headline\n";
-        let mut cursor = Cursor::new(&rope, 0);
+        let mut cursor = Cursor::new(rope, 0);
 
         assert!(!cursor.on_headline());
 
@@ -727,13 +738,13 @@ mod test {
     #[test]
     fn next_headline() {
         let string = "Some text\n**** headline\n";
-        let mut cursor = Cursor::new(&string, 0);
+        let mut cursor = Cursor::new(string, 0);
 
         assert_eq!(Some(10), cursor.next_headline());
         assert_eq!(10, cursor.pos());
 
         let string2 = "* First\n** Second\n";
-        cursor = Cursor::new(&string2, 0);
+        cursor = Cursor::new(string2, 0);
         assert_eq!(Some(8), cursor.next_headline());
         assert_eq!(8, cursor.pos());
     }
@@ -741,18 +752,18 @@ mod test {
     #[test]
     fn skip_whitespaces() {
         let rope = " \n\t\rorg-mode ";
-        let mut cursor = Cursor::new(&rope, 0);
+        let mut cursor = Cursor::new(rope, 0);
         cursor.skip_whitespace();
         assert_eq!(cursor.get_next_char().unwrap(), 'o');
 
         let rope2 = "no_whitespace_for_you!";
-        cursor = Cursor::new(&rope2, 0);
+        cursor = Cursor::new(rope2, 0);
         cursor.skip_whitespace();
         assert_eq!(cursor.get_next_char().unwrap(), 'n');
 
         // Skipping all the remaining whitespace results in invalid cursor at the end of the rope
         let rope3 = " ";
-        cursor = Cursor::new(&rope3, 0);
+        cursor = Cursor::new(rope3, 0);
         cursor.skip_whitespace();
         assert_eq!(None, cursor.get_next_char());
     }
@@ -760,18 +771,18 @@ mod test {
     #[test]
     fn skip_whitespaces_backwards() {
         let rope = " org-mode \n\t\r";
-        let mut cursor = Cursor::new(&rope, rope.len() - 1);
+        let mut cursor = Cursor::new(rope, rope.len() - 1);
         cursor.skip_whitespace_backwards();
         assert_eq!(cursor.get_next_char().unwrap(), 'e');
 
         let rope2 = "no_whitespace_for_you!";
-        cursor = Cursor::new(&rope2, rope2.len() - 1);
+        cursor = Cursor::new(rope2, rope2.len() - 1);
         cursor.skip_whitespace_backwards();
         assert_eq!(cursor.get_next_char().unwrap(), '!');
 
         // Skipping all the remaining whitespace results in invalid cursor at the beginning of the rope
         let rope3 = " ";
-        cursor = Cursor::new(&rope3, 1);
+        cursor = Cursor::new(rope3, 1);
         cursor.skip_whitespace_backwards();
         assert_eq!(None, cursor.get_prev_char());
     }
@@ -779,7 +790,7 @@ mod test {
     #[test]
     fn skip_whitespace_odd_count() {
         let rope = "   xyz";
-        let mut cursor = Cursor::new(&rope, 0);
+        let mut cursor = Cursor::new(rope, 0);
         cursor.skip_whitespace();
         assert_eq!(cursor.get_next_char().unwrap(), 'x');
     }
@@ -787,7 +798,7 @@ mod test {
     #[test]
     fn skip_whitespace_backwards_odd_count() {
         let rope = "xyz   ";
-        let mut cursor = Cursor::new(&rope, rope.len() - 1);
+        let mut cursor = Cursor::new(rope, rope.len() - 1);
         cursor.skip_whitespace_backwards();
         assert_eq!(cursor.get_next_char().unwrap(), 'z');
     }
@@ -795,7 +806,7 @@ mod test {
     #[test]
     fn line_begin() {
         let rope = "First line\nSecond line\r\nThird line";
-        let mut cursor = Cursor::new(&rope, 13);
+        let mut cursor = Cursor::new(rope, 13);
         assert_eq!(cursor.goto_line_begin(), 11);
         assert_eq!(cursor.goto_line_begin(), 11);
         assert_eq!(cursor.goto_line_begin(), 11);
@@ -813,7 +824,7 @@ mod test {
     #[test]
     fn prev_line() {
         let rope = "First line\nSecond line\r\nThird line\nFour";
-        let mut cursor = Cursor::new(&rope, rope.len());
+        let mut cursor = Cursor::new(rope, rope.len());
 
         assert_eq!(cursor.goto_prev_line(), 24);
         assert_eq!(cursor.get_next_char().unwrap(), 'T');
@@ -828,7 +839,7 @@ mod test {
     #[test]
     fn line_begin_pos() {
         let rope = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
-        let mut cursor = Cursor::new(&rope, 13);
+        let mut cursor = Cursor::new(rope, 13);
 
         assert_eq!(cursor.line_beginning_position(None), 12);
         assert_eq!(cursor.line_beginning_position(Some(1)), 12);
@@ -843,7 +854,7 @@ mod test {
     #[test]
     fn line_end_pos() {
         let text = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
-        let mut cursor = Cursor::new(&text, 13);
+        let mut cursor = Cursor::new(text, 13);
 
         assert_eq!(27, text.len());
         // Moving forward
@@ -863,7 +874,7 @@ mod test {
     #[test]
     fn is_bol() {
         let rope = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
-        let mut cursor = Cursor::new(&rope, 0);
+        let mut cursor = Cursor::new(rope, 0);
         assert!(cursor.is_bol());
         cursor.set(2);
         assert!(!cursor.is_bol());
@@ -882,8 +893,8 @@ mod test {
 
     #[test]
     fn search_forward() {
-        let str = "onetwothreefouronetwothreeonetwothreeonetwothreefouroneabababa";
-        let mut cursor = Cursor::new(&str, 0);
+        let test_str = "onetwothreefouronetwothreeonetwothreeonetwothreefouroneabababa";
+        let mut cursor = Cursor::new(test_str, 0);
         assert_eq!(cursor.search_forward("one", None, Some(2)), Some(18));
         assert_eq!(cursor.search_forward("one", None, None), Some(29));
         cursor.set(0);
@@ -900,8 +911,8 @@ mod test {
 
     #[test]
     fn skip_chars_forward() {
-        let str = "  k\t **hello";
-        let mut cursor = Cursor::new(&str, 0);
+        let test_str = "  k\t **hello";
+        let mut cursor = Cursor::new(test_str, 0);
         assert_eq!(cursor.skip_chars_forward(" ", None), 2);
         assert_eq!(cursor.pos(), 2);
         assert_eq!(cursor.skip_chars_forward(" k\t", None), 3);
@@ -912,7 +923,7 @@ mod test {
     #[test]
     fn re_search_forward() {
         let text = "One\nTwo\nThi\nFo4\nFiv\nSix\n7en";
-        let mut cursor = Cursor::new(&text, 0);
+        let mut cursor = Cursor::new(text, 0);
 
         let re = Regex::new(r"\d").unwrap();
         assert_eq!(Some(15), cursor.re_search_forward(&re, None));

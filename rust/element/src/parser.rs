@@ -12,7 +12,10 @@
 //
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
-
+#![allow(
+    clippy::needless_range_loop,
+    reason = "This is a moronic lint, that makes simple interactions complicated for no reason"
+)]
 use memchr::{memchr, memchr2, memchr3, memmem};
 
 use crate::{
@@ -217,9 +220,9 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
     /// Original function name: org-element--next-mode
     /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4273
     fn next_mode(mode: ParserMode, syntax: SyntaxT, is_parent: bool) -> ParserMode {
-        use SyntaxT::*;
         use ParserMode::Planning as PmPlanning;
         use ParserMode::PropertyDrawer as PmPropertyDrawer;
+        use SyntaxT::*;
 
         if is_parent {
             match syntax {
@@ -233,8 +236,8 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                 _ => mode,
             }
         } else {
-            use ParserMode::Nil as PmNil;
             use ParserMode::FirstSection as PmFirstSection;
+            use ParserMode::Nil as PmNil;
             match (mode, syntax) {
                 // Planning mode: stay in planning only for planning elements,
                 // otherwise reset to a neutral mode (Emacs returns nil here,
@@ -301,7 +304,10 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             {
                 let line_end = memchr(b'\n', &self.input.as_bytes()[current_pos..span.end])
                     .map_or(span.end, |i| current_pos + i + 1);
-                if self.input[current_pos..line_end].trim().is_empty() {
+                if self.input.as_bytes()[current_pos..line_end]
+                    .trim_ascii()
+                    .is_empty()
+                {
                     self.cursor.set(line_end);
                     continue;
                 }
@@ -343,8 +349,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                             }
                         };
 
-                        let new_mode =
-                            Parser::<Environment>::next_mode(mode, data_disc, true);
+                        let new_mode = Parser::<Environment>::next_mode(mode, data_disc, true);
 
                         let children = self.parse_elements(content_location, new_mode, list_sturct);
                         self.arena.set_children(element, children);
@@ -633,7 +638,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         interval: impl Into<Interval>,
         restriction: impl Fn(SyntaxT) -> bool,
     ) -> BumpVec<'b, NodeId> {
-            let interval = interval.into();
+        let interval = interval.into();
         // Mark this region's start so an emphasis marker sitting at the
         // boundary passes the pre-character check. Saved/restored to keep the
         // enclosing region's boundary intact across nested object parsing.
@@ -1320,7 +1325,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             return None;
         }
         pos += 1; // skip ':'
-                  // Scan for closing ']' — must contain at least one '@'
+        // Scan for closing ']' — must contain at least one '@'
         let close_start = pos;
         while let Some(&b) = bytes.get(pos) {
             if b == b']' {
@@ -1642,7 +1647,8 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
     ///
     /// 1. `\command{...}`           — backslash + letters (optionally `*`) + brace group
     /// 2. `\command[...]{...}`      — with optional bracket argument
-    /// 3. `\command`               — bare command (no arguments)
+    /// 3. `\command`                — bare command (no arguments)
+    ///
     /// Parse an Org line break: exactly `\\` at the end of a line (only
     /// `[ \t]` may follow before the newline), where the `\\` is not part of a
     /// longer backslash run. The node spans through the trailing whitespace

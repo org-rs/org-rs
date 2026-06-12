@@ -43,7 +43,7 @@ pub mod table;
 /// use org_element::prelude::*;
 /// ```
 ///
-/// There are no name conflicts among the re-exported items: every public
+/// There are no name conflicts amongst the re-exported items: every public
 /// type in the crate has a unique name.
 pub mod prelude {
     pub use crate::affiliated::{AffiliatedData, DualVal, ElementSpan, ElementSpanBuilder};
