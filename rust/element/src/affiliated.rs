@@ -104,15 +104,23 @@ lazy_static! {
 /// itself when there are none), `span.end` is the parse limit.  Produced by
 /// [`Parser::collect_affiliated_keywords`] and consumed by every element parser
 /// that can carry affiliated keywords.
+///
+/// `content_start` is the byte position where the element's actual content
+/// begins (after all affiliated keyword lines).  When there are no affiliated
+/// keywords, this is the same as `span.start`.  Element parsers that create
+/// child objects should use `content_start` instead of `span.start` as the
+/// beginning of the object region.
 pub struct ElementSpan<'a, 'b> {
     pub span: Interval,
     pub affiliated: Option<AffiliatedData<'a, 'b>>,
+    pub content_start: usize,
 }
 
 /// Builder for [`ElementSpan`], obtained via [`ElementSpan::new`].
 pub struct ElementSpanBuilder<'a, 'b> {
     span: Interval,
     affiliated: Option<AffiliatedData<'a, 'b>>,
+    content_start: usize,
 }
 
 impl<'a, 'b> ElementSpanBuilder<'a, 'b> {
@@ -123,10 +131,17 @@ impl<'a, 'b> ElementSpanBuilder<'a, 'b> {
     }
 
     #[inline]
+    pub fn content_start(mut self, pos: usize) -> Self {
+        self.content_start = pos;
+        self
+    }
+
+    #[inline]
     pub fn build(self) -> ElementSpan<'a, 'b> {
         ElementSpan {
             span: self.span,
             affiliated: self.affiliated,
+            content_start: self.content_start,
         }
     }
 }
@@ -135,9 +150,11 @@ impl<'a, 'b> ElementSpan<'a, 'b> {
     #[inline]
     #[allow(clippy::new_ret_no_self)]
     pub fn new(span: impl Into<Interval>) -> ElementSpanBuilder<'a, 'b> {
+        let span = span.into();
         ElementSpanBuilder {
-            span: span.into(),
+            span,
             affiliated: None,
+            content_start: span.start,
         }
     }
 }
@@ -302,6 +319,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
         ElementSpan::new((origin, limit))
             .affiliated(Some(output))
+            .content_start(self.cursor.pos())
             .build()
     }
 }

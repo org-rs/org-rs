@@ -29,6 +29,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            content_start,
         } = element_span;
         let mut end = start;
         let mut post_blank: usize = 0;
@@ -50,12 +51,12 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             } else {
                 bytes.len()
             };
-            let content_start = bytes[..line_len]
+            let content_offset = bytes[..line_len]
                 .iter()
                 .position(|&b| b != b' ' && b != b'\t');
 
             // Blank line — terminate the paragraph.
-            let Some(i) = content_start else {
+            let Some(i) = content_offset else {
                 post_blank = 1;
                 end = line_end;
                 break;
@@ -117,11 +118,11 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         }
 
         let content_end = end - post_blank;
-        let children = self.parse_objects((start, content_end), |_| true);
+        let children = self.parse_objects((content_start, content_end), |_| true);
 
         self.arena.alloc_with_children(
             SyntaxNode::new(Syntax::Paragraph, (start, end), self.bump)
-                .content((start, content_end))
+                .content((content_start, content_end))
                 .post_blank(post_blank)
                 .affiliated(affiliated)
                 .build(),

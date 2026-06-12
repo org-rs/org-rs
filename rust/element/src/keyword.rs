@@ -43,6 +43,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated: _,
+            ..
         } = element_span;
         let line_end =
             memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i + 1);

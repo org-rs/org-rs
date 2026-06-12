@@ -223,6 +223,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            ..
         } = element_span;
         let input_slice = &self.input[start..limit];
 

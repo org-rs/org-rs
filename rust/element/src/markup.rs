@@ -181,6 +181,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 end: limit,
             },
             affiliated,
+            ..
         } = element_span;
         let input_slice = &self.input[begin..limit];
 
@@ -305,6 +306,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 end: limit,
             },
             affiliated,
+            ..
         } = element_span;
         let content_start = self.cursor.pos();
         let mut end_area = content_start;

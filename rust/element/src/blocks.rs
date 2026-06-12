@@ -280,6 +280,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            ..
         } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, tag) else {
             return self.block_fallback(Interval { start, end: limit }, tag);
@@ -305,6 +306,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            ..
         } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "COMMENT") else {
             return self.block_fallback(Interval { start, end: limit }, "COMMENT");
@@ -324,6 +326,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            ..
         } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "EXAMPLE") else {
             return self.block_fallback(Interval { start, end: limit }, "EXAMPLE");
@@ -356,6 +359,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            ..
         } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "EXPORT") else {
             return self.block_fallback(Interval { start, end: limit }, "EXPORT");
@@ -385,6 +389,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            ..
         } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "QUOTE") else {
             return self.block_fallback(Interval { start, end: limit }, "QUOTE");
@@ -404,6 +409,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            ..
         } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "SRC") else {
             return self.block_fallback(Interval { start, end: limit }, "SRC");
@@ -438,6 +444,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            ..
         } = element_span;
         let Some(bounds) = find_block_bounds(self.input, start, limit, "VERSE") else {
             return self.block_fallback(Interval { start, end: limit }, "VERSE");
@@ -457,6 +464,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            ..
         } = element_span;
         let first_line_end =
             memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i);
@@ -487,6 +495,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            ..
         } = element_span;
         let Some(bounds) = find_dynamic_block_bounds(self.input, start, limit) else {
             return self

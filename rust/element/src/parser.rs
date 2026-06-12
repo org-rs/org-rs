@@ -633,7 +633,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         interval: impl Into<Interval>,
         restriction: impl Fn(SyntaxT) -> bool,
     ) -> BumpVec<'b, NodeId> {
-        let interval = interval.into();
+            let interval = interval.into();
         // Mark this region's start so an emphasis marker sitting at the
         // boundary passes the pre-character check. Saved/restored to keep the
         // enclosing region's boundary intact across nested object parsing.

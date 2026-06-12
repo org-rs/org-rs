@@ -2805,4 +2805,16 @@ mod post_blank {
             count
         );
     }
+
+    #[test]
+    fn name_affiliated_keyword_not_plain_text() {
+        let starts = plain_text_starts(
+            "text\n\n#+name: url\nhttps://example.com\n#+begin_src bash\necho 1\n#+end_src\n",
+        );
+        assert!(
+            !starts.contains(&6),
+            "expected no PlainText at byte 6 (#+name: line), got starts: {:?}",
+            starts
+        );
+    }
 }
