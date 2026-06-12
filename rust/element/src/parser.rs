@@ -803,6 +803,40 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                             self.try_parse_plain_link(remaining, pos).map(|(n, c)| {
                                 if restriction(SyntaxT::Link) {
                                     children.push(n);
+                                } else {
+                                    // Link not allowed in
+                                    // (e.g. another link).  Absorb
+                                    // the URL text into the preceding
+                                    // PlainText so the node
+                                    // boundaries match Emacs.
+                                    let fused = children.last().copied().and_then(|prev| {
+                                        if let Syntax::PlainText(_) = &self.arena.nodes[prev].data {
+                                            if self.arena.nodes[prev].location.end == pos {
+                                                let new_start =
+                                                    self.arena.nodes[prev].location.start;
+                                                return Some((prev, new_start, pos + c));
+                                            }
+                                        }
+                                        None
+                                    });
+                                    if let Some((prev, new_start, new_end)) = fused {
+                                        self.arena.nodes[prev].data =
+                                            Syntax::PlainText(&self.input[new_start..new_end]);
+                                        self.arena.nodes[prev].location = Interval {
+                                            start: new_start,
+                                            end: new_end,
+                                        };
+                                    } else {
+                                        let pt = self.arena.alloc(
+                                            SyntaxNode::new(
+                                                Syntax::PlainText(&self.input[pos..pos + c]),
+                                                (pos, pos + c),
+                                                self.bump,
+                                            )
+                                            .build(),
+                                        );
+                                        children.push(pt);
+                                    }
                                 }
                                 c
                             })
