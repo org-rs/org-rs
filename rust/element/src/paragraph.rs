@@ -68,7 +68,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             if end > start {
                 match bytes[i] {
                     // Headline: leading `*` followed by space or more `*`
-                    b'*' if bytes.get(i + 1).is_some_and(|&b| b == b' ' || b == b'*') => break,
+                    b'*' if i == 0 && bytes.get(i + 1).is_some_and(|&b| b == b' ' || b == b'*') => break,
                     // Keyword / block / comment
                     b'#' => {
                         if i + 1 < bytes.len() && bytes[i + 1] == b'+' {

@@ -945,6 +945,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         start: usize,
         kind: ScriptKind,
     ) -> Option<(NodeId, usize)> {
+        // FIXME: This looks hella sus
         let _ = start
             .checked_sub(1)
             .and_then(|i| self.input.as_bytes().get(i))

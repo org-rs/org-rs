@@ -342,28 +342,41 @@ impl DiscrepancyKind {
 }
 
 impl Discrepancy {
-    fn print_context(&self) {
-        let pos = match &self.kind {
-            DiscrepancyKind::TypeMismatch(_) => 0usize,
-            DiscrepancyKind::MissingInRust(at) => *at,
-            DiscrepancyKind::ExtraInRust(at) => *at,
-        };
-
-        let syntax_t = snake_to_pascal(&format!("{}", self.oracle_key));
-        let snippet = &self.snippet;
-
-        println!("  {} at byte {} (tree: {})", self.kind, pos, self.tree_path,);
-        println!("    Emacs type: {}  {}", syntax_t, self.oracle_props);
-        println!("    Context: ...{}...", snippet);
-        println!();
-    }
-
     fn byte_pos(&self) -> usize {
         match &self.kind {
             DiscrepancyKind::TypeMismatch(_) => 0,
             DiscrepancyKind::MissingInRust(at) => *at,
             DiscrepancyKind::ExtraInRust(at) => *at,
         }
+    }
+
+    fn print_context(&self, input: &str, show_hex: bool) {
+        let pos = self.byte_pos();
+        let syntax_t = snake_to_pascal(&format!("{}", self.oracle_key));
+        let snippet = &self.snippet;
+
+        println!("  {} at byte {} (tree: {})", self.kind, pos, self.tree_path,);
+        println!("    Emacs type: {}  {}", syntax_t, self.oracle_props);
+        println!("    Context: ...{}...", snippet);
+        if show_hex {
+            let lo = pos.saturating_sub(8);
+            let hi = (pos + 8).min(input.len());
+            print!("    Hex: ");
+            for b in &input.as_bytes()[lo..hi] {
+                print!("{b:02x} ");
+            }
+            println!();
+            print!("    Asc: ");
+            for b in &input.as_bytes()[lo..hi] {
+                if b.is_ascii_graphic() || *b == b' ' {
+                    print!(" {} ", *b as char);
+                } else {
+                    print!(" . ");
+                }
+            }
+            println!();
+        }
+        println!();
     }
 }
 
@@ -417,6 +430,7 @@ struct DiscrepancyFilters {
     max_per_file: Option<usize>,
     summary_only: bool,
     mode: DisplayMode,
+    show_hex: bool,
 }
 
 impl DiscrepancyFilters {
@@ -628,7 +642,7 @@ fn process_file(
     index: usize,
     total: usize,
     stderr_lock: &Arc<Mutex<()>>,
-) -> Result<(Vec<Discrepancy>, FileTimings), CorpusError> {
+) -> Result<(String, Vec<Discrepancy>, FileTimings), CorpusError> {
     let file_start = Instant::now();
 
     let input = std::fs::read_to_string(path).map_err(|source| CorpusError::ReadFile {
@@ -671,7 +685,10 @@ fn process_file(
 
     let total = file_start.elapsed();
 
+    let input_for_return = input.clone();
+
     Ok((
+        input_for_return,
         discrepancies,
         FileTimings {
             emacs,
@@ -709,6 +726,7 @@ Options:
   --compact             Single-line per discrepancy (no context snippet)
   --json                JSONL output (one JSON object per discrepancy per line)
   --csv                 CSV output (header + one row per discrepancy)
+  --hex                 Show hex dump around discrepancy position (text/compact only)
 
 The tool requires:
   - `emacs` on PATH with org-element (built-in since Org 9.0)
@@ -805,6 +823,9 @@ fn main() {
                 "--csv" => {
                     filters.mode = DisplayMode::Csv;
                 }
+                "--hex" => {
+                    filters.show_hex = true;
+                }
                 _ => {
                     eprintln!("error: unknown option '{}'", args[i]);
                     eprint!("usage: ");
@@ -870,7 +891,7 @@ fn main() {
                 let g = sl.lock().unwrap();
                 match result {
                     Err(e) => eprintln!("  SKIP: {e}"),
-                    Ok((ds, t)) => {
+                    Ok((input, ds, t)) => {
                         let emit_start = Instant::now();
 
                         let sg = sol.lock().unwrap();
@@ -921,7 +942,7 @@ fn main() {
                                         println!("FAIL {} ({} discrepancies, {} filtered)",
                                             path.display(), ds.len(), filtered.len());
                                         for d in filtered.iter().take(count) {
-                                            d.print_context();
+                                            d.print_context(&input, filters_ref.show_hex);
                                         }
                                         if count < filtered.len() {
                                             println!("  ... and {} more (use --max to show more)", filtered.len() - count);
@@ -932,8 +953,27 @@ fn main() {
                                     println!("FAIL {} ({} discrepancies, {} filtered)",
                                         path.display(), ds.len(), filtered.len());
                                     for d in filtered.iter().take(count) {
+                                        let pos = d.byte_pos();
                                         println!("  {} {} @{} [{}]",
-                                            d.kind.kind_name(), d.type_name, d.byte_pos(), d.tree_path);
+                                            d.kind.kind_name(), d.type_name, pos, d.tree_path);
+                                        if filters_ref.show_hex {
+                                            let lo = pos.saturating_sub(8);
+                                            let hi = (pos + 8).min(input.len());
+                                            print!("    Hex: ");
+                                            for b in &input.as_bytes()[lo..hi] {
+                                                print!("{b:02x} ");
+                                            }
+                                            println!();
+                                            print!("    Asc: ");
+                                            for b in &input.as_bytes()[lo..hi] {
+                                                if b.is_ascii_graphic() || *b == b' ' {
+                                                    print!(" {} ", *b as char);
+                                                } else {
+                                                    print!(" . ");
+                                                }
+                                            }
+                                            println!();
+                                        }
                                     }
                                     if count < filtered.len() {
                                         println!("  ... and {} more", filtered.len() - count);

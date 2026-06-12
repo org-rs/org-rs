@@ -515,7 +515,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             let starts_with_bullet = {
                 let bs = rest.as_bytes();
                 let first = bs.first().copied();
-                (first == Some(b'-') || first == Some(b'+'))
+                (first == Some(b'-') || first == Some(b'+') || first == Some(b'*'))
                     && (bs.len() == 1 || bs[1] == b' ' || bs[1] == b'\t')
                     || starts_with_ordered
             };
