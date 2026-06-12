@@ -162,19 +162,20 @@ fn scan_plain_text_end(bytes: &[u8], link_types: &[&str], link_start_bytes: &[u8
     let find_link = |from: &[u8]| from.iter().position(|&b| is_link_start[b as usize]);
 
     let p1 = memchr3(b'[', b'<', b'\\', bytes);
+    let p_dollar = memchr(b'$', bytes);
     let mut p2 = memchr2(b'*', b'/', bytes);
     let mut p3 = memchr3(b'+', b'=', b'~', bytes);
     let mut p5 = memchr2(b'_', b'^', bytes);
     let mut pl = find_link(bytes);
 
     loop {
-        let i = match [p1, p2, p3, p5, pl].iter().copied().flatten().min() {
+        let i = match [p1, p_dollar, p2, p3, p5, pl].iter().copied().flatten().min() {
             None => return bytes.len(),
             Some(pos) => pos,
         };
         let b = bytes[i];
 
-        if matches!(b, b'[' | b'<' | b'\\') {
+        if matches!(b, b'[' | b'<' | b'\\' | b'$') {
             return i;
         }
         if matches!(b, b'*' | b'/' | b'+' | b'=' | b'~') && i > 0 && is_pre_char(bytes[i - 1]) {

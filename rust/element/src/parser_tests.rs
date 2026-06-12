@@ -2702,6 +2702,53 @@ mod subscript_superscript {
     }
 
     #[test]
+    fn dollar_in_table_formula_is_latex_fragment() {
+        // Emacs parses $>.其中$ as a LaTeX fragment when:
+        // - char before opening $ is not $ (can be comma)
+        // - char after opening $ is not space/tab/newline/comma/period/semicolon
+        // - closing $ exists with content >= 1 char
+        // - char before closing $ is not space/tab/newline/comma/period
+        // - char after closing $ is whitespace or punctuation
+        let input = ",$>.其中$<固定表示第一列,$>固定表示最后一列\n";
+        let bump = Bump::new();
+        let mut parser =
+            Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        // Print all nodes for debugging
+        use std::fmt::Write;
+        fn dump(arena: &NodeArena, id: NodeId, indent: usize, out: &mut String) {
+            let node = &arena[id];
+            let loc = node.location;
+            match &node.data {
+                Syntax::LatexFragment(v) => {
+                    writeln!(out, "{:indent$}LatexFragment({:?}) {}..{}", "", v, loc.start, loc.end, indent=indent).unwrap();
+                }
+                Syntax::PlainText(v) => {
+                    let text: String = v.chars().take(30).collect();
+                    writeln!(out, "{:indent$}PlainText({:?}) {}..{}", "", text, loc.start, loc.end, indent=indent).unwrap();
+                }
+                Syntax::Script(_) => {
+                    writeln!(out, "{:indent$}Script {}..{}", "", loc.start, loc.end, indent=indent).unwrap();
+                }
+                _ => {
+                    writeln!(out, "{:indent$}{:?} {}..{}", "", node.data, loc.start, loc.end, indent=indent).unwrap();
+                }
+            }
+            for &c in &arena[id].children {
+                dump(arena, c, indent + 2, out);
+            }
+        }
+        let mut s = String::new();
+        dump(&arena, root, 0, &mut s);
+        println!("{}", s);
+        let lf_count = count_type(&arena, root, SyntaxT::LatexFragment);
+        assert!(
+            lf_count > 0,
+            "expected at least one LatexFragment in table formula context, got 0"
+        );
+    }
+
+    #[test]
     fn custom_id_is_subscript() {
         // Emacs parses CUSTOM_ID as CUSTOM + subscript _ID.
         // The _ID is a bare subscript: I and D are both alphanumeric,
