@@ -1630,6 +1630,46 @@ mod footnote_definition {
         }
     }
 
+    /// Two footnotes separated by a blank line must be siblings,
+    /// not nested.  Reproduces a corpus bug where the blank-line
+    /// terminator sets `end = search_pos` but `search_pos` still
+    /// equals `line_end_pos`, so the post-loop fallback
+    /// (`if end == line_end_pos { end = limit; }`) incorrectly fires
+    /// and the first footnote swallows the rest of the buffer.
+    #[test]
+    fn footnotes_separated_by_blank_line_are_siblings() {
+        let input = "[fn:1] First.\n\n[fn:2] Second.\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+
+        let root_children = &arena[root].children;
+        assert_eq!(root_children.len(), 1, "root should have exactly one section");
+        let section = root_children[0];
+        let section_children = &arena[section].children;
+
+        assert_eq!(
+            section_children.len(),
+            2,
+            "section should have exactly 2 direct children (both footnote \
+             definitions as siblings), found {} — the first footnote is \
+             swallowing the second because the blank-line terminator does \
+             not survive the `end == line_end_pos` fallback",
+            section_children.len()
+        );
+
+        let Syntax::FootnoteDefinition(data1) = &arena[section_children[0]].data else {
+            panic!("first child should be FootnoteDefinition");
+        };
+        let Syntax::FootnoteDefinition(data2) = &arena[section_children[1]].data else {
+            panic!("second child should be FootnoteDefinition");
+        };
+        assert_eq!(data1.label, "1");
+        assert_eq!(data2.label, "2");
+        assert_eq!(data1.value, "First.");
+        assert_eq!(data2.value, "Second.");
+    }
+
     /// A footnote followed by a headline: the footnote must NOT
     /// swallow the headline.
     #[test]

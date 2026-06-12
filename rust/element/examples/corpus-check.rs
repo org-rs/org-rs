@@ -6,7 +6,7 @@ use org_element::parser::{ParseGranularity, Parser};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -602,6 +602,15 @@ fn timed_stage<T>(
     stderr_lock: &Arc<Mutex<()>>,
     work: impl FnOnce() -> T,
 ) -> (T, Duration) {
+    // Only show in-place progress on a TTY.  When stderr is piped or
+    // captured (CI, tools), `\r` does not overwrite — every poll would
+    // concatenate into one long line.
+    if !std::io::stderr().is_terminal() {
+        let start = Instant::now();
+        let result = work();
+        return (result, start.elapsed());
+    }
+
     let done = Arc::new(AtomicBool::new(false));
     let d = done.clone();
     let l = Arc::clone(stderr_lock);
@@ -610,6 +619,18 @@ fn timed_stage<T>(
 
     let timer = thread::spawn(move || {
         let start = Instant::now();
+        // Wait before the first print so fast stages produce no output.
+        let first_print_delay = Duration::from_millis(300);
+        let poll_interval = Duration::from_millis(250);
+        loop {
+            if d.load(Ordering::Relaxed) {
+                return;
+            }
+            if start.elapsed() >= first_print_delay {
+                break;
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
         while !d.load(Ordering::Relaxed) {
             let elapsed = start.elapsed();
             let _g = l.lock().unwrap();
@@ -623,7 +644,7 @@ fn timed_stage<T>(
             );
             std::io::stderr().flush().ok();
             drop(_g);
-            thread::sleep(Duration::from_millis(50));
+            thread::sleep(poll_interval);
         }
     });
 

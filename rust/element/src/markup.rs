@@ -240,9 +240,14 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             }
         }
 
-        if end == line_end_pos {
+        // Fallback for "loop exhausted without finding any terminator".
+        // The blank-line branch above can legitimately set
+        // `end = search_pos` while `search_pos == line_end_pos` (when the
+        // very next \n forms the blank line), so we must not clobber that
+        // result.  `pre_blank > 0` is only set by the blank-line branch
+        // and reliably distinguishes the two cases.
+        if end == line_end_pos && pre_blank == 0 {
             end = limit;
-            pre_blank = 0;
         }
 
         let contents_start_raw = after_label;
