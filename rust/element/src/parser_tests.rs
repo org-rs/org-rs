@@ -2950,9 +2950,12 @@ mod post_blank {
         let starts = plain_text_starts("中http://example.org more\n");
         // URL is at bytes 3..21; PlainText should start at 0 (the `中`)
         // and at 21 (the space after the URL).
+        // URL at bytes 3..21 (18-byte "http://example.org"), trailing
+        // space absorbed as post-blank → link span 3..22.
+        // PlainText at 0 (the `中`) and at 22 ("more\n").
         assert!(
-            starts.contains(&21),
-            "expected PlainText at byte 21 (' ' after URL), got starts: {:?} — \
+            starts.contains(&22),
+            "expected PlainText at byte 22 ('m' of 'more'), got starts: {:?} — \
              http:// after a CJK char is being left as PlainText",
             starts
         );

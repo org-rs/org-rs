@@ -184,7 +184,9 @@ fn scan_plain_text_end(bytes: &[u8], link_types: &[&str], link_start_bytes: &[u8
             return i;
         }
         // A plain link must sit at a word boundary and start a known type.
-        if (i == 0 || is_pre_char(bytes[i - 1]))
+        // Accept any non-ASCII byte as a pre-char (CJK, etc.) — Emacs'
+        // plain-link regex does not require a word boundary at all.
+        if (i == 0 || is_pre_char(bytes[i - 1]) || bytes[i - 1] >= 0x80)
             && plain_link_proto_len(&bytes[i..], link_types).is_some()
         {
             return i;
