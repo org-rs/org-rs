@@ -321,58 +321,92 @@ jq '.fruit | keys' fruit.json
         );
     }
 
+    /// Emacs `org-current-text-column` uses `string-width` to measure
+    /// leading whitespace — a TAB always counts as 8 cells regardless of
+    /// the current column position.  Our `get_indent` uses screen-column
+    /// math (`\t` advances to next multiple of 8), which gives a phantom
+    /// gap for mixed space+tab indentation.
+    ///
+    /// For a line like `   \t* text` (3 spaces + tab + `* `):
+    ///   - Emacs indent = string-width("   \t") = 3 + 8 = 11
+    ///   - Rust  indent = screen-column after "   \t" = 8
+    ///
+    /// This causes continuation lines at column 10 (e.g. `\t  (text)`)
+    /// to be treated as continuations in Rust (`10 > 8`) but as
+    /// list-terminating in Emacs (`10 <= 11`).
     #[test]
-    fn tab_indented_continuation_after_blank_line() {
-        // A blank line should terminate the item content even when the
-        // following line has indent > item.indent (but still < what would
-        // be the content-start column in Emacs).
-        // Bug: item_content_end treats indent(10) > item.indent(8) as
-        // a continuation past the blank line, but Emacs always terminates
-        // at a blank line.
-        let input = "   \t* item1\n\n\t  (continuation)\n\n   \t* item2\n\n\t  (cont2)\n";
+    fn tab_with_spaces_indent_mismatch_with_emacs() {
+        // Two items, each followed by a blank line + continuation.
+        // Emacs: 2 PlainLists (continuation terminates each list).
+        // Rust:  1 PlainList (continuation indent=10 > get_indent=8 → stays in list).
+        let input = "   \t* item1\n\n\t  (cont1)\n\n   \t* item2\n\n\t  (cont2)\n";
         let bump = Bump::new();
         let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
         let (arena, root) = parser.parse_buffer();
 
-        // Count plain lists (should be 2: one before each continuation)
+        // Emacs produces 2 PlainLists (each star-item is a separate list).
         let pl = count_type(&arena, root, SyntaxT::PlainList);
-        assert_eq!(pl, 2, "Expected 2 PlainLists (blank line terminates items), got {pl}");
+        assert_eq!(
+            pl, 2,
+            "Expected 2 PlainLists (Emacs: continuation at col 10 <= Emacs-indent(11) \
+             terminates list), got {pl}"
+        );
 
-        // Verify continuations are NOT inside list items
-        let mut inside_item = false;
-        let mut misplaced = Vec::new();
-        check_para_placement(&arena, root, input, &mut inside_item, &mut misplaced);
-        assert!(
-            misplaced.is_empty(),
-            "Continuation text should NOT be inside list items: {:?}",
-            misplaced,
+        // Emacs produces 3 Paragraphs: one inside each item + the two
+        // continuations at section level = 4 paragraphs total (2 in items, 2 at section).
+        // Actually Emacs: item1[1 para], cont1[1 para @section], item2[1 para], cont2[1 para @section]
+        let para = count_type(&arena, root, SyntaxT::Paragraph);
+        assert_eq!(
+            para, 4,
+            "Expected 4 Paragraphs (2 inside items, 2 at section level), got {para}"
         );
     }
 
-    fn check_para_placement(
-        arena: &NodeArena,
-        id: NodeId,
-        input: &str,
-        inside_item: &mut bool,
-        misplaced: &mut Vec<(usize, String)>,
-    ) {
-        let prev = *inside_item;
-        if matches!(&arena[id].data, Syntax::Item(_) | Syntax::PlainList(_)) {
-            *inside_item = true;
-        }
-        if matches!(&arena[id].data, Syntax::Paragraph) {
-            let span = &arena[id].location;
-            let txt = &input[span.start..span.end];
-            if txt.contains("continuation") || txt.contains("cont2") {
-                if *inside_item {
-                    misplaced.push((span.start, txt.to_owned()));
-                }
+    /// Same string-width vs screen-column discrepancy affects
+    /// `item_content_end`: a continuation line after a blank line
+    /// whose `string-width` indent ≤ item indent should terminate
+    /// the item content (matching Emacs).
+    #[test]
+    fn single_item_terminated_by_tab_indented_continuation() {
+        // Single item with blank line + continuation.
+        // Emacs: Paragraph at section level (continuation NOT inside item).
+        // Rust:  Paragraph inside item (indent 10 > get_indent 8 → continuation).
+        let input = "   \t* item1\n\n\t  (cont1)\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+
+        // Count paragraphs inside items vs at section level.
+        let section = arena[root].children[0];
+        let section_paras: Vec<_> = arena[section]
+            .children
+            .iter()
+            .filter(|&&c| matches!(arena[c].data, Syntax::Paragraph))
+            .collect();
+        assert_eq!(
+            section_paras.len(),
+            1,
+            "Expected 1 Paragraph at section level (the continuation), got {}",
+            section_paras.len()
+        );
+
+        // Items should contain exactly one paragraph each (only "item1").
+        let items: Vec<NodeId> = arena[section]
+            .children
+            .iter()
+            .filter(|&&c| matches!(arena[c].data, Syntax::PlainList(_)))
+            .copied()
+            .collect();
+        if let Some(list) = items.first() {
+            // Each item has exactly 1 paragraph (item text, not continuation)
+            for &item in &arena[*list].children {
+                let ip = count_type(&arena, item, SyntaxT::Paragraph);
+                assert_eq!(
+                    ip, 1,
+                    "Item should have exactly 1 Paragraph (the item text), got {ip}"
+                );
             }
         }
-        for &c in &arena[id].children {
-            check_para_placement(arena, c, input, inside_item, misplaced);
-        }
-        *inside_item = prev;
     }
 
     #[test]
