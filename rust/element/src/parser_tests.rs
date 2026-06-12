@@ -2450,6 +2450,10 @@ mod subscript_superscript {
             ("H_2\n", Some(ScriptKind::Sub), "bare subscript H_2"),
             ("E=mc^2\n", Some(ScriptKind::Sup), "bare superscript mc^2"),
             ("x^{n+1}\n", None, "braced superscript x^{n+1}"),
+            // Emacs [[:alnum:]] matches Unicode (Chinese, Cyrillic, etc.);
+            // Rust uses is_ascii_alphanumeric() which misses these.
+            ("?^字母\n", Some(ScriptKind::Sup), "superscript with CJK chars"),
+            ("x^αβγ\n", Some(ScriptKind::Sup), "superscript with Greek letters"),
         ] {
             let bump = Bump::new();
             let mut parser =
@@ -2592,6 +2596,19 @@ mod post_blank {
             !starts.contains(&9),
             "plain_text must not start at 9 (post-blank space), got starts: {:?}",
             starts
+        );
+    }
+
+    #[test]
+    fn bold_followed_by_double_quote() {
+        // Emacs includes `"` as a valid post-char for emphasis markers.
+        // Corpus: `"...-*"` with `"` immediately after closing `*`.
+        let input = "\"*bold*\" text\n";
+        let count = get_type_count(input, SyntaxT::Bold, ParseGranularity::Object);
+        assert_eq!(
+            count, 1,
+            "Expected 1 bold with double-quote post-char, got {}",
+            count
         );
     }
 
