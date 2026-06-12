@@ -1849,7 +1849,7 @@ impl<'a> LinkData<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[repr(u8)]
 pub enum LinkType {
     /// Line in some source code,

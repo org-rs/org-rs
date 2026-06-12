@@ -3567,6 +3567,109 @@ mod affiliated_keyword_with_leading_whitespace {
     }
 }
 
+/// Corpus discrepancies for target and link objects.
+///
+/// Discrepancies observed in emacs_china_org_manual.org:
+///   1. Radio target (`<<<target>>>`) not parsed — `try_parse_target` catches
+///      it as a regular `Target` with wrong content (includes the leading `<`).
+///   2. `[[#custom-id]]` links not recognised as `LinkType::CustomId` — they
+///      fall through to `Fuzzy` in `LinkData::new`.
+///   3. `[[url] ]` (space before closing `]]`) incorrectly parsed as a link —
+///      Emacs does not treat this as a valid bracket link.
+///   4. `[[#custom-id][description]]` links — not parsed at all.
+mod corpus_target_link {
+    use super::*;
+    use crate::data::LinkType;
+
+    fn find_first_link<'a>(
+        arena: &NodeArena<'_, 'a>,
+        id: NodeId,
+    ) -> Option<NodeId> {
+        if matches!(arena[id].data, Syntax::Link(_)) {
+            return Some(id);
+        }
+        for &child in &arena[id].children {
+            if let found @ Some(_) = find_first_link(arena, child) {
+                return found;
+            }
+        }
+        None
+    }
+
+    fn first_link_type(input: &str) -> Option<LinkType> {
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        let id = find_first_link(&arena, root)?;
+        if let Syntax::Link(d) = &arena[id].data {
+            Some(d.link_type())
+        } else {
+            None
+        }
+    }
+
+    /// `<<<radio-target>>>` must be parsed as a `RadioTarget` node, not a
+    /// `Target`.  Emacs org-element treats triple-angled brackets as a
+    /// distinct object type.
+    #[test]
+    fn radio_target_is_not_plain_target() {
+        let input = "<<<radio-target>>>\n";
+        // Emacs parses this as a RadioTarget.  Rust currently lets
+        // `try_parse_target` consume it as a Target with content `"<radio-target>"`.
+        let radio_count = get_type_count(input, SyntaxT::RadioTarget, ParseGranularity::Object);
+        assert_eq!(
+            radio_count, 1,
+            "expected 1 RadioTarget for '<<<radio-target>>>', got {} — \
+             try_parse_target should not consume radio-target syntax",
+            radio_count
+        );
+    }
+
+    /// `[[#custom-id]]` must be recognised as `LinkType::CustomId`.
+    ///
+    /// Emacs distinguishes `#`-prefixed links inside `[...]` as custom-ID
+    /// references.  `LinkData::new` currently falls through to `Fuzzy`.
+    #[test]
+    fn custom_id_link_type() {
+        let typ = first_link_type("[[#my-custom-id]]\n");
+        assert_eq!(
+            typ,
+            Some(LinkType::CustomId),
+            "[[#my-custom-id]] must have link type CustomId, got {:?}",
+            typ
+        );
+    }
+
+    /// `[[url] ]` (space inserted before the closing `]]`) is **not** a valid
+    /// Org bracket link per Emacs.  Rust's `try_parse_link` greedily matches
+    /// any pair of `]]` even when separated by whitespace.
+    #[test]
+    fn space_before_closing_brackets_is_not_a_link() {
+        let input = "[[#my-custom-id] ](no space)\n";
+        let link_count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+        assert_eq!(
+            link_count, 0,
+            "expected 0 Links for '[[url] ]' (space before ]]), got {} — \
+             space inside closing brackets is not a valid Org link",
+            link_count
+        );
+    }
+
+    /// `[[#custom-id][description]]` — a custom-ID link with a description —
+    /// must be parsed as a `Link` with `LinkType::CustomId`.
+    #[test]
+    fn custom_id_link_with_description() {
+        let input = "[[#html-export][export to HTML]]\n";
+        let typ = first_link_type(input);
+        assert_eq!(
+            typ,
+            Some(LinkType::CustomId),
+            "[[#html-export][export to HTML]] must have link type CustomId, got {:?}",
+            typ
+        );
+    }
+}
+
 /// Corpus discrepancy class:
 ///   `root/headline/section/drawer/paragraph` — extra paragraph at the drawer
 ///   header line when `#+RESULTS:` is an affiliated keyword.
