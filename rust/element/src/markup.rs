@@ -210,10 +210,12 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             let remaining = &self.input[search_pos..limit];
 
             if remaining.starts_with("[fn:") {
+                end = search_pos;
                 break;
             }
 
             if remaining.starts_with('*') && remaining.chars().nth(1) == Some(' ') {
+                end = search_pos;
                 break;
             }
 
