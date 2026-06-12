@@ -25,8 +25,8 @@ use crate::{
     cursor::Cursor,
     data::{
         Brackets, BumpVec, CitationData, EntityData, FootnoteReferenceData, Interval, LinkData,
-        NodeArena, NodeId, ScriptFlags, ScriptKind, StatisticsCookieData, Syntax, SyntaxNode,
-        SyntaxT, TimestampData,
+        NodeArena, NodeId, RadioTargetData, ScriptFlags, ScriptKind, StatisticsCookieData, Syntax,
+        SyntaxNode, SyntaxT, TimestampData,
     },
     drawer::REGEX_DRAWER,
     environment,
@@ -187,7 +187,11 @@ fn scan_plain_text_end(bytes: &[u8], link_types: &[&str], link_start_bytes: &[u8
         // A plain link must sit at a word boundary and start a known type.
         // Accept any non-ASCII byte as a pre-char (CJK, etc.) — Emacs'
         // plain-link regex does not require a word boundary at all.
-        if (i == 0 || is_pre_char(bytes[i - 1]) || bytes[i - 1] >= 0x80)
+        // Unlike emphasis markers, `'` is NOT a valid pre-char for plain
+        // links — Emacs does not recognise `'file:…'` as a link.
+        if (i == 0
+            || (is_pre_char(bytes[i - 1]) && bytes[i - 1] != b'\'')
+            || bytes[i - 1] >= 0x80)
             && plain_link_proto_len(&bytes[i..], link_types).is_some()
         {
             return i;
@@ -821,6 +825,11 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                                     children.push(n);
                                 }
                                 result = Some(c);
+                            } else if let Some((n, c)) = self.try_parse_radio_target(remaining, pos) {
+                                if restriction(SyntaxT::RadioTarget) {
+                                    children.push(n);
+                                }
+                                result = Some(c);
                             } else if let Some((n, c)) = self.try_parse_target(remaining, pos) {
                                 if restriction(SyntaxT::Target) {
                                     children.push(n);
@@ -1138,6 +1147,54 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         Some((node, close + post_blank))
     }
 
+    fn try_parse_radio_target(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
+        let bytes = text.as_bytes();
+        if bytes.len() < 6 || &bytes[0..3] != b"<<<" {
+            return None;
+        }
+
+        // Find closing >>>
+        let mut found_close = None;
+        let mut search_pos = 3;
+        while search_pos + 2 < bytes.len() {
+            match memchr(b'>', &bytes[search_pos..]) {
+                Some(offset) => {
+                    let i = search_pos + offset;
+                    if i + 2 < bytes.len() && bytes[i + 1] == b'>' && bytes[i + 2] == b'>' {
+                        let after = i + 3;
+                        let valid_post = after >= bytes.len() || is_post_char(bytes[after]);
+                        if valid_post {
+                            found_close = Some(after);
+                            break;
+                        }
+                        search_pos = i + 3;
+                    } else {
+                        search_pos = i + 1;
+                    }
+                }
+                None => break,
+            }
+        }
+
+        let close = found_close?;
+        let content = &text[3..close - 3];
+
+        // Absorb trailing spaces/tabs as post-blank, matching Emacs.
+        let post_blank = bytes[close..]
+            .iter()
+            .take_while(|&&b| b == b' ' || b == b'\t')
+            .count();
+
+        let node = self.arena.alloc(
+            SyntaxNode::new(Syntax::RadioTarget(RadioTargetData { raw_value: content }), (start, start + close + post_blank), self.bump)
+                .content((start + 3, start + close - 3))
+                .post_blank(post_blank)
+                .build(),
+        );
+
+        Some((node, close + post_blank))
+    }
+
     fn try_parse_target(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         let bytes = text.as_bytes();
         if bytes.len() < 4 || &bytes[0..2] != b"<<" {
@@ -1289,7 +1346,10 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         let bytes = text.as_bytes();
         let proto_len = plain_link_proto_len(bytes, self.environment.link_types())?;
         let url_end_raw = text[proto_len..]
-            .find(|c: char| c.is_whitespace() || matches!(c, '[' | ']' | '<' | '>' | '(' | ')'))
+            .find(|c: char| {
+                c.is_whitespace()
+                    || matches!(c, '[' | ']' | '<' | '>' | '(' | ')' | '\'' | '"')
+            })
             .map_or(text.len(), |i| proto_len + i);
         if url_end_raw <= proto_len {
             return None;

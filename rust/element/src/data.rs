@@ -1800,6 +1800,8 @@ impl<'a> LinkData<'a> {
             (LinkType::File, inner.strip_prefix("file:").unwrap_or(inner))
         } else if inner.starts_with("id:") {
             (LinkType::Id, inner.strip_prefix("id:").unwrap_or(inner))
+        } else if inner.starts_with('#') {
+            (LinkType::CustomId, inner.strip_prefix('#').unwrap_or(inner))
         } else {
             (LinkType::Fuzzy, raw)
         };
