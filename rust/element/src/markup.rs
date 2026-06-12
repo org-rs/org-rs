@@ -217,14 +217,13 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 break;
             }
 
-            if remaining.starts_with("\n\n") {
-                end = search_pos;
-                pre_blank = 2;
-                break;
-            }
-
-            if let Some(next_line) = remaining.strip_prefix('\n') {
-                if next_line.trim().is_empty() {
+            // Blank-line terminator: works for both LF (\n\n) and CRLF (\n\r\n).
+            // search_pos points to the \n at the end of a content line.
+            // A blank line is the next line containing only whitespace (\r, spaces, tabs).
+            if remaining.starts_with('\n') {
+                let after = &remaining[1..];
+                let next_nl = after.find('\n').map_or(after.len(), |i| i);
+                if after[..next_nl].trim().is_empty() {
                     end = search_pos;
                     pre_blank = 1;
                     break;
