@@ -2336,6 +2336,19 @@ mod subscript_superscript {
     }
 }
 
+mod entity {
+    use super::*;
+
+    #[test]
+    fn le_is_entity_not_latex_fragment() {
+        // \le is an org entity (≤), not a LaTeX fragment
+        let count = get_type_count(r"\le100Mb", SyntaxT::Entity, ParseGranularity::Object);
+        assert_eq!(count, 1, "\\le should parse as Entity, not LatexFragment");
+        let count_lf = get_type_count(r"\le100Mb", SyntaxT::LatexFragment, ParseGranularity::Object);
+        assert_eq!(count_lf, 0, "\\le should not produce a LatexFragment");
+    }
+}
+
 mod post_blank {
     use crate::data::Interval;
 
