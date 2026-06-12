@@ -2995,14 +2995,6 @@ mod post_blank {
         );
     }
 
-/// Find the first PlainList child of an Item node.
-fn item_a_plainlist_child<'a>(arena: &'a NodeArena, item_id: NodeId) -> Option<NodeId> {
-    arena[item_id]
-        .children
-        .iter()
-        .copied()
-        .find(|&id| matches!(arena[id].data, Syntax::PlainList(_)))
-}
 
 /// Items with indentation that goes UP then DOWN must resolve to the
 /// correct parent.  For example with `- a`, `  - b` (indent 2), ` - c`
@@ -3018,44 +3010,46 @@ fn item_a_plainlist_child<'a>(arena: &'a NodeArena, item_id: NodeId) -> Option<N
 ///         (item "c"))))
 #[test]
 fn list_indent_goes_up_then_down() {
+    // Verified against Emacs oracle: b (indent 2) and c (indent 1) each get
+    // their own PlainList as siblings inside item a (3 PlainLists total).
     let input = "- a\n  - b\n - c\n";
     let bump = Bump::new();
     let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
     let (arena, root) = parser.parse_buffer();
     let pl_count = count_type(&arena, root, SyntaxT::PlainList);
-    // Items b (indent 2) and c (indent 1) share parent a → one sub-list
     assert_eq!(
-        pl_count, 2,
-        "Expected 2 PlainLists (outer + 1 sub-list), got {} — indent-up-then-down items \
-         should be siblings, not nested",
+        pl_count, 3,
+        "Expected 3 PlainLists (outer + PlainList_b + PlainList_c), got {}",
         pl_count
     );
-    // Check that both items are direct children of the sub-list, not nested
-    // Walk: section > plain_list > item > plain_list > [items]
-    assert!(arena[root].children.len() >= 1, "expected section children");
     let sec = arena[root].children[0];
     let pl = arena[sec].children[0];
     let item_a = arena[pl].children[0];
-    let inner_pl = item_a_plainlist_child(&arena, item_a)
-        .expect("item 'a' must contain a PlainList child");
+    // item_a must have exactly 2 PlainList children (one for b, one for c)
+    let inner_lists: Vec<_> = arena[item_a]
+        .children
+        .iter()
+        .filter(|&&id| matches!(arena[id].data, Syntax::PlainList(_)))
+        .copied()
+        .collect();
     assert_eq!(
-        arena[inner_pl].children.len(),
-        2,
-        "inner PlainList should contain exactly 2 items (b and c), not nested items; got {}",
-        arena[inner_pl].children.len()
+        inner_lists.len(), 2,
+        "item 'a' should have 2 PlainList children (b and c separate), got {}",
+        inner_lists.len()
     );
 }
 
     /// Same issue with `*` bullets and tab-derived indentation.  Items at
-    /// indent 11 followed by indent 10 should be siblings, not nested.
+    /// indent 11 followed by indent 10 should each get their own PlainList.
     ///
-    /// Correct structure (3 PlainLists):
-    ///   (plain-list
+    /// Verified against Emacs oracle: correct structure (4 PlainLists):
+    ///   (plain-list          ← outer: item a
     ///     (item "a"
-    ///       (plain-list           ← children of a: b (indent 11) and c (indent 10)
-    ///         (item "b")
+    ///       (plain-list      ← PlainList_b: item b (indent 11)
+    ///         (item "b"))
+    ///       (plain-list      ← PlainList_c: item c (indent 10)
     ///         (item "c"
-    ///           (plain-list       ← child of c: d (indent 11)
+    ///           (plain-list  ← PlainList_d: item d (indent 11, inside c)
     ///             (item "d"))))))
     #[test]
     fn star_list_indent_goes_up_then_down() {
@@ -3065,34 +3059,29 @@ fn list_indent_goes_up_then_down() {
         let (arena, root) = parser.parse_buffer();
         let pl_count = count_type(&arena, root, SyntaxT::PlainList);
         assert_eq!(
-            pl_count, 3,
-            "Expected 3 PlainLists (outer + sub for b,c + sub for d), got {}",
+            pl_count, 4,
+            "Expected 4 PlainLists (outer + PlainList_b + PlainList_c + PlainList_d), got {}",
             pl_count
         );
-        // Verify nesting: b and c are siblings, d is under c
         let sec = arena[root].children[0];
         let outer_pl = arena[sec].children[0];
         let item_a = arena[outer_pl].children[0];
-        // item_a children: Paragraph("a") + PlainList
-        let inner_pl_idx = item_a_plainlist_child(&arena, item_a)
-            .expect("item 'a' must contain a PlainList child");
-        let inner_pl = inner_pl_idx;
-        // inner_pl should contain b and c as direct children
-        assert_eq!(
-            arena[inner_pl].children.len(),
-            2,
-            "inner PlainList should contain exactly 2 items (b and c), not 1 with c nested inside; got {}",
-            arena[inner_pl].children.len()
-        );
-        // item d should be nested under item c
-        let item_c = arena[inner_pl].children[1];
-        let c_has_sub = arena[item_c].children.iter().any(|&id| {
-            matches!(arena[id].data, Syntax::PlainList(_))
-        });
-        assert!(
-            c_has_sub,
-            "item 'c' must contain a sub-PlainList for item 'd'"
-        );
+        // item_a must have 2 PlainList children: one for b, one for c
+        let a_lists: Vec<_> = arena[item_a]
+            .children
+            .iter()
+            .filter(|&&id| matches!(arena[id].data, Syntax::PlainList(_)))
+            .copied()
+            .collect();
+        assert_eq!(a_lists.len(), 2, "item 'a' should have 2 PlainList children, got {}", a_lists.len());
+        // item c is in the second PlainList under a; it must contain PlainList_d
+        let pl_c = a_lists[1];
+        let item_c = arena[pl_c].children[0];
+        let c_has_sub = arena[item_c]
+            .children
+            .iter()
+            .any(|&id| matches!(arena[id].data, Syntax::PlainList(_)));
+        assert!(c_has_sub, "item 'c' must contain a sub-PlainList for item 'd'");
     }
 
     #[test]

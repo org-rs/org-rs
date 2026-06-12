@@ -326,9 +326,23 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             ParseGranularity::Element | ParseGranularity::Object
         );
 
+        // Emacs' plain-list parser (org-element-plain-list-parser) advances
+        // through the struct only while consecutive items share the SAME
+        // indentation as the first item.  When the indent changes, the list
+        // ends and a new PlainList is created by the element loop.  Mirror
+        // that: only process root groups at the first root indent; a group
+        // at a different indent belongs to a separate sibling PlainList.
+        let first_root_indent: Option<usize> = groups
+            .iter()
+            .find(|&&(s, _)| parent[s].is_none())
+            .map(|&(s, _)| items[s].indent);
+
         for &(start, end) in &groups {
             if parent[start].is_some() {
                 continue; // non-top-level groups found by recursion
+            }
+            if first_root_indent.map_or(false, |fi| items[start].indent != fi) {
+                break; // different root indent → separate PlainList, stop here
             }
 
             for idx in start..end {
