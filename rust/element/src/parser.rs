@@ -57,6 +57,7 @@ pub enum ParseGranularity {
 #[derive(Copy, Clone, PartialEq)]
 #[repr(u8)]
 pub enum ParserMode {
+    Nil,
     FirstSection,
     Section,
     Planning,
@@ -215,27 +216,41 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
     /// <br>
     /// Original function name: org-element--next-mode
     /// https://code.orgmode.org/bzg/org-mode/src/master/lisp/org-element.el#L4273
-    fn next_mode(syntax: SyntaxT, is_parent: bool) -> Option<ParserMode> {
+    fn next_mode(mode: ParserMode, syntax: SyntaxT, is_parent: bool) -> ParserMode {
         use SyntaxT::*;
+        use ParserMode::Planning as PmPlanning;
+        use ParserMode::PropertyDrawer as PmPropertyDrawer;
 
         if is_parent {
             match syntax {
-                Headline => Some(ParserMode::Section),
-                InlineTask => Some(ParserMode::Planning),
-                Item => Some(ParserMode::Planning),
-                PlainList => Some(ParserMode::Item),
-                PropertyDrawer => Some(ParserMode::NodeProperty),
-                Section => Some(ParserMode::Planning),
-                Table => Some(ParserMode::TableRow),
-                _ => None,
+                Headline => ParserMode::Section,
+                InlineTask => ParserMode::Planning,
+                Item => ParserMode::Planning,
+                PlainList => ParserMode::Item,
+                PropertyDrawer => ParserMode::NodeProperty,
+                Section => ParserMode::Planning,
+                Table => ParserMode::TableRow,
+                _ => mode,
             }
         } else {
-            match syntax {
-                Item => Some(ParserMode::Item),
-                NodeProperty => Some(ParserMode::NodeProperty),
-                Planning => Some(ParserMode::PropertyDrawer),
-                TableRow => Some(ParserMode::TableRow),
-                _ => None,
+            use ParserMode::Nil as PmNil;
+            use ParserMode::FirstSection as PmFirstSection;
+            match (mode, syntax) {
+                // Planning mode: stay in planning only for planning elements,
+                // otherwise reset to a neutral mode (Emacs returns nil here,
+                // which disables the property-drawer shortcut).
+                (PmPlanning, Planning) => PmPropertyDrawer,
+                (PmPlanning, _) => PmNil,
+                // top-comment / first-section: after a comment, expect a
+                // property drawer (Emacs: `top-comment + comment → property-drawer`).
+                (PmFirstSection, Comment) => PmPropertyDrawer,
+                _ => match syntax {
+                    Item => ParserMode::Item,
+                    NodeProperty => ParserMode::NodeProperty,
+                    Planning => PmPropertyDrawer,
+                    TableRow => ParserMode::TableRow,
+                    _ => mode,
+                },
             }
         }
     }
@@ -329,7 +344,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                         };
 
                         let new_mode =
-                            Parser::<Environment>::next_mode(data_disc, true).unwrap_or(mode);
+                            Parser::<Environment>::next_mode(mode, data_disc, true);
 
                         let children = self.parse_elements(content_location, new_mode, list_sturct);
                         self.arena.set_children(element, children);
@@ -359,10 +374,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
 
             {
                 let node = self.arena.get(element);
-                if let Some(m) = Parser::<Environment>::next_mode(SyntaxT::from(&node.data), false)
-                {
-                    mode = m
-                }
+                mode = Parser::<Environment>::next_mode(mode, SyntaxT::from(&node.data), false)
             }
             elements.push(element);
         }
@@ -558,7 +570,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                 // Drawer / fixed-width
                 Some(b':') => {
                     if looking_at!(REGEX_DRAWER, self).is_some() {
-                        return self.drawer_parser(span);
+                        return self.drawer_parser(span, mode);
                     }
                     // Fixed-width: `[ \t]*:( |$)` — content_byte is ':' so the colon
                     // position is already known; just test the byte that follows it.
@@ -1591,7 +1603,25 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         }
 
         let entity_name = &text[1..end];
-        let entity_data = EntityData::new(entity_name)?;
+        let entity_data = match EntityData::new(entity_name) {
+            Some(d) => d,
+            None => {
+                // The greedy scan may have included digits after an
+                // alphabetic entity name (e.g. `\le100Mb` → "le100Mb").
+                // Try the alphabetic prefix only.
+                let alpha_end = 1 + bytes[1..end]
+                    .iter()
+                    .position(|&b| !b.is_ascii_alphabetic())
+                    .unwrap_or(end - 1);
+                if alpha_end < end {
+                    let d = EntityData::new(&text[1..alpha_end])?;
+                    end = alpha_end;
+                    d
+                } else {
+                    return None;
+                }
+            }
+        };
 
         let node = self.arena.alloc(
             SyntaxNode::new(

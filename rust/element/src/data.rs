@@ -1241,6 +1241,7 @@ impl<'a> EntityData<'a> {
             "plusmn" => ("\\plusmn", "&plusmn;", "\\pm", false, "±", "±"),
             "times" => ("\\times", "&times;", "\\times", false, "×", "×"),
             "divide" => ("\\divide", "&divide;", "\\div", false, "÷", "÷"),
+            "le" => ("\\le", "&le;", "\\le", false, "≤", "≤"),
             "leq" => ("\\leq", "&le;", "\\leq", false, "≤", "≤"),
             "geq" => ("\\geq", "&ge;", "\\geq", false, "≥", "≥"),
             "neq" => ("\\neq", "&ne;", "\\neq", false, "≠", "≠"),

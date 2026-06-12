@@ -16,7 +16,7 @@
 use crate::affiliated::ElementSpan;
 use crate::cursor::CachedRegex;
 use crate::data::{BumpVec, Interval, NodeId, Syntax, SyntaxNode};
-use crate::parser::Parser;
+use crate::parser::{Parser, ParserMode};
 use lazy_static::lazy_static;
 use memchr::{memchr, memmem, memrchr};
 use regex::Regex;
@@ -102,13 +102,79 @@ fn is_end_line(line: &str) -> bool {
         && bytes[1..bytes.len() - 1].eq_ignore_ascii_case(b"END")
 }
 
+/// Decide whether `:PROPERTIES:` at byte `pos` should be parsed as a
+/// `PropertyDrawer` (vs. a regular `Drawer`) based on the parser mode
+/// and the surrounding context.
+///
+/// Emacs semantics (`org-element--current-element`):
+/// - Mode `property-drawer` or `top-comment` → always PropertyDrawer.
+/// - Mode `planning` → PropertyDrawer only when the previous line starts
+///   with `*` (headline or inlinetask heading).  Inlinetask END lines
+///   (15+ `*` + whitespace + `END`) are excluded.
+/// - Other modes → PropertyDrawer not allowed.
+fn is_property_drawer_allowed(mode: ParserMode, input: &str, pos: usize) -> bool {
+    use ParserMode::*;
+    match mode {
+        PropertyDrawer | FirstSection => true,
+        Planning | Nil => {
+            let bytes = input.as_bytes();
+            let mut scan = pos;
+            loop {
+                let cur_nl = match memrchr(b'\n', &bytes[..scan]) {
+                    None => return true,
+                    Some(nl) => nl,
+                };
+                let prev_start = memrchr(b'\n', &bytes[..cur_nl])
+                    .map(|i| i + 1)
+                    .unwrap_or(0);
+                let prev = &bytes[prev_start..cur_nl];
+
+                // Find first non-whitespace byte in prev.
+                let content_i = match prev.iter().position(|&b| b != b' ' && b != b'\t') {
+                    Some(i) => i,
+                    None => { scan = cur_nl; continue; } // blank line
+                };
+
+                match prev[content_i] {
+                    b'#' => { scan = cur_nl; continue; } // comment
+                    b'*' => {
+                        let stars = prev[content_i..]
+                            .iter()
+                            .take_while(|&&b| b == b'*')
+                            .count();
+                        if stars >= 15 {
+                            let after = &prev[content_i + stars..];
+                            let ws_off = after.iter().position(|&b| b != b' ' && b != b'\t');
+                            match ws_off {
+                                Some(off) if off < after.len() => {
+                                    let rest = &after[off..];
+                                    if rest.len() >= 3
+                                        && rest[..3].eq_ignore_ascii_case(b"END")
+                                        && rest[3..].iter().all(|&b| b == b' ' || b == b'\t')
+                                    {
+                                        return false; // inlinetask END → element before → deny
+                                    }
+                                }
+                                _ => {} // only stars + whitespace → treat as headline? deny to be safe
+                            }
+                        }
+                        return true; // real headline → allow
+                    }
+                    _ => return false, // other content → deny
+                }
+            }
+        }
+        _ => false,
+    }
+}
+
 impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Parse a drawer element.
     ///
     /// Format: `:NAME:\n...content...\n:END:`
     /// Case insensitive (matches :NAME: and :END:)
     #[inline]
-    pub fn drawer_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+    pub fn drawer_parser(&mut self, element_span: ElementSpan<'a, 'b>, mode: ParserMode) -> NodeId {
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
@@ -147,7 +213,8 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             }
             .min(2);
 
-            let is_property = name.eq_ignore_ascii_case("PROPERTIES");
+            let is_property = name.eq_ignore_ascii_case("PROPERTIES")
+                && is_property_drawer_allowed(mode, self.input, start);
             let data = if is_property {
                 Syntax::PropertyDrawer
             } else {

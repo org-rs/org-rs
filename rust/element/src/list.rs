@@ -485,6 +485,18 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             }
 
             if rest.is_empty() {
+                // Two or more consecutive blank lines terminate the list
+                // (and the current item) per the Org syntax spec.
+                let blank_rest = &input.as_bytes()[next_pos..];
+                let second_nl = memchr(b'\n', blank_rest);
+                if let Some(nl2) = second_nl {
+                    let second_line = &blank_rest[..nl2];
+                    if second_line.iter().all(|&b| b == b' ' || b == b'\t') {
+                        // Second blank line found — terminate the list at
+                        // the first blank line (current pos before consuming it).
+                        break;
+                    }
+                }
                 pos = next_pos;
                 continue;
             }
