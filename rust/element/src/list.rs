@@ -320,6 +320,12 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let list_type = Self::get_list_type(items);
         let mut children = BumpVec::new_in(self.bump);
 
+        use crate::parser::{ParseGranularity, ParserMode};
+        let should_recurse = matches!(
+            self.granularity,
+            ParseGranularity::Element | ParseGranularity::Object
+        );
+
         for &(start, end) in &groups {
             if parent[start].is_some() {
                 continue; // non-top-level groups found by recursion
@@ -327,6 +333,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
             for idx in start..end {
                 let item = &items[idx];
+                let item_indent = item.indent;
 
                 // End = position of the next item with indent <= this
                 // item's indent (encompasses all descendants), or
@@ -334,7 +341,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 let end_pos = {
                     let mut found = None;
                     for k in (idx + 1)..items.len() {
-                        if items[k].indent <= item.indent {
+                        if items[k].indent <= item_indent {
                             found = Some(items[k].position);
                             break;
                         }
@@ -344,6 +351,16 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
                 let item_node = self.item_parser_internal(item, end_pos);
                 children.push(item_node);
+
+                if should_recurse {
+                    if let Some(loc) = self.arena[item_node].content_location {
+                        let saved_ctx = self.item_indent_ctx;
+                        self.item_indent_ctx = Some(item_indent);
+                        let item_children = self.parse_elements(loc, ParserMode::Planning, None);
+                        self.item_indent_ctx = saved_ctx;
+                        self.arena.set_children(item_node, item_children);
+                    }
+                }
             }
         }
 
@@ -352,20 +369,6 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         } else {
             span.end
         };
-
-        // Recurse into item content at Element/Object granularity.
-        use crate::parser::{ParseGranularity, ParserMode};
-        if matches!(
-            self.granularity,
-            ParseGranularity::Element | ParseGranularity::Object
-        ) {
-            for &item_rc in &children {
-                if let Some(loc) = self.arena[item_rc].content_location {
-                    let item_children = self.parse_elements(loc, ParserMode::Planning, None);
-                    self.arena.set_children(item_rc, item_children);
-                }
-            }
-        }
 
         let list_data = PlainListData {
             structure,
@@ -591,6 +594,24 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             };
 
             if starts_with_bullet {
+                if let Some(fi) = first_indent {
+                    match self.item_indent_ctx {
+                        None => {
+                            // Top-level scan: a bullet at lower indent than the
+                            // first item starts a new list at an outer scope.
+                            if indent < fi {
+                                break;
+                            }
+                        }
+                        Some(parent_indent) => {
+                            // Inside an item: only stop when the bullet exits the
+                            // parent item's scope entirely (indent <= parent's indent).
+                            if indent <= parent_indent {
+                                break;
+                            }
+                        }
+                    }
+                }
                 first_indent.get_or_insert(indent);
                 let (bullet, counter, checkbox, tag) = Self::parse_item_bullet(rest);
                 items.push(ListItem {

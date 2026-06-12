@@ -178,9 +178,13 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let ElementSpan {
             span: Interval { start, end: limit },
             affiliated,
+            content_start,
             ..
         } = element_span;
-        let input_slice = &self.input[start..limit];
+        // Use content_start (position of the actual :NAME: line) for the regex
+        // and for drawer_content_bounds.  When affiliated keywords precede the
+        // drawer, span.start points to the first keyword, not the drawer header.
+        let input_slice = &self.input[content_start..limit];
 
         if let Some(caps) = REGEX_DRAWER.captures(input_slice) {
             let name = caps.get(1).map_or("", |m| m.as_str());
@@ -192,8 +196,8 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             }
 
             let bytes = self.input.as_bytes();
-            let end_pos = find_end_memmem(bytes, start, limit)
-                .or_else(|| find_end_linewise(self.input, start, limit));
+            let end_pos = find_end_memmem(bytes, content_start, limit)
+                .or_else(|| find_end_linewise(self.input, content_start, limit));
 
             let (end, found_end) = match end_pos {
                 Some(e) => (e, true),
@@ -215,7 +219,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             .min(2);
 
             let is_property = name.eq_ignore_ascii_case("PROPERTIES")
-                && is_property_drawer_allowed(mode, self.input, start);
+                && is_property_drawer_allowed(mode, self.input, content_start);
             let data = if is_property {
                 Syntax::PropertyDrawer
             } else {
@@ -231,7 +235,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             // (paragraphs, lists, …). Property drawers instead parse their
             // node-property lines directly below.
             if !is_property {
-                if let Some(content) = Self::drawer_content_bounds(self.input, start, end) {
+                if let Some(content) = Self::drawer_content_bounds(self.input, content_start, end) {
                     builder = builder.content(content);
                 }
             }
@@ -239,7 +243,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             let node = self.arena.alloc(builder.build());
 
             if is_property {
-                let children = self.parse_property_drawer_contents(start, end);
+                let children = self.parse_property_drawer_contents(content_start, end);
                 self.arena.set_children(node, children);
             }
 

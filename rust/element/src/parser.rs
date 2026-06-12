@@ -83,6 +83,9 @@ pub struct Parser<'input, 'bumpalo, Environment: environment::Environment> {
     /// a tab ALWAYS counts as `tab_width` columns regardless of
     /// the current column position.
     pub tab_width: u8,
+    /// Indent of the enclosing list item when `list_struct` is called while
+    /// scanning that item's content.  `None` at top-level (section/headline).
+    pub item_indent_ctx: Option<usize>,
 }
 
 macro_rules! looking_at {
@@ -217,6 +220,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             bump,
             object_region_start: 0,
             tab_width,
+            item_indent_ctx: None,
         }
     }
 
@@ -493,7 +497,14 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
 
             // Non-unique / multi-regex bytes: first collect the element span,
             // then check candidate element types.
-            let span = if b == Some(b'#') {
+            let first_nonws_is_hash = b == Some(b'#') || matches!(b, Some(b' ' | b'\t')) && {
+                let rest = &self.input.as_bytes()[cur..];
+                rest.iter()
+                    .position(|&c| c != b' ' && c != b'\t')
+                    .and_then(|i| rest.get(i))
+                    == Some(&b'#')
+            };
+            let span = if first_nonws_is_hash {
                 self.collect_affiliated_keywords(limit)
             } else {
                 ElementSpan::new((cur, limit)).build()
