@@ -384,7 +384,10 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let tag = item.tag;
 
         // Content begins after the bullet and its trailing space/tab.
-        let after_bullet = item.position + item.indent + item.bullet.len() + 1;
+        // item.indent is screen-width (tabs expand); find the actual byte offset.
+        let line_bytes = &self.input.as_bytes()[item.position..];
+        let ws_end = line_bytes.iter().position(|&b| b != b' ' && b != b'\t').unwrap_or(0);
+        let after_bullet = item.position + ws_end + item.bullet.len() + 1;
 
         // For description items the paragraph content starts after the " :: "
         // separator, not at the tag.  Emacs org-element places :contents-begin

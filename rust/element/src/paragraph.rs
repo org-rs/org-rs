@@ -67,8 +67,16 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             // this paragraph).
             if end > start {
                 match bytes[i] {
-                    // Headline: leading `*` followed by space or more `*`
-                    b'*' if i == 0 && bytes.get(i + 1).is_some_and(|&b| b == b' ' || b == b'*') => break,
+                    b'*' => {
+                        // Headline at column 0: `*` followed by space or `*`
+                        if i == 0 && bytes.get(i + 1).is_some_and(|&b| b == b' ' || b == b'*') {
+                            break;
+                        }
+                        // List item at any column (starts_with_item handles indent logic)
+                        if i > 0 && crate::list::starts_with_item(&line[..line_len]) {
+                            break;
+                        }
+                    }
                     // Keyword / block / comment
                     b'#' => {
                         if i + 1 < bytes.len() && bytes[i + 1] == b'+' {

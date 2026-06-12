@@ -320,6 +320,46 @@ jq '.fruit | keys' fruit.json
             "FixedWidth must be a child of an Item node, not a direct Section child"
         );
     }
+
+    #[test]
+    fn tab_indented_nested_star_list() {
+        // Tab-indented `\t * :term VALUE` inside a `-` outer list.
+        // The after_bullet calculation must use byte offset, not
+        // screen-width indent (tabs expand to 8 in indent calc but
+        // are only 1 byte).  Bug: item.indent is screen-width (9 for
+        // `\t `), so after_bullet = pos + 9 + 1 + 1 = pos+11 instead
+        // of pos+4, pointing to mid-word instead of `:term VALUE`.
+        let input = "- outer\n\t * :term VALUE\n\t   内容行\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        // Should have 2 PlainLists (outer + nested)
+        let pl = count_type(&arena, root, SyntaxT::PlainList);
+        assert_eq!(pl, 2, "Expected 2 PlainLists, got {pl}");
+        // Inner paragraph should start at the tag content, not mid-word
+        let mut inner_para_start = 0;
+        fn find_inner_para(arena: &NodeArena, id: NodeId, target: &mut usize) {
+            if SyntaxT::from(&arena[id].data) == SyntaxT::Paragraph
+                && arena[id].location.start > 10
+            {
+                *target = arena[id].location.start;
+            }
+            for &c in &arena[id].children {
+                find_inner_para(arena, c, target);
+            }
+        }
+        find_inner_para(&arena, root, &mut inner_para_start);
+        assert!(
+            inner_para_start > 0,
+            "Should find an inner paragraph"
+        );
+        // Expected: content starts at byte 12 (`:term VALUE`)
+        // Bug puts it at byte 19 (`A` in `VALUE`)
+        assert_eq!(
+            inner_para_start, 12,
+            "Inner paragraph should start at byte 12 (:term VALUE), got {inner_para_start}"
+        );
+    }
 }
 
 mod item {

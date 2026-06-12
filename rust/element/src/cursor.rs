@@ -670,7 +670,9 @@ mod test {
         assert_eq!('З', cursor.get_next_char().unwrap());
         assert_eq!(13, cursor.pos());
         cursor.set(12);
-        assert!(!cursor.is_boundary::<BaseMetric>());
+        // set(12) lands at 11 (adjusted backward from middle of multi-byte char)
+        assert_eq!(11, cursor.pos());
+        assert!(cursor.is_boundary::<BaseMetric>());
     }
 
     #[test]
