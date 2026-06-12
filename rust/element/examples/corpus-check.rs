@@ -645,10 +645,17 @@ fn process_file(
 ) -> Result<(String, Vec<Discrepancy>, FileTimings), CorpusError> {
     let file_start = Instant::now();
 
-    let input = std::fs::read_to_string(path).map_err(|source| CorpusError::ReadFile {
+    let raw = std::fs::read_to_string(path).map_err(|source| CorpusError::ReadFile {
         path: path.to_owned(),
         source,
     })?;
+    // Emacs normalises CRLF line endings to LF when visiting a file.
+    // Strip all CR bytes so our byte offsets match the oracle's character positions.
+    let input = if raw.contains('\r') {
+        raw.replace('\r', "")
+    } else {
+        raw
+    };
 
     let (orc_result, emacs) = timed_stage("emacs", display, index, total, stderr_lock, || {
         run_oracle(path)
