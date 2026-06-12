@@ -3107,3 +3107,110 @@ fn list_indent_goes_up_then_down() {
         );
     }
 }
+
+/// Corpus discrepancy class:
+///   `root/headline/section/plain_list` — missing in Rust when a lower-indented
+///   bullet terminates the outer list.
+///
+/// When a list item has a smaller string-width indent than the list's first
+/// item, Emacs' `org-list-struct` terminates the current list.  Rust currently
+/// keeps scanning, folding the lower-indent item into the same structure.
+mod list_lower_indent_termination {
+    use super::*;
+
+    /// `   \t *` has string-width indent 12; `       *` has indent 7.
+    /// Because 7 < 12, Emacs ends the first list and starts a second one.
+    /// Corpus origin: emacs_china_elisp.org @4912/@4945 pattern.
+    #[test]
+    fn lower_indent_bullet_starts_new_list() {
+        let input = "   \t * item1\n       * item2\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        let pl = count_type(&arena, root, SyntaxT::PlainList);
+        assert_eq!(
+            pl, 2,
+            "lower-indent bullet must start a new PlainList; got {pl} (expected 2)"
+        );
+    }
+}
+
+/// Corpus discrepancy class:
+///   `root/headline/section/fixed_width` vs `root/headline/section/keyword` —
+///   `  #+RESULTS:` with leading whitespace is not collected as an affiliated
+///   keyword, so the `: output` line is parsed as a standalone FixedWidth
+///   instead of one whose `:begin` includes the `#+RESULTS:` line.
+///
+/// Corpus origin: emacs_china_elisp.org @323688.
+mod affiliated_keyword_with_leading_whitespace {
+    use super::*;
+
+    /// `  #+RESULTS:` has leading whitespace before `#+`.
+    /// Emacs: one FixedWidth element with `:begin` at the `#+RESULTS:` line.
+    /// Rust:  a Keyword element + a separate FixedWidth element.
+    #[test]
+    fn indented_results_keyword_affiliated_to_fixed_width() {
+        let input = "  #+RESULTS:\n  : output\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+        let kw = count_type(&arena, root, SyntaxT::Keyword);
+        let fw = count_type(&arena, root, SyntaxT::FixedWidth);
+        assert_eq!(
+            kw, 0,
+            "#+RESULTS: with leading spaces must be an affiliated keyword, not a Keyword element; got {kw} keywords"
+        );
+        assert_eq!(
+            fw, 1,
+            "expected exactly 1 FixedWidth element (with #+RESULTS: as affiliated keyword); got {fw}"
+        );
+    }
+}
+
+/// Corpus discrepancy class:
+///   `root/headline/section/drawer/paragraph` — extra paragraph at the drawer
+///   header line when `#+RESULTS:` is an affiliated keyword.
+///
+/// When `drawer_content_bounds` uses `span.start` (the affiliated keyword
+/// position) instead of `content_start` (the `:DRAWERNAM:` position), the
+/// content region begins at the drawer header line.  The parser then tries
+/// to parse `:RESULTS:` as a nested element, fails, and creates a fallback
+/// paragraph there.
+///
+/// Corpus origin: emacs_china_elisp.org @125432.
+mod drawer_affiliated_keyword_content {
+    use super::*;
+
+    /// `#+RESULTS:\n:RESULTS:\ncontent\n:END:\n`
+    /// Emacs: one Drawer with one Paragraph child (`content`).
+    /// Rust (buggy): Drawer has two Paragraph children (`:RESULTS:` line + `content`).
+    #[test]
+    fn drawer_with_results_affiliated_has_one_paragraph() {
+        let input = "#+RESULTS:\n:RESULTS:\ncontent\n:END:\n";
+        let bump = Bump::new();
+        let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (arena, root) = parser.parse_buffer();
+
+        let drawers: Vec<NodeId> = {
+            let mut out = Vec::new();
+            fn collect(arena: &NodeArena, id: NodeId, out: &mut Vec<NodeId>) {
+                if matches!(arena[id].data, Syntax::Drawer(_)) {
+                    out.push(id);
+                }
+                for &c in &arena[id].children {
+                    collect(arena, c, out);
+                }
+            }
+            collect(&arena, root, &mut out);
+            out
+        };
+
+        assert_eq!(drawers.len(), 1, "expected exactly 1 Drawer; got {}", drawers.len());
+        let drawer_id = drawers[0];
+        let para_count = count_type(&arena, drawer_id, SyntaxT::Paragraph);
+        assert_eq!(
+            para_count, 1,
+            "Drawer must have exactly 1 Paragraph child (the content, not the header line); got {para_count}"
+        );
+    }
+}
