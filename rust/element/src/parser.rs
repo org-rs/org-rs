@@ -730,7 +730,14 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                         }
                         b'\\' => {
                             let mut result = None;
-                            if let Some((n, c)) = self.try_parse_latex_fragment(remaining, pos) {
+                            if let Some((n, c)) = self.try_parse_line_break(remaining, pos) {
+                                if restriction(SyntaxT::LineBreak) {
+                                    children.push(n);
+                                }
+                                result = Some(c);
+                            } else if let Some((n, c)) =
+                                self.try_parse_latex_fragment(remaining, pos)
+                            {
                                 if restriction(SyntaxT::LatexFragment) {
                                     children.push(n);
                                 }
@@ -1597,6 +1604,36 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
     /// 1. `\command{...}`           — backslash + letters (optionally `*`) + brace group
     /// 2. `\command[...]{...}`      — with optional bracket argument
     /// 3. `\command`               — bare command (no arguments)
+    /// Parse an Org line break: exactly `\\` at the end of a line (only
+    /// `[ \t]` may follow before the newline), where the `\\` is not part of a
+    /// longer backslash run. The node spans through the trailing whitespace
+    /// and newline.
+    fn try_parse_line_break(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
+        let bytes = text.as_bytes();
+        if bytes.len() < 2 || bytes[0] != b'\\' || bytes[1] != b'\\' {
+            return None;
+        }
+        // Reject when preceded by a backslash, so `\\\` and `\\\\` runs do not
+        // yield a line break.
+        if start > 0 && self.input.as_bytes()[start - 1] == b'\\' {
+            return None;
+        }
+        // Only spaces/tabs may separate the `\\` from the end of the line.
+        let mut i = 2;
+        while bytes.get(i).is_some_and(|&b| b == b' ' || b == b'\t') {
+            i += 1;
+        }
+        match bytes.get(i) {
+            None => {}              // end of buffer
+            Some(&b'\n') => i += 1, // consume the newline
+            _ => return None,       // non-whitespace before EOL → not a line break
+        }
+        let node = self
+            .arena
+            .alloc(SyntaxNode::new(Syntax::LineBreak, (start, start + i), self.bump).build());
+        Some((node, i))
+    }
+
     fn try_parse_latex_fragment(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         let bytes = text.as_bytes();
         if bytes.is_empty() || bytes[0] != b'\\' {
