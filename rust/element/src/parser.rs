@@ -78,6 +78,11 @@ pub struct Parser<'input, 'bumpalo, Environment: environment::Environment> {
     pub arena: NodeArena<'input, 'bumpalo>,
     pub bump: &'bumpalo bumpalo::Bump,
     pub object_region_start: usize,
+    /// Tab width for `string-width`-style indent calculations.
+    /// Defaults to 8 (Emacs standard).  Unlike screen-column math,
+    /// a tab ALWAYS counts as `tab_width` columns regardless of
+    /// the current column position.
+    pub tab_width: u8,
 }
 
 macro_rules! looking_at {
@@ -201,6 +206,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         environment: Environment,
         bump: &'b bumpalo::Bump,
     ) -> Parser<'a, 'b, Environment> {
+        let tab_width = environment.tab_width();
         Parser {
             cursor: Cursor::new(input, 0),
             input,
@@ -209,6 +215,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             arena: NodeArena::new(),
             bump,
             object_region_start: 0,
+            tab_width,
         }
     }
 

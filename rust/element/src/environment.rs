@@ -17,6 +17,13 @@ pub trait Environment {
     fn link_start_bytes(&self) -> &[u8] {
         ORG_DEFAULT_LINK_START_BYTES
     }
+
+    /// Tab width used for `string-width`-style indent calculations.
+    /// Emacs always uses 8 for Org files; override for non-standard setups.
+    #[inline]
+    fn tab_width(&self) -> u8 {
+        8
+    }
 }
 
 /// Link types recognised by a default `-Q` Emacs session (`org-link-types`).

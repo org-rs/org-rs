@@ -361,7 +361,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                         };
                         if !next_nonblank.is_empty() {
                             let (next_indent, _) =
-                                Self::get_indent(std::str::from_utf8(next_nonblank).unwrap_or(""));
+                                Self::get_indent(std::str::from_utf8(next_nonblank).unwrap_or(""), self.tab_width);
                             if next_indent <= item_indent {
                                 return pos;
                             }
@@ -454,7 +454,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 None => (&input[pos..], limit),
             };
 
-            let (indent, rest) = Self::get_indent(line);
+            let (indent, rest) = Self::get_indent(line, self.tab_width);
 
             // Block-aware skipping: lines between #+BEGIN_ and #+END_
             // at indent > first_indent are body lines inside a list
@@ -552,12 +552,12 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         bump.alloc(ListStruct { items, end: pos })
     }
 
-    fn get_indent(line: &str) -> (usize, &str) {
+    fn get_indent(line: &str, tab_width: u8) -> (usize, &str) {
         let mut indent = 0;
         for (i, c) in line.char_indices() {
             match c {
                 ' ' => indent += 1,
-                '\t' => indent += 8 - (indent % 8),
+                '\t' => indent += tab_width as usize,
                 _ => return (indent, &line[i..]),
             }
         }
