@@ -328,6 +328,17 @@ struct Discrepancy {
     kind: DiscrepancyKind,
     snippet: Snippet,
     oracle_props: String,
+    type_name: String,
+}
+
+impl DiscrepancyKind {
+    fn kind_name(&self) -> &'static str {
+        match self {
+            DiscrepancyKind::TypeMismatch(_) => "type-mismatch",
+            DiscrepancyKind::MissingInRust(_) => "missing-in-rust",
+            DiscrepancyKind::ExtraInRust(_) => "extra-in-rust",
+        }
+    }
 }
 
 impl Discrepancy {
@@ -345,6 +356,86 @@ impl Discrepancy {
         println!("    Emacs type: {}  {}", syntax_t, self.oracle_props);
         println!("    Context: ...{}...", snippet);
         println!();
+    }
+
+    fn byte_pos(&self) -> usize {
+        match &self.kind {
+            DiscrepancyKind::TypeMismatch(_) => 0,
+            DiscrepancyKind::MissingInRust(at) => *at,
+            DiscrepancyKind::ExtraInRust(at) => *at,
+        }
+    }
+}
+
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+enum DisplayMode {
+    #[default]
+    Text,
+    Compact,
+    Json,
+    Csv,
+}
+
+fn json_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_control() => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+fn csv_field(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        let mut out = String::with_capacity(s.len() + 2);
+        out.push('"');
+        for c in s.chars() {
+            if c == '"' {
+                out.push_str("\"\"");
+            } else {
+                out.push(c);
+            }
+        }
+        out.push('"');
+        out
+    } else {
+        s.to_string()
+    }
+}
+
+#[derive(Default, Clone)]
+struct DiscrepancyFilters {
+    element_types: Option<Vec<String>>,
+    kinds: Option<Vec<String>>,
+    max_per_file: Option<usize>,
+    summary_only: bool,
+    mode: DisplayMode,
+}
+
+impl DiscrepancyFilters {
+    fn apply<'a>(&self, ds: &'a [Discrepancy]) -> Vec<&'a Discrepancy> {
+        ds.iter()
+            .filter(|d| {
+                if let Some(ref types) = self.element_types {
+                    if !types.contains(&d.type_name) {
+                        return false;
+                    }
+                }
+                if let Some(ref kinds) = self.kinds {
+                    if !kinds.iter().any(|k| k == d.kind.kind_name()) {
+                        return false;
+                    }
+                }
+                true
+            })
+            .collect()
     }
 }
 
@@ -383,6 +474,7 @@ fn compare(
             kind: DiscrepancyKind::TypeMismatch(mismatch),
             snippet: Snippet::new(input, begin, end),
             oracle_props: oracle.to_string(),
+            type_name: format!("{}", emacs_key),
         });
         return;
     }
@@ -433,6 +525,7 @@ fn compare_children(
                 kind: DiscrepancyKind::MissingInRust(begin),
                 snippet: Snippet::new(input, begin, end),
                 oracle_props: oracle_node.to_string(),
+                type_name: format!("{}", key.0),
             });
         }
     }
@@ -446,6 +539,7 @@ fn compare_children(
                 kind: DiscrepancyKind::ExtraInRust(node.location.start),
                 snippet: Snippet::new(input, node.location.start, node.location.end),
                 oracle_props: String::new(),
+                type_name: format!("{}", key.0),
             });
         }
     }
@@ -606,6 +700,15 @@ Options:
   -c, --corpus <DIR>    Corpus directory (default: <repo_root>/corpus/)
   -f, --filter <PAT>    Only process files whose name contains <PAT>
                         (case-insensitive substring match)
+  -t, --type <TYPES>    Only show discrepancies for given Emacs element types
+                        (comma-separated, e.g. headline,paragraph,keyword)
+  -k, --kind <KINDS>    Only show discrepancies of given kinds
+                        (comma-separated: missing-in-rust,extra-in-rust,type-mismatch)
+  -m, --max <N>         Max discrepancies to print per file
+  -s, --summary         Only print file-level summary counts, not individual details
+  --compact             Single-line per discrepancy (no context snippet)
+  --json                JSONL output (one JSON object per discrepancy per line)
+  --csv                 CSV output (header + one row per discrepancy)
 
 The tool requires:
   - `emacs` on PATH with org-element (built-in since Org 9.0)
@@ -623,6 +726,7 @@ fn main() {
 
     let mut corpus_path = None;
     let mut filter: Option<String> = None;
+    let mut filters = DiscrepancyFilters::default();
 
     {
         let mut i = 1;
@@ -647,6 +751,59 @@ fn main() {
                         std::process::exit(1);
                     }
                     filter = Some(args[i].to_lowercase());
+                }
+                "-t" | "--type" => {
+                    i += 1;
+                    if i >= args.len() {
+                        eprintln!("error: --type requires a comma-separated list");
+                        std::process::exit(1);
+                    }
+                    filters.element_types = Some(
+                        args[i]
+                            .split(',')
+                            .map(|s| normalize_type(s.trim()))
+                            .collect(),
+                    );
+                }
+                "-k" | "--kind" => {
+                    i += 1;
+                    if i >= args.len() {
+                        eprintln!("error: --kind requires a comma-separated list");
+                        std::process::exit(1);
+                    }
+                    let valid = ["missing-in-rust", "extra-in-rust", "type-mismatch"];
+                    let kinds: Vec<String> = args[i].split(',').map(|s| s.trim().to_string()).collect();
+                    for k in &kinds {
+                        if !valid.contains(&k.as_str()) {
+                            eprintln!("error: unknown kind '{k}' (valid: {})", valid.join(", "));
+                            std::process::exit(1);
+                        }
+                    }
+                    filters.kinds = Some(kinds);
+                }
+                "-m" | "--max" => {
+                    i += 1;
+                    if i >= args.len() {
+                        eprintln!("error: --max requires a number");
+                        std::process::exit(1);
+                    }
+                    filters.max_per_file = Some(
+                        args[i]
+                            .parse()
+                            .expect("error: --max requires a positive integer"),
+                    );
+                }
+                "-s" | "--summary" => {
+                    filters.summary_only = true;
+                }
+                "--compact" => {
+                    filters.mode = DisplayMode::Compact;
+                }
+                "--json" => {
+                    filters.mode = DisplayMode::Json;
+                }
+                "--csv" => {
+                    filters.mode = DisplayMode::Csv;
                 }
                 _ => {
                     eprintln!("error: unknown option '{}'", args[i]);
@@ -692,6 +849,8 @@ fn main() {
     let stderr_lock = Arc::new(Mutex::new(()));
     let stdout_lock = Arc::new(Mutex::new(()));
 
+    let filters_ref = &filters;
+    let csv_header_printed = Arc::new(AtomicBool::new(false));
     std::thread::scope(|s| {
         #[allow(clippy::needless_range_loop)]
         for i in 0..org_files.len() {
@@ -704,6 +863,7 @@ fn main() {
             let sl = Arc::clone(&stderr_lock);
             let sol = Arc::clone(&stdout_lock);
             let td = Arc::clone(&total_discrepancies);
+            let chp = Arc::clone(&csv_header_printed);
             s.spawn(move || {
                 let result = process_file(path, &dn, i + 1, n, &sl);
 
@@ -717,9 +877,97 @@ fn main() {
                         if ds.is_empty() {
                             println!("OK  {}", path.display());
                         } else {
-                            println!("FAIL {} ({} discrepancies)", path.display(), ds.len());
-                            for d in &ds {
-                                d.print_context();
+                            let filtered = filters_ref.apply(&ds);
+                            let shown = filtered.len();
+                            let count = if filters_ref.summary_only
+                                || matches!(filters_ref.mode, DisplayMode::Json | DisplayMode::Csv)
+                            {
+                                filtered.len()
+                            } else if let Some(max) = filters_ref.max_per_file {
+                                shown.min(max)
+                            } else {
+                                shown
+                            };
+
+                            match filters_ref.mode {
+                                DisplayMode::Text => {
+                                    if filters_ref.summary_only {
+                                        use std::collections::HashMap;
+                                        let mut by_type: HashMap<&str, usize> = HashMap::new();
+                                        let mut by_kind: HashMap<&str, usize> = HashMap::new();
+                                        for d in &filtered {
+                                            *by_type.entry(&d.type_name).or_default() += 1;
+                                            *by_kind.entry(d.kind.kind_name()).or_default() += 1;
+                                        }
+                                        let mut type_parts: Vec<String> = by_type
+                                            .into_iter()
+                                            .map(|(t, c)| format!("{t}: {c}"))
+                                            .collect();
+                                        type_parts.sort();
+                                        let mut kind_parts: Vec<String> = by_kind
+                                            .into_iter()
+                                            .map(|(k, c)| format!("{k}: {c}"))
+                                            .collect();
+                                        kind_parts.sort();
+                                        println!(
+                                            "FAIL {} ({} raw, {} filtered)",
+                                            path.display(),
+                                            ds.len(),
+                                            filtered.len()
+                                        );
+                                        println!("  by type: {}", type_parts.join(", "));
+                                        println!("  by kind: {}", kind_parts.join(", "));
+                                    } else {
+                                        println!("FAIL {} ({} discrepancies, {} filtered)",
+                                            path.display(), ds.len(), filtered.len());
+                                        for d in filtered.iter().take(count) {
+                                            d.print_context();
+                                        }
+                                        if count < filtered.len() {
+                                            println!("  ... and {} more (use --max to show more)", filtered.len() - count);
+                                        }
+                                    }
+                                }
+                                DisplayMode::Compact => {
+                                    println!("FAIL {} ({} discrepancies, {} filtered)",
+                                        path.display(), ds.len(), filtered.len());
+                                    for d in filtered.iter().take(count) {
+                                        println!("  {} {} @{} [{}]",
+                                            d.kind.kind_name(), d.type_name, d.byte_pos(), d.tree_path);
+                                    }
+                                    if count < filtered.len() {
+                                        println!("  ... and {} more", filtered.len() - count);
+                                    }
+                                }
+                                DisplayMode::Json => {
+                                    for d in &filtered {
+                                        let pos = d.byte_pos();
+                                        println!(r#"{{"file":"{}","type":"{}","kind":"{}","byte_offset":{},"tree_path":"{}","context":"{}","props":"{}"}}"#,
+                                            json_escape(&path.display().to_string()),
+                                            json_escape(&d.type_name),
+                                            json_escape(d.kind.kind_name()),
+                                            pos,
+                                            json_escape(&d.tree_path),
+                                            json_escape(&d.snippet.to_string()),
+                                            json_escape(&d.oracle_props));
+                                    }
+                                }
+                                DisplayMode::Csv => {
+                                    if !chp.swap(true, Ordering::Relaxed) {
+                                        println!("file,type,kind,byte_offset,tree_path,context,props");
+                                    }
+                                    for d in &filtered {
+                                        let pos = d.byte_pos();
+                                        println!("{},{},{},{},{},{},{}",
+                                            csv_field(&path.display().to_string()),
+                                            csv_field(&d.type_name),
+                                            csv_field(d.kind.kind_name()),
+                                            pos,
+                                            csv_field(&d.tree_path),
+                                            csv_field(&d.snippet.to_string()),
+                                            csv_field(&d.oracle_props));
+                                    }
+                                }
                             }
                             td.fetch_add(ds.len(), Ordering::Relaxed);
                         }
