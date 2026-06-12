@@ -2018,10 +2018,17 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                     }
                     let after = closing + 1;
                     if after < bytes.len() {
+                        // Emacs syntax classes for valid post-chars: whitespace,
+                        // punctuation (\\s.), brackets, and string quotes — but
+                        // NOT symbol-characters like + - * / = # @ % ^ ~.
+                        // Note: org-mode makes < and > bracket-pair syntax,
+                        // so they ARE valid post-chars.
                         match bytes[after] {
-                            b if b.is_ascii_whitespace()
-                                || b.is_ascii_punctuation()
-                                || b == b'\'' => {}
+                            b' ' | b'\t' | b'\n'
+                            | b'.' | b',' | b';' | b':' | b'!' | b'?'
+                            | b'(' | b'[' | b'{' | b'<'
+                            | b')' | b']' | b'}' | b'>'
+                            | b'"' | b'\'' => {}
                             _ => return None,
                         }
                     }
