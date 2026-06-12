@@ -387,13 +387,18 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                 return self.node_property_parser(limit);
             }
 
-            if self.cursor.on_headline() {
+            // Real headlines are parsed structurally here. Inline tasks
+            // (15+ stars) are section *content*, so when we are about to open
+            // a section we fall through and let `section_parser` wrap them.
+            if self.cursor.on_headline()
+                && !(matches!(mode, Section | FirstSection) && self.cursor.on_inline_task())
+            {
                 return self.headline_parser();
             }
 
             if mode == Section || mode == FirstSection {
                 let p = self.cursor.pos();
-                let lim = self.cursor.next_headline().unwrap_or(limit).min(limit);
+                let lim = self.cursor.next_real_headline().unwrap_or(limit).min(limit);
                 self.cursor.set(p);
                 return self.section_parser(lim);
             }

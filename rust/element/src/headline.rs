@@ -290,6 +290,21 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
         // 15+ stars are inline tasks, not headlines.
         if level >= 15 {
+            let heading_end = (line_end + 1).min(self.input.len());
+            // An inline task may be closed by a `*{15,} END` line. When it is,
+            // the task spans through that line and the body between the markers
+            // becomes its content (parsed/nested by the element loop). Without
+            // an END line the task is just its heading.
+            let (it_end, content_location) = match inlinetask_end_after(self.input, end) {
+                Some(after_end) => {
+                    let content = (content_start < end).then_some(Interval {
+                        start: content_start,
+                        end,
+                    });
+                    (after_end, content)
+                }
+                None => (heading_end, None),
+            };
             return self.arena.alloc(SyntaxNode {
                 parent: None,
                 children: BumpVec::new_in(self.bump),
@@ -306,9 +321,9 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 })),
                 location: Interval {
                     start: begin,
-                    end: (line_end + 1).min(self.input.len()),
+                    end: it_end,
                 },
-                content_location: None,
+                content_location,
                 post_blank: 0,
                 affiliated: None,
             });
@@ -382,6 +397,43 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
 /// Find the end of a headline subtree: the byte position of the next
 /// headline at the same or higher level, or the end of the buffer.
+/// If the line beginning at `pos` is an inline-task END marker
+/// (`\*{15,}[ \t]+END[ \t]*$`, with `END` matched case-insensitively),
+/// return the byte offset just past that line (after its newline, or the
+/// buffer end). Otherwise return `None`.
+fn inlinetask_end_after(input: &str, pos: usize) -> Option<usize> {
+    let bytes = input.as_bytes();
+    let stars = bytes[pos..].iter().take_while(|&&b| b == b'*').count();
+    if stars < 15 {
+        return None;
+    }
+    let mut i = pos + stars;
+    let ws = bytes[i..]
+        .iter()
+        .take_while(|&&b| b == b' ' || b == b'\t')
+        .count();
+    if ws == 0 {
+        return None;
+    }
+    i += ws;
+    if !bytes
+        .get(i..i + 3)
+        .is_some_and(|s| s.eq_ignore_ascii_case(b"END"))
+    {
+        return None;
+    }
+    i += 3;
+    i += bytes[i..]
+        .iter()
+        .take_while(|&&b| b == b' ' || b == b'\t')
+        .count();
+    match bytes.get(i) {
+        None => Some(i),
+        Some(&b'\n') => Some(i + 1),
+        _ => None,
+    }
+}
+
 fn find_headline_end(input: &str, from: usize, level: usize) -> usize {
     let bytes = input.as_bytes();
 

@@ -468,6 +468,41 @@ impl<'a> Cursor<'a> {
         n > 0 && tail.get(n).is_some_and(|&b| b == b' ' || b == b'\t')
     }
 
+    /// Return true if the cursor is on an inline-task line: a headline-like
+    /// line with at least 15 stars (`org-inlinetask-min-level`). Inline tasks
+    /// are section content, not section boundaries.
+    #[inline]
+    pub fn on_inline_task(&self) -> bool {
+        let bytes = self.data.as_bytes();
+        let line_start = if self.is_bol() {
+            self.pos
+        } else {
+            memrchr(b'\n', &bytes[..self.pos]).map_or(0, |i| i + 1)
+        };
+        let tail = &bytes[line_start..];
+        let n = tail.iter().take_while(|&&b| b == b'*').count();
+        n >= 15 && tail.get(n).is_some_and(|&b| b == b' ' || b == b'\t')
+    }
+
+    /// Position of the next *real* headline — one below the inline-task
+    /// threshold of 15 stars. Inline-task lines are skipped, so a section
+    /// (which contains inline tasks) ends only at a genuine headline.
+    #[inline]
+    pub fn next_real_headline(&mut self) -> Option<usize> {
+        self.next::<LinesMetric>();
+        let beg = self.pos();
+        let bytes = self.data.as_bytes();
+        for m in REGEX_HEADLINE_MULTILINE.find_iter(&self.data[beg..]) {
+            let p = beg + m.start();
+            let stars = bytes[p..].iter().take_while(|&&b| b == b'*').count();
+            if stars < 15 {
+                self.pos = p;
+                return Some(p);
+            }
+        }
+        None
+    }
+
     #[inline]
     pub fn is_bol(&self) -> bool {
         if self.pos == 0 {
