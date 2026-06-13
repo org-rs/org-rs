@@ -51,7 +51,10 @@ fn content_location() {
     let content = &input[content_loc.start..content_loc.end];
     // Emacs' :contents-end includes the final newline of the last content
     // line, so the interval carries the trailing "\n".
-    assert_eq!(content, "This is footnote content\n", "content should match");
+    assert_eq!(
+        content, "This is footnote content\n",
+        "content should match"
+    );
 }
 
 #[test]

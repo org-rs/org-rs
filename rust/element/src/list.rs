@@ -524,9 +524,7 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             .unwrap_or(0);
         let bullet_end = item.position + ws_end + item.bullet.len();
         let mut after_bullet = bullet_end;
-        while after_bullet < end
-            && (bytes[after_bullet] == b' ' || bytes[after_bullet] == b'\t')
-        {
+        while after_bullet < end && (bytes[after_bullet] == b' ' || bytes[after_bullet] == b'\t') {
             after_bullet += 1;
         }
 

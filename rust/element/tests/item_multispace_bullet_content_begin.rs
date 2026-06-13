@@ -93,7 +93,10 @@ fn many_space_bullet_paragraph_begins_at_text() {
     //            0    5
     //            ^ '-' at 0, spaces at 1..=4, 'w' at 5
     let (start, _end) = first_item_paragraph_span(input);
-    assert_eq!(start, 5, "paragraph begins at the text after all four spaces");
+    assert_eq!(
+        start, 5,
+        "paragraph begins at the text after all four spaces"
+    );
 
     // Sanity: exactly one paragraph parsed for the single item.
     let bump = Bump::new();

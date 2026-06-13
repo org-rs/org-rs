@@ -4,13 +4,16 @@ use org_element::data::{NodeArena, NodeId, ScriptKind, Syntax, SyntaxT};
 use org_element::environment::DefaultEnvironment;
 use org_element::parser::{ParseGranularity, Parser};
 use std::cell::RefCell;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::io::{IsTerminal, Write};
 use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::Condvar;
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -82,7 +85,13 @@ fn url_to_filename(url: &str) -> String {
         .unwrap_or("download");
     let mut name: String = last
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     if !name.to_lowercase().ends_with(".org") {
         name.push_str(".org");
@@ -127,7 +136,10 @@ fn fetch_url_to_temp(url: &str) -> Result<PathBuf, CorpusError> {
     if !dest.exists() {
         return Err(CorpusError::FetchWrite {
             path: dest.clone(),
-            source: std::io::Error::new(std::io::ErrorKind::NotFound, "curl produced no output file"),
+            source: std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "curl produced no output file",
+            ),
         });
     }
 
@@ -142,6 +154,9 @@ struct FileTimings {
     rust: Duration,
     compare: Duration,
     total: Duration,
+    /// Whether the oracle output was served from the on-disk cache
+    /// (i.e. emacs was not invoked for this file).
+    cached: bool,
 }
 
 struct TypeInterner {
@@ -660,6 +675,42 @@ fn compare_children(
     }
 }
 
+/// On-disk cache of emacs oracle output.
+///
+/// Invoking emacs (process startup + loading org) costs ~1.5s per file and
+/// completely dominates a corpus run, whereas the org-rs parse it is compared
+/// against takes ~1ms.  The corpus files are static, so the oracle output for a
+/// given (file-content, oracle.el) pair never changes — we hash both and cache
+/// the resulting S-expression on disk.  Subsequent runs skip emacs entirely.
+struct OracleCache {
+    dir: PathBuf,
+    /// Hash of `oracle.el` so that changing the oracle invalidates the cache.
+    seed: u64,
+}
+
+impl OracleCache {
+    fn new() -> Option<Self> {
+        let oracle_el = Path::new(env!("CARGO_MANIFEST_DIR")).join("oracle.el");
+        let bytes = std::fs::read(&oracle_el).ok()?;
+        let dir = std::env::temp_dir().join("org-rs-corpus-cache");
+        std::fs::create_dir_all(&dir).ok()?;
+        let mut h = DefaultHasher::new();
+        bytes.hash(&mut h);
+        Some(OracleCache {
+            dir,
+            seed: h.finish(),
+        })
+    }
+
+    /// Path of the cache entry for a file with the given raw content.
+    fn entry(&self, content: &str) -> PathBuf {
+        let mut h = DefaultHasher::new();
+        self.seed.hash(&mut h);
+        content.hash(&mut h);
+        self.dir.join(format!("{:016x}.sexp", h.finish()))
+    }
+}
+
 fn run_oracle(path: &Path) -> Result<String, CorpusError> {
     let oracle_el = Path::new(env!("CARGO_MANIFEST_DIR")).join("oracle.el");
     let out = std::process::Command::new("emacs")
@@ -698,40 +749,47 @@ fn timed_stage<T>(
         return (result, start.elapsed());
     }
 
-    let done = Arc::new(AtomicBool::new(false));
-    let d = done.clone();
+    // `(done_flag, condvar)` — the worker signals the condvar the instant the
+    // stage finishes so the progress timer wakes immediately instead of having
+    // to be `join`ed after a fixed sleep (which previously added up to ~50ms of
+    // pure latency to every fast stage).
+    let state = Arc::new((Mutex::new(false), Condvar::new()));
+    let st = Arc::clone(&state);
     let l = Arc::clone(stderr_lock);
     let dn = display.to_string();
     let lb = label.to_string();
 
     let timer = thread::spawn(move || {
+        let (lock, cvar) = &*st;
         let start = Instant::now();
         // Wait before the first print so fast stages produce no output.
         let first_print_delay = Duration::from_millis(300);
         let poll_interval = Duration::from_millis(250);
+
+        let mut done = lock.lock().unwrap();
+        let (g, _) = cvar.wait_timeout(done, first_print_delay).unwrap();
+        done = g;
+        if *done {
+            return;
+        }
         loop {
-            if d.load(Ordering::Relaxed) {
+            {
+                let _g = l.lock().unwrap();
+                eprint!(
+                    "\r[{}/{}] {}  {} {:.3}s  ",
+                    index,
+                    total,
+                    dn,
+                    lb,
+                    start.elapsed().as_secs_f64()
+                );
+                std::io::stderr().flush().ok();
+            }
+            let (g, _) = cvar.wait_timeout(done, poll_interval).unwrap();
+            done = g;
+            if *done {
                 return;
             }
-            if start.elapsed() >= first_print_delay {
-                break;
-            }
-            thread::sleep(Duration::from_millis(50));
-        }
-        while !d.load(Ordering::Relaxed) {
-            let elapsed = start.elapsed();
-            let _g = l.lock().unwrap();
-            eprint!(
-                "\r[{}/{}] {}  {} {:.3}s  ",
-                index,
-                total,
-                dn,
-                lb,
-                elapsed.as_secs_f64()
-            );
-            std::io::stderr().flush().ok();
-            drop(_g);
-            thread::sleep(poll_interval);
         }
     });
 
@@ -739,7 +797,11 @@ fn timed_stage<T>(
     let result = work();
     let elapsed = start.elapsed();
 
-    done.store(true, Ordering::Relaxed);
+    {
+        let (lock, cvar) = &*state;
+        *lock.lock().unwrap() = true;
+        cvar.notify_all();
+    }
     timer.join().unwrap();
     (result, elapsed)
 }
@@ -750,6 +812,7 @@ fn process_file(
     index: usize,
     total: usize,
     stderr_lock: &Arc<Mutex<()>>,
+    cache: Option<&OracleCache>,
 ) -> Result<(String, Vec<Discrepancy>, FileTimings), CorpusError> {
     let file_start = Instant::now();
 
@@ -757,6 +820,11 @@ fn process_file(
         path: path.to_owned(),
         source,
     })?;
+
+    // Resolve the cache entry from the *raw* file content (what emacs reads from
+    // disk) before we normalise line endings for the Rust parser.
+    let cache_entry = cache.map(|c| c.entry(&raw));
+
     // Emacs normalises CRLF line endings to LF when visiting a file.
     // Strip all CR bytes so our byte offsets match the oracle's character positions.
     let input = if raw.contains('\r') {
@@ -765,8 +833,20 @@ fn process_file(
         raw
     };
 
+    let mut cached = false;
     let (orc_result, emacs) = timed_stage("emacs", display, index, total, stderr_lock, || {
-        run_oracle(path)
+        // Cache hit: serve the stored oracle output and skip emacs entirely.
+        if let Some(ref entry) = cache_entry {
+            if let Ok(sexp) = std::fs::read_to_string(entry) {
+                cached = true;
+                return Ok(sexp);
+            }
+        }
+        let sexp = run_oracle(path)?;
+        if let Some(ref entry) = cache_entry {
+            let _ = std::fs::write(entry, &sexp);
+        }
+        Ok::<_, CorpusError>(sexp)
     });
     let sexp = orc_result?;
 
@@ -786,24 +866,29 @@ fn process_file(
     });
     let oracle = oracle?;
 
-    let bump = bumpalo::Bump::new();
-    let rust_start = Instant::now();
-    let mut parser = Parser::new(&input, ParseGranularity::Object, DefaultEnvironment, &bump);
-    let (arena, root_id) = parser.parse_buffer();
-    let rust = rust_start.elapsed();
+    // Scope the parser, arena and bump so their borrow of `input` ends before
+    // we hand `input` back to the caller.  `discrepancies` is fully owned and
+    // outlives the borrow.
+    let (discrepancies, rust, compare) = {
+        let bump = bumpalo::Bump::new();
+        let rust_start = Instant::now();
+        let mut parser = Parser::new(&input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (arena, root_id) = parser.parse_buffer();
+        let rust = rust_start.elapsed();
 
-    let (discrepancies, compare) = timed_stage("cmp", display, index, total, stderr_lock, || {
-        let mut ds = Vec::new();
-        compare(&oracle, &arena, root_id, &input, path, "root", &mut ds);
-        ds
-    });
+        let (discrepancies, compare) =
+            timed_stage("cmp", display, index, total, stderr_lock, || {
+                let mut ds = Vec::new();
+                compare(&oracle, &arena, root_id, &input, path, "root", &mut ds);
+                ds
+            });
+        (discrepancies, rust, compare)
+    };
 
     let total = file_start.elapsed();
 
-    let input_for_return = input.clone();
-
     Ok((
-        input_for_return,
+        input,
         discrepancies,
         FileTimings {
             emacs,
@@ -812,8 +897,252 @@ fn process_file(
             rust,
             compare,
             total,
+            cached,
         },
     ))
+}
+
+// ---------------------------------------------------------------------------
+// Benchmark mode
+//
+// `--benchmark` skips all discrepancy analysis and instead measures how fast
+// each parser handles the corpus.  org-rs is timed in-process over a fixed time
+// budget (taking the best iteration to minimise noise); emacs is timed via
+// `bench.el`, which parses the buffer N times *inside a single emacs process*
+// so its result reflects `org-element-parse-buffer` alone, not emacs startup.
+// ---------------------------------------------------------------------------
+
+/// Number of in-process iterations emacs performs per file in benchmark mode.
+const EMACS_BENCH_ITERS: usize = 10;
+
+struct BenchResult {
+    name: String,
+    bytes: usize,
+    /// Best observed org-rs parse time (single iteration).
+    rust: Duration,
+    rust_iters: usize,
+    /// Mean emacs `org-element-parse-buffer` time, if emacs was run.
+    emacs: Option<Duration>,
+}
+
+/// Time org-rs parsing of `input` over a short budget, returning the best
+/// single-iteration time and the number of iterations performed.
+fn bench_rust(input: &str) -> (Duration, usize) {
+    // Warm up caches / allocator before measuring.
+    {
+        let bump = bumpalo::Bump::new();
+        let mut p = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let _ = p.parse_buffer();
+    }
+
+    let budget = Duration::from_millis(250);
+    let start = Instant::now();
+    let mut best = Duration::MAX;
+    let mut iters = 0usize;
+    while start.elapsed() < budget || iters < 16 {
+        let bump = bumpalo::Bump::new();
+        let t0 = Instant::now();
+        let mut p = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+        let (_arena, _root) = p.parse_buffer();
+        let dt = t0.elapsed();
+        if dt < best {
+            best = dt;
+        }
+        iters += 1;
+    }
+    (best, iters)
+}
+
+/// Run `bench.el` to measure mean in-process emacs parse time for `path`.
+fn bench_emacs(path: &Path, iters: usize) -> Option<Duration> {
+    let bench_el = Path::new(env!("CARGO_MANIFEST_DIR")).join("bench.el");
+    let out = std::process::Command::new("emacs")
+        .args(["--batch", "-Q", "--load"])
+        .arg(&bench_el)
+        .arg(path)
+        .arg(iters.to_string())
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let text = String::from_utf8(out.stdout).ok()?;
+    let value = lexpr::from_str(text.trim()).ok()?;
+    // Expect: (:iters N :seconds F)
+    let mut it = value.list_iter()?;
+    let mut n = None;
+    let mut secs = None;
+    while let Some(k) = it.next() {
+        let key = k.as_symbol()?;
+        let v = it.next()?;
+        match key {
+            ":iters" => n = v.as_u64(),
+            ":seconds" => secs = v.as_f64().or_else(|| v.as_u64().map(|u| u as f64)),
+            _ => {}
+        }
+    }
+    let n = n?.max(1);
+    let secs = secs?;
+    Some(Duration::from_secs_f64(secs / n as f64))
+}
+
+fn fmt_size(bytes: usize) -> String {
+    if bytes >= 1024 * 1024 {
+        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+    } else if bytes >= 1024 {
+        format!("{:.1} KB", bytes as f64 / 1024.0)
+    } else {
+        format!("{bytes} B")
+    }
+}
+
+fn fmt_ms(d: Duration) -> String {
+    format!("{:.3} ms", d.as_secs_f64() * 1000.0)
+}
+
+/// Run benchmark mode over `org_files`, printing a comparison table.
+fn run_benchmark(org_files: &[PathBuf], use_emacs: bool) {
+    let n = org_files.len();
+    if n == 0 {
+        eprintln!("no files to benchmark");
+        return;
+    }
+
+    eprintln!(
+        "Benchmarking {} file(s){}...\n",
+        n,
+        if use_emacs {
+            " (org-rs vs emacs org-element)"
+        } else {
+            " (org-rs only)"
+        }
+    );
+
+    let mut results: Vec<BenchResult> = Vec::with_capacity(n);
+
+    for (i, path) in org_files.iter().enumerate() {
+        let name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("?")
+            .to_string();
+        eprint!("\r[{}/{}] {}\x1b[K", i + 1, n, name);
+        std::io::stderr().flush().ok();
+
+        let raw = match std::fs::read_to_string(path) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("\n  SKIP {}: {e}", path.display());
+                continue;
+            }
+        };
+        let input = if raw.contains('\r') {
+            raw.replace('\r', "")
+        } else {
+            raw
+        };
+
+        let (rust, rust_iters) = bench_rust(&input);
+        let emacs = if use_emacs {
+            bench_emacs(path, EMACS_BENCH_ITERS)
+        } else {
+            None
+        };
+
+        results.push(BenchResult {
+            name,
+            bytes: input.len(),
+            rust,
+            rust_iters,
+            emacs,
+        });
+    }
+    eprintln!("\r\x1b[K");
+
+    // Sort slowest-org-rs first so the interesting files surface at the top.
+    results.sort_by_key(|r| std::cmp::Reverse(r.rust));
+
+    let name_w = results
+        .iter()
+        .map(|r| r.name.len())
+        .max()
+        .unwrap_or(4)
+        .max(4);
+
+    println!(
+        "{:<nw$}  {:>9}  {:>12}  {:>13}  {:>9}",
+        "FILE",
+        "SIZE",
+        "org-rs",
+        "emacs",
+        "speedup",
+        nw = name_w,
+    );
+    println!("{}", "-".repeat(name_w + 2 + 9 + 2 + 12 + 2 + 13 + 2 + 9));
+
+    let mut total_bytes = 0usize;
+    let mut total_rust = Duration::ZERO;
+    let mut total_emacs = Duration::ZERO;
+    let mut emacs_files = 0usize;
+
+    for r in &results {
+        total_bytes += r.bytes;
+        total_rust += r.rust;
+        let (emacs_str, speedup_str) = match r.emacs {
+            Some(e) => {
+                total_emacs += e;
+                emacs_files += 1;
+                let speedup = e.as_secs_f64() / r.rust.as_secs_f64().max(f64::MIN_POSITIVE);
+                (fmt_ms(e), format!("{speedup:.1}x"))
+            }
+            None => ("-".to_string(), "-".to_string()),
+        };
+        println!(
+            "{:<nw$}  {:>9}  {:>12}  {:>13}  {:>9}",
+            r.name,
+            fmt_size(r.bytes),
+            fmt_ms(r.rust),
+            emacs_str,
+            speedup_str,
+            nw = name_w,
+        );
+    }
+
+    println!("{}", "-".repeat(name_w + 2 + 9 + 2 + 12 + 2 + 13 + 2 + 9));
+    let total_speedup = if emacs_files > 0 && total_rust > Duration::ZERO {
+        format!(
+            "{:.1}x",
+            total_emacs.as_secs_f64() / total_rust.as_secs_f64()
+        )
+    } else {
+        "-".to_string()
+    };
+    let total_emacs_str = if emacs_files > 0 {
+        fmt_ms(total_emacs)
+    } else {
+        "-".to_string()
+    };
+    println!(
+        "{:<nw$}  {:>9}  {:>12}  {:>13}  {:>9}",
+        "TOTAL",
+        fmt_size(total_bytes),
+        fmt_ms(total_rust),
+        total_emacs_str,
+        total_speedup,
+        nw = name_w,
+    );
+
+    if total_rust > Duration::ZERO {
+        let mbps = (total_bytes as f64 / (1024.0 * 1024.0)) / total_rust.as_secs_f64();
+        let min_iters = results.iter().map(|r| r.rust_iters).min().unwrap_or(0);
+        println!("\norg-rs throughput: {mbps:.1} MB/s (best of >={min_iters} iterations/file)");
+    }
+    if use_emacs && emacs_files < results.len() {
+        eprintln!(
+            "note: emacs timing unavailable for {} file(s)",
+            results.len() - emacs_files
+        );
+    }
 }
 
 fn print_usage() {
@@ -849,9 +1178,23 @@ Options:
   --csv                 CSV output (header + one row per discrepancy)
   --hex                 Show hex dump around discrepancy position (text/compact only)
 
+  --benchmark           Skip discrepancy analysis; instead measure and compare
+                        parse performance (org-rs vs emacs org-element) over the
+                        selected files.  Runs sequentially for stable timing.
+  --no-emacs            In --benchmark mode, time org-rs only (no emacs).
+  --no-cache            Do not read or write the on-disk oracle cache.
+
+Performance:
+  Emacs (process startup + loading org) dominates a corpus run at ~1.5s/file,
+  versus ~1ms for the org-rs parse.  Oracle output for each (file, oracle.el)
+  pair is cached on disk (under the system temp dir), so repeat runs skip emacs
+  entirely.  Files are processed by a CPU-bounded worker pool.  Use --no-cache
+  to force fresh emacs runs.
+
 The tool requires:
   - `emacs` on PATH with org-element (built-in since Org 9.0)
   - `oracle.el` next to the binary or in CARGO_MANIFEST_DIR
+    (`bench.el` likewise, for --benchmark)
 
 Exit codes:
   0   All files matched the oracle (or no files to check)
@@ -867,6 +1210,9 @@ fn main() {
     let mut url: Option<String> = None;
     let mut filter: Option<String> = None;
     let mut filters = DiscrepancyFilters::default();
+    let mut benchmark = false;
+    let mut no_cache = false;
+    let mut no_emacs = false;
 
     {
         let mut i = 1;
@@ -957,6 +1303,15 @@ fn main() {
                 "--hex" => {
                     filters.show_hex = true;
                 }
+                "--benchmark" => {
+                    benchmark = true;
+                }
+                "--no-cache" => {
+                    no_cache = true;
+                }
+                "--no-emacs" => {
+                    no_emacs = true;
+                }
                 _ => {
                     eprintln!("error: unknown option '{}'", args[i]);
                     eprint!("usage: ");
@@ -1011,27 +1366,55 @@ fn main() {
             .collect()
     };
     let n = org_files.len();
+
+    // Benchmark mode: skip discrepancy analysis entirely and just compare
+    // parse performance.  Runs sequentially for accurate timing.
+    if benchmark {
+        run_benchmark(&org_files, !no_emacs);
+        return;
+    }
+
     let total_discrepancies = Arc::new(AtomicUsize::new(0));
     let stderr_lock = Arc::new(Mutex::new(()));
     let stdout_lock = Arc::new(Mutex::new(()));
 
+    // Cache emacs oracle output so repeat runs skip the (dominant) emacs cost.
+    let cache = if no_cache { None } else { OracleCache::new() };
+    let cache_ref = cache.as_ref();
+
+    // Bound concurrency to the number of CPUs.  Spawning one thread per file
+    // launched dozens of emacs processes simultaneously, thrashing the machine;
+    // a worker pool pulling from a shared index keeps emacs ≈ CPU-count.
+    let workers = std::thread::available_parallelism()
+        .map(|p| p.get())
+        .unwrap_or(4)
+        .min(n.max(1));
+    let next = Arc::new(AtomicUsize::new(0));
+
     let filters_ref = &filters;
+    let org_files_ref = &org_files;
     let csv_header_printed = Arc::new(AtomicBool::new(false));
     std::thread::scope(|s| {
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..org_files.len() {
-            let path = &org_files[i];
-            let dn = path.file_name().unwrap().to_str().unwrap().to_string();
-            let g = stderr_lock.lock().unwrap();
-            eprintln!("[{}/{}] {}", i + 1, n, dn);
-            drop(g);
-
+        for _ in 0..workers {
             let sl = Arc::clone(&stderr_lock);
             let sol = Arc::clone(&stdout_lock);
             let td = Arc::clone(&total_discrepancies);
             let chp = Arc::clone(&csv_header_printed);
-            s.spawn(move || {
-                let result = process_file(path, &dn, i + 1, n, &sl);
+            let next = Arc::clone(&next);
+            s.spawn(move || loop {
+                let i = next.fetch_add(1, Ordering::Relaxed);
+                if i >= n {
+                    break;
+                }
+                let path = &org_files_ref[i];
+                let dn = path.file_name().unwrap().to_str().unwrap().to_string();
+                {
+                    let g = sl.lock().unwrap();
+                    eprintln!("[{}/{}] {}", i + 1, n, dn);
+                    drop(g);
+                }
+
+                let result = process_file(path, &dn, i + 1, n, &sl, cache_ref);
 
                 let g = sl.lock().unwrap();
                 match result {
@@ -1159,14 +1542,19 @@ fn main() {
                         drop(sg);
 
                         let emit = emit_start.elapsed();
+                        let emacs_label = if t.cached {
+                            format!("{:.3}s (cached)", t.emacs.as_secs_f64())
+                        } else {
+                            format!("{:.3}s", t.emacs.as_secs_f64())
+                        };
                         eprintln!(
                             "\n----\n\
-                             parse: emacs: {:.3}s, org-rs: {:.3}s\n\
+                             parse: emacs: {}, org-rs: {:.3}s\n\
                              sexp: {:.3}s, oracle: {:.3}s\n\
                              emit: {:.3}s\n\
                              total: {:.3}s\n\
                              ----",
-                            t.emacs.as_secs_f64(),
+                            emacs_label,
                             t.rust.as_secs_f64(),
                             t.sexp.as_secs_f64(),
                             t.oracle_conv.as_secs_f64(),
