@@ -1826,7 +1826,24 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         if !text.starts_with("[fn:") {
             return None;
         }
-        let close = text.find(']')?;
+        let close = {
+            let mut depth = 0u32;
+            let mut found = None;
+            for (i, &b) in text.as_bytes().iter().enumerate() {
+                match b {
+                    b'[' => depth += 1,
+                    b']' => {
+                        if depth == 1 {
+                            found = Some(i);
+                            break;
+                        }
+                        depth = depth.saturating_sub(1);
+                    }
+                    _ => {}
+                }
+            }
+            found?
+        };
         let inner = &text[4..close];
 
         let colon_pos = inner.find(':');

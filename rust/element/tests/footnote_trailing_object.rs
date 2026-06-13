@@ -76,6 +76,117 @@ fn footnote_paragraph_ending_in_link_keeps_trailing_newline() {
     );
 }
 
+/// An inline footnote reference `[fn::...]` containing a link `[[...]]`
+/// must correctly match the closing bracket of the footnote (not the
+/// link's closing brackets).
+///
+/// Before the fix, `try_parse_footnote_reference` used `text.find(']')` to
+/// locate the closing bracket.  When the definition body contained a link
+/// (e.g. `[[target]]`), the first `]` hit was the link's own bracket,
+/// truncating the footnote and leaving trailing text (post-link `).]`)
+/// as orphaned `PlainText` outside the reference.
+///
+/// Corpus origin: org-manual.org (multiple occurrences, 119 total
+/// discrepancies in this class).
+#[test]
+fn inline_footnote_with_link_uses_correct_closing_bracket() {
+    let input = "text [fn::See [[target]] and more] end\n";
+    let bump = Bump::new();
+    let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+    let (arena, root) = parser.parse_buffer();
+
+    // Locate the footnote reference node.
+    let root_children = &arena[root].children;
+    let section = root_children.first().expect("section");
+    let para = arena[*section].children.first().expect("paragraph");
+    let objects = &arena[*para].children;
+
+    let fn_ref = objects
+        .iter()
+        .find(|&&id| matches!(&arena[id].data, Syntax::FootnoteReference(_)))
+        .expect("footnote reference must be found");
+
+    // Verify its byte span covers the full `[fn::See [[target]] and more]`.
+    let loc = &arena[*fn_ref].location;
+    let post_blank = arena[*fn_ref].post_blank;
+    assert_eq!(
+        &input[loc.start..loc.end - post_blank],
+        "[fn::See [[target]] and more]",
+        "footnote reference must span from [fn:: to the correct closing ]"
+    );
+
+    // The footnote's inner content must contain a parsed link.
+    let link_count = count_type(&arena, *fn_ref, SyntaxT::Link);
+    assert_eq!(
+        link_count, 1,
+        "expected 1 link inside the footnote reference"
+    );
+
+    // The plain text " and more " after the link must also be present.
+    let text_after = count_type(&arena, *fn_ref, SyntaxT::PlainText);
+    assert!(text_after >= 2, "expected at least 2 PlainText children");
+}
+
+/// A `[fn::...]` containing a full link with description `[[uri][desc]]`.
+#[test]
+fn inline_footnote_with_link_and_description() {
+    let input = "text [fn::See [[https://orgmode.org][Org mode]] more] end\n";
+    let bump = Bump::new();
+    let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+    let (arena, root) = parser.parse_buffer();
+
+    let root_children = &arena[root].children;
+    let section = root_children.first().expect("section");
+    let para = arena[*section].children.first().expect("paragraph");
+    let objects = &arena[*para].children;
+
+    let fn_ref = objects
+        .iter()
+        .find(|&&id| matches!(&arena[id].data, Syntax::FootnoteReference(_)))
+        .expect("footnote reference must be found");
+
+    let loc = &arena[*fn_ref].location;
+    let post_blank = arena[*fn_ref].post_blank;
+    assert_eq!(
+        &input[loc.start..loc.end - post_blank],
+        "[fn::See [[https://orgmode.org][Org mode]] more]",
+        "footnote must span the full inline definition"
+    );
+
+    let link_count = count_type(&arena, *fn_ref, SyntaxT::Link);
+    assert_eq!(link_count, 1, "expected 1 link inside footnote");
+}
+
+/// Multiple links inside a single `[fn::...]`.
+#[test]
+fn inline_footnote_with_multiple_links() {
+    let input = "text [fn::See [[a]] and [[b]] here] end\n";
+    let bump = Bump::new();
+    let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+    let (arena, root) = parser.parse_buffer();
+
+    let root_children = &arena[root].children;
+    let section = root_children.first().expect("section");
+    let para = arena[*section].children.first().expect("paragraph");
+    let objects = &arena[*para].children;
+
+    let fn_ref = objects
+        .iter()
+        .find(|&&id| matches!(&arena[id].data, Syntax::FootnoteReference(_)))
+        .expect("footnote reference must be found");
+
+    let loc = &arena[*fn_ref].location;
+    let post_blank = arena[*fn_ref].post_blank;
+    assert_eq!(
+        &input[loc.start..loc.end - post_blank],
+        "[fn::See [[a]] and [[b]] here]",
+        "footnote must span both links"
+    );
+
+    let link_count = count_type(&arena, *fn_ref, SyntaxT::Link);
+    assert_eq!(link_count, 2, "expected 2 links inside footnote");
+}
+
 /// Two footnotes where the first ends with a link: both must be siblings and
 /// the second's textual content must be present (it was dropped relative to
 /// the oracle before the fix).
