@@ -124,24 +124,25 @@ fn is_property_drawer_allowed(mode: ParserMode, input: &str, pos: usize) -> bool
                     None => return true,
                     Some(nl) => nl,
                 };
-                let prev_start = memrchr(b'\n', &bytes[..cur_nl])
-                    .map(|i| i + 1)
-                    .unwrap_or(0);
+                let prev_start = memrchr(b'\n', &bytes[..cur_nl]).map(|i| i + 1).unwrap_or(0);
                 let prev = &bytes[prev_start..cur_nl];
 
                 // Find first non-whitespace byte in prev.
                 let content_i = match prev.iter().position(|&b| b != b' ' && b != b'\t') {
                     Some(i) => i,
-                    None => { scan = cur_nl; continue; } // blank line
+                    None => {
+                        scan = cur_nl;
+                        continue;
+                    } // blank line
                 };
 
                 match prev[content_i] {
-                    b'#' => { scan = cur_nl; continue; } // comment
+                    b'#' => {
+                        scan = cur_nl;
+                        continue;
+                    } // comment
                     b'*' => {
-                        let stars = prev[content_i..]
-                            .iter()
-                            .take_while(|&&b| b == b'*')
-                            .count();
+                        let stars = prev[content_i..].iter().take_while(|&&b| b == b'*').count();
                         if stars >= 15 {
                             let after = &prev[content_i + stars..];
                             let ws_off = after.iter().position(|&b| b != b' ' && b != b'\t');

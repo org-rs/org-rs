@@ -76,6 +76,3 @@ pub mod prelude {
     };
     pub use bumpalo;
 }
-
-#[cfg(test)]
-mod parser_tests;

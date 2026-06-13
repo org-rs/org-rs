@@ -444,8 +444,10 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                             None => after_blank,
                         };
                         if !next_nonblank.is_empty() {
-                            let (next_indent, _) =
-                                Self::get_indent(std::str::from_utf8(next_nonblank).unwrap_or(""), self.tab_width);
+                            let (next_indent, _) = Self::get_indent(
+                                std::str::from_utf8(next_nonblank).unwrap_or(""),
+                                self.tab_width,
+                            );
                             if next_indent <= item_indent {
                                 return pos;
                             }
@@ -470,7 +472,10 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         // Content begins after the bullet and its trailing space/tab.
         // item.indent is screen-width (tabs expand); find the actual byte offset.
         let line_bytes = &self.input.as_bytes()[item.position..];
-        let ws_end = line_bytes.iter().position(|&b| b != b' ' && b != b'\t').unwrap_or(0);
+        let ws_end = line_bytes
+            .iter()
+            .position(|&b| b != b' ' && b != b'\t')
+            .unwrap_or(0);
         let after_bullet = item.position + ws_end + item.bullet.len() + 1;
 
         // For description items the paragraph content starts after the " :: "

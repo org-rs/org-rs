@@ -30,8 +30,18 @@ pub trait Environment {
 /// `file` is listed after its `file+…` variants only for readability; the
 /// trailing-`:` check disambiguates them regardless of order.
 pub const ORG_DEFAULT_LINK_TYPES: &[&str] = &[
-    "https", "http", "ftp", "mailto", "news", "shell", "elisp", "file+emacs", "file+sys", "file",
-    "help", "id",
+    "https",
+    "http",
+    "ftp",
+    "mailto",
+    "news",
+    "shell",
+    "elisp",
+    "file+emacs",
+    "file+sys",
+    "file",
+    "help",
+    "id",
 ];
 
 /// First letters of [`ORG_DEFAULT_LINK_TYPES`].

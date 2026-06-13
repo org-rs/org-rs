@@ -169,7 +169,12 @@ fn scan_plain_text_end(bytes: &[u8], link_types: &[&str], link_start_bytes: &[u8
     let mut pl = find_link(bytes);
 
     loop {
-        let i = match [p1, p_dollar, p2, p3, p5, pl].iter().copied().flatten().min() {
+        let i = match [p1, p_dollar, p2, p3, p5, pl]
+            .iter()
+            .copied()
+            .flatten()
+            .min()
+        {
             None => return bytes.len(),
             Some(pos) => pos,
         };
@@ -189,9 +194,7 @@ fn scan_plain_text_end(bytes: &[u8], link_types: &[&str], link_start_bytes: &[u8
         // plain-link regex does not require a word boundary at all.
         // Unlike emphasis markers, `'` is NOT a valid pre-char for plain
         // links — Emacs does not recognise `'file:…'` as a link.
-        if (i == 0
-            || (is_pre_char(bytes[i - 1]) && bytes[i - 1] != b'\'')
-            || bytes[i - 1] >= 0x80)
+        if (i == 0 || (is_pre_char(bytes[i - 1]) && bytes[i - 1] != b'\'') || bytes[i - 1] >= 0x80)
             && plain_link_proto_len(&bytes[i..], link_types).is_some()
         {
             return i;
@@ -504,13 +507,14 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
 
             // Non-unique / multi-regex bytes: first collect the element span,
             // then check candidate element types.
-            let first_nonws_is_hash = b == Some(b'#') || matches!(b, Some(b' ' | b'\t')) && {
-                let rest = &self.input.as_bytes()[cur..];
-                rest.iter()
-                    .position(|&c| c != b' ' && c != b'\t')
-                    .and_then(|i| rest.get(i))
-                    == Some(&b'#')
-            };
+            let first_nonws_is_hash = b == Some(b'#')
+                || matches!(b, Some(b' ' | b'\t')) && {
+                    let rest = &self.input.as_bytes()[cur..];
+                    rest.iter()
+                        .position(|&c| c != b' ' && c != b'\t')
+                        .and_then(|i| rest.get(i))
+                        == Some(&b'#')
+                };
             let span = if first_nonws_is_hash {
                 self.collect_affiliated_keywords(limit)
             } else {
@@ -825,7 +829,8 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                                     children.push(n);
                                 }
                                 result = Some(c);
-                            } else if let Some((n, c)) = self.try_parse_radio_target(remaining, pos) {
+                            } else if let Some((n, c)) = self.try_parse_radio_target(remaining, pos)
+                            {
                                 if restriction(SyntaxT::RadioTarget) {
                                     children.push(n);
                                 }
@@ -1220,10 +1225,14 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             .count();
 
         let node = self.arena.alloc(
-            SyntaxNode::new(Syntax::RadioTarget(RadioTargetData { raw_value: content }), (start, start + close + post_blank), self.bump)
-                .content((start + 3, start + close - 3))
-                .post_blank(post_blank)
-                .build(),
+            SyntaxNode::new(
+                Syntax::RadioTarget(RadioTargetData { raw_value: content }),
+                (start, start + close + post_blank),
+                self.bump,
+            )
+            .content((start + 3, start + close - 3))
+            .post_blank(post_blank)
+            .build(),
         );
 
         Some((node, close + post_blank))
@@ -1231,41 +1240,60 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
 
     fn try_parse_target(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
         let bytes = text.as_bytes();
-        if bytes.len() < 4 || &bytes[0..2] != b"<<" {
+        if bytes.len() < 5 || &bytes[0..2] != b"<<" {
             return None;
         }
 
-        // Find closing >>
-        let mut found_close = None;
-        let mut search_pos = 2;
-        while search_pos + 1 < bytes.len() {
-            match memchr(b'>', &bytes[search_pos..]) {
-                Some(offset) => {
-                    let i = search_pos + offset;
-                    if i + 1 < bytes.len() && bytes[i + 1] == b'>' {
-                        let after = i + 2;
-                        let valid_post = after >= bytes.len() || is_post_char(bytes[after]);
-                        if valid_post {
-                            found_close = Some(after);
-                            break;
-                        }
-                        search_pos = i + 2;
-                    } else {
-                        search_pos = i + 1;
-                    }
-                }
-                None => break,
+        // Emacs org-target-regexp:
+        //   <<\([^<>\n \t]\|[^<>\n \t][^<>\n]*[^<>\n \t]\)>>
+        // The content must be non-empty, contain no `<`, `>` or newline, and
+        // must not start or end with a space/tab.  There is no post-char
+        // restriction after the closing `>>`.
+        let mut i = 2;
+        let close = loop {
+            if i >= bytes.len() {
+                return None;
             }
+            match bytes[i] {
+                // `<` or newline inside the content invalidate the target.
+                b'<' | b'\n' => return None,
+                b'>' => {
+                    if i + 1 < bytes.len() && bytes[i + 1] == b'>' {
+                        break i + 2; // position just after the closing `>>`
+                    }
+                    // A lone `>` cannot appear in target content.
+                    return None;
+                }
+                _ => i += 1,
+            }
+        };
+
+        let content = &text[2..close - 2];
+        let cb = content.as_bytes();
+        if cb.is_empty()
+            || matches!(cb[0], b' ' | b'\t')
+            || matches!(cb[cb.len() - 1], b' ' | b'\t')
+        {
+            return None;
         }
 
-        let close = found_close?;
-        let content = &text[2..close - 2];
+        // Absorb trailing spaces/tabs as post-blank, matching org-element.
+        let post_blank = bytes[close..]
+            .iter()
+            .take_while(|&&b| b == b' ' || b == b'\t')
+            .count();
 
         let node = self.arena.alloc(
-            SyntaxNode::new(Syntax::Target(content), (start, start + close), self.bump).build(),
+            SyntaxNode::new(
+                Syntax::Target(content),
+                (start, start + close + post_blank),
+                self.bump,
+            )
+            .post_blank(post_blank)
+            .build(),
         );
 
-        Some((node, close))
+        Some((node, close + post_blank))
     }
 
     fn parse_emphasis_marker(
@@ -1381,8 +1409,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         let proto_len = plain_link_proto_len(bytes, self.environment.link_types())?;
         let url_end_raw = text[proto_len..]
             .find(|c: char| {
-                c.is_whitespace()
-                    || matches!(c, '[' | ']' | '<' | '>' | '(' | ')' | '\'' | '"')
+                c.is_whitespace() || matches!(c, '[' | ']' | '<' | '>' | '(' | ')' | '\'' | '"')
             })
             .map_or(text.len(), |i| proto_len + i);
         if url_end_raw <= proto_len {
@@ -1492,7 +1519,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             return None;
         }
         pos += 1; // skip ':'
-        // Scan for closing ']' — must contain at least one '@'
+                  // Scan for closing ']' — must contain at least one '@'
         let close_start = pos;
         while let Some(&b) = bytes.get(pos) {
             if b == b']' {
@@ -1638,16 +1665,22 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             .unwrap_or_else(|| BumpVec::new_in(self.bump));
 
         let consumed = close + 1;
+        let post_blank = text[consumed..]
+            .bytes()
+            .take_while(|&b| b == b' ' || b == b'\t')
+            .count();
+        let total_consumed = consumed + post_blank;
         let mut builder = SyntaxNode::new(
             Syntax::FootnoteReference(self.bump.alloc(FootnoteReferenceData { label, type_s })),
-            (start, start + consumed),
+            (start, start + total_consumed),
             self.bump,
         );
         if let Some(loc) = definition_location {
             builder = builder.content(loc);
         }
+        builder = builder.post_blank(post_blank);
         let node = self.arena.alloc_with_children(builder.build(), children);
-        Some((node, consumed))
+        Some((node, total_consumed))
     }
 
     fn try_parse_plain_text(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
@@ -2024,11 +2057,9 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                         // Note: org-mode makes < and > bracket-pair syntax,
                         // so they ARE valid post-chars.
                         match bytes[after] {
-                            b' ' | b'\t' | b'\n'
-                            | b'.' | b',' | b';' | b':' | b'!' | b'?'
-                            | b'(' | b'[' | b'{' | b'<'
-                            | b')' | b']' | b'}' | b'>'
-                            | b'"' | b'\'' => {}
+                            b' ' | b'\t' | b'\n' | b'.' | b',' | b';' | b':' | b'!' | b'?'
+                            | b'(' | b'[' | b'{' | b'<' | b')' | b']' | b'}' | b'>' | b'"'
+                            | b'\'' => {}
                             _ => return None,
                         }
                     }

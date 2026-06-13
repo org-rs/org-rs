@@ -9,9 +9,9 @@ use std::fmt;
 use std::io::{IsTerminal, Write};
 use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -818,7 +818,8 @@ fn main() {
                         std::process::exit(1);
                     }
                     let valid = ["missing-in-rust", "extra-in-rust", "type-mismatch"];
-                    let kinds: Vec<String> = args[i].split(',').map(|s| s.trim().to_string()).collect();
+                    let kinds: Vec<String> =
+                        args[i].split(',').map(|s| s.trim().to_string()).collect();
                     for k in &kinds {
                         if !valid.contains(&k.as_str()) {
                             eprintln!("error: unknown kind '{k}' (valid: {})", valid.join(", "));
