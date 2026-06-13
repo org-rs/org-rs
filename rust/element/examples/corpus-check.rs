@@ -45,6 +45,93 @@ enum CorpusError {
     EmptyOracle { path: PathBuf },
     #[error("emacs is not in PATH or oracle.el is missing")]
     EmacsUnavailable,
+    #[error("could not create temp dir {path:?}: {source}")]
+    TempDir {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("could not launch curl to fetch {url:?}: {source}")]
+    FetchExec {
+        url: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("curl failed to fetch {url:?} (exit {code}): {stderr}")]
+    FetchStatus {
+        url: String,
+        code: i32,
+        stderr: String,
+    },
+    #[error("could not write fetched file {path:?}: {source}")]
+    FetchWrite {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+}
+
+/// Derive a filesystem-friendly `.org` filename from a URL's last path segment.
+fn url_to_filename(url: &str) -> String {
+    let trimmed = url.split(['?', '#']).next().unwrap_or(url);
+    let last = trimmed
+        .trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or("download");
+    let mut name: String = last
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' { c } else { '_' })
+        .collect();
+    if !name.to_lowercase().ends_with(".org") {
+        name.push_str(".org");
+    }
+    name
+}
+
+/// Fetch `url` into a freshly created temporary directory and return the path
+/// to the downloaded `.org` file.  Uses `curl` (following redirects) so we do
+/// not pull an HTTP stack into the crate's dependency graph.
+fn fetch_url_to_temp(url: &str) -> Result<PathBuf, CorpusError> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!("corpus-check-{}-{}", std::process::id(), nanos));
+    std::fs::create_dir_all(&dir).map_err(|source| CorpusError::TempDir {
+        path: dir.clone(),
+        source,
+    })?;
+
+    let dest = dir.join(url_to_filename(url));
+    let out = std::process::Command::new("curl")
+        .args(["-fsSL", "--max-time", "60", "-o"])
+        .arg(&dest)
+        .arg(url)
+        .output()
+        .map_err(|source| CorpusError::FetchExec {
+            url: url.to_owned(),
+            source,
+        })?;
+
+    if !out.status.success() {
+        return Err(CorpusError::FetchStatus {
+            url: url.to_owned(),
+            code: out.status.code().unwrap_or(-1),
+            stderr: String::from_utf8_lossy(&out.stderr).trim().to_string(),
+        });
+    }
+
+    // `curl -o` should have written the file; surface a clear error if not.
+    if !dest.exists() {
+        return Err(CorpusError::FetchWrite {
+            path: dest.clone(),
+            source: std::io::Error::new(std::io::ErrorKind::NotFound, "curl produced no output file"),
+        });
+    }
+
+    Ok(dest)
 }
 
 #[derive(Default, Clone, Copy)]
@@ -743,6 +830,12 @@ corpus of .org files, reporting any discrepancies found.
 Options:
   -h, --help            Print this help message
   -c, --corpus <DIR>    Corpus directory (default: <repo_root>/corpus/)
+  -u, --url <URL>       Fetch a single .org file from <URL> into a temporary
+                        directory and check it instead of the corpus.  Useful
+                        for vetting new candidate files before adding them to
+                        the corpus: a clean exit (0) means the file produced no
+                        discrepancies and can be discarded; exit 1 means the
+                        file exposes a parser discrepancy worth capturing.
   -f, --filter <PAT>    Only process files whose name contains <PAT>
                         (case-insensitive substring match)
   -t, --type <TYPES>    Only show discrepancies for given Emacs element types
@@ -771,6 +864,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     let mut corpus_path = None;
+    let mut url: Option<String> = None;
     let mut filter: Option<String> = None;
     let mut filters = DiscrepancyFilters::default();
 
@@ -789,6 +883,14 @@ fn main() {
                         std::process::exit(1);
                     }
                     corpus_path = Some(PathBuf::from(&args[i]));
+                }
+                "-u" | "--url" => {
+                    i += 1;
+                    if i >= args.len() {
+                        eprintln!("error: --url requires a URL argument");
+                        std::process::exit(1);
+                    }
+                    url = Some(args[i].clone());
                 }
                 "-f" | "--filter" => {
                     i += 1;
@@ -866,34 +968,48 @@ fn main() {
         }
     }
 
-    let corpus = corpus_path.unwrap_or_else(|| {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .join("corpus")
-    });
-
-    if !corpus.exists() {
-        eprintln!("corpus/ not found at {}", corpus.display());
-        std::process::exit(1);
-    }
-
-    let org_files: Vec<_> = std::fs::read_dir(&corpus)
-        .expect("cannot read corpus/")
-        .filter_map(|e| {
-            let p = e.ok()?.path();
-            if p.extension().and_then(|e| e.to_str()) != Some("org") {
-                return None;
+    // URL mode: fetch a single file into a temp dir and check only that file.
+    let org_files: Vec<_> = if let Some(ref u) = url {
+        match fetch_url_to_temp(u) {
+            Ok(path) => {
+                eprintln!("fetched {u}\n     -> {}", path.display());
+                vec![path]
             }
-            if let Some(ref pat) = filter {
-                let name = p.file_name()?.to_str()?.to_lowercase();
-                if !name.contains(pat.as_str()) {
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        let corpus = corpus_path.unwrap_or_else(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .join("corpus")
+        });
+
+        if !corpus.exists() {
+            eprintln!("corpus/ not found at {}", corpus.display());
+            std::process::exit(1);
+        }
+
+        std::fs::read_dir(&corpus)
+            .expect("cannot read corpus/")
+            .filter_map(|e| {
+                let p = e.ok()?.path();
+                if p.extension().and_then(|e| e.to_str()) != Some("org") {
                     return None;
                 }
-            }
-            Some(p)
-        })
-        .collect();
+                if let Some(ref pat) = filter {
+                    let name = p.file_name()?.to_str()?.to_lowercase();
+                    if !name.contains(pat.as_str()) {
+                        return None;
+                    }
+                }
+                Some(p)
+            })
+            .collect()
+    };
     let n = org_files.len();
     let total_discrepancies = Arc::new(AtomicUsize::new(0));
     let stderr_lock = Arc::new(Mutex::new(()));

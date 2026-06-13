@@ -511,14 +511,24 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let bullet = item.bullet;
         let tag = item.tag;
 
-        // Content begins after the bullet and its trailing space/tab.
-        // item.indent is screen-width (tabs expand); find the actual byte offset.
-        let line_bytes = &self.input.as_bytes()[item.position..];
-        let ws_end = line_bytes
+        // Content begins after the bullet and *all* of its trailing
+        // whitespace.  item.indent is screen-width (tabs expand); find the
+        // actual byte offset.  Emacs' `org-list-full-item-re` match is followed
+        // by `skip-chars-forward " \r\t\n"`, so a bullet aligned with multiple
+        // spaces (e.g. `-  text`) still starts its content at the first
+        // non-whitespace character — not after a single hard-coded space.
+        let bytes = self.input.as_bytes();
+        let ws_end = bytes[item.position..]
             .iter()
             .position(|&b| b != b' ' && b != b'\t')
             .unwrap_or(0);
-        let after_bullet = item.position + ws_end + item.bullet.len() + 1;
+        let bullet_end = item.position + ws_end + item.bullet.len();
+        let mut after_bullet = bullet_end;
+        while after_bullet < end
+            && (bytes[after_bullet] == b' ' || bytes[after_bullet] == b'\t')
+        {
+            after_bullet += 1;
+        }
 
         // For description items the paragraph content starts after the " :: "
         // separator, not at the tag.  Emacs org-element places :contents-begin
