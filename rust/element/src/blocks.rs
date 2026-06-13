@@ -483,12 +483,24 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             affiliated,
             ..
         } = element_span;
-        let first_line_end =
-            memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i);
-        let type_s = REGEX_BLOCK_BEGIN
-            .captures(&self.input[start..first_line_end])
-            .and_then(|c| c.get(1))
-            .map_or("special", |m| m.as_str());
+        // `start` may point to an affiliated keyword line (e.g. `#+attr_texinfo:`)
+        // rather than the `#+begin_*` line.  Scan forward to find the begin line.
+        let type_s = {
+            let mut pos = start;
+            loop {
+                let line_end =
+                    memchr(b'\n', &self.input.as_bytes()[pos..limit]).map_or(limit, |i| pos + i);
+                if let Some(caps) = REGEX_BLOCK_BEGIN.captures(&self.input[pos..line_end]) {
+                    if let Some(m) = caps.get(1) {
+                        break m.as_str();
+                    }
+                }
+                if line_end >= limit {
+                    break "special";
+                }
+                pos = line_end + 1;
+            }
+        };
         let Some(bounds) = find_block_bounds(self.input, start, limit, type_s) else {
             return self.block_fallback(Interval { start, end: limit }, type_s);
         };

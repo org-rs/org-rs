@@ -94,6 +94,31 @@ fn export_block_type() {
 }
 
 #[test]
+fn special_block_with_affiliated_keyword() {
+    let input = "#+attr_texinfo: :options org-entry-get pom property\n\
+                  #+begin_defun\n\
+                  Get value of PROPERTY for entry.\n\
+                  #+end_defun\n";
+    let bump = Bump::new();
+    let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+    let (arena, root) = parser.parse_buffer();
+
+    let root_children = &arena[root].children;
+    let section = root_children.first().expect("Expected section");
+    let section_children = &arena[*section].children;
+    let block = section_children.first().expect("Expected special block");
+
+    let Syntax::SpecialBlock(data) = &arena[*block].data else {
+        panic!("Expected SpecialBlock, got: {:?}", arena[*block].data);
+    };
+    assert_eq!(
+        data.type_s, "defun",
+        "Expected type_s 'defun', got {:?}",
+        data.type_s
+    );
+}
+
+#[test]
 fn src_block_language() {
     let input = "#+BEGIN_SRC python\nprint('hello')\n#+END_SRC\n";
     let bump = Bump::new();
