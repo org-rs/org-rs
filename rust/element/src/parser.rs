@@ -2169,8 +2169,9 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
 
         let mut has_args = false;
 
-        // Skip optional bracket argument [...]
-        if pos < len && bytes[pos] == b'[' {
+        // Skip optional bracket argument(s) — Emacs' regex matches
+        // multiple consecutive `[...]` groups (e.g. `\command[opt1][opt2]`).
+        while pos < len && bytes[pos] == b'[' {
             has_args = true;
             pos += 1;
             let mut depth = 1;
