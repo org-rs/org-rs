@@ -25,8 +25,9 @@ use crate::{
     cursor::Cursor,
     data::{
         Brackets, BumpVec, CitationData, EntityData, FootnoteReferenceData, InlineBabelCallData,
-        Interval, LinkData, MacroData, NodeArena, NodeId, RadioTargetData, ScriptFlags, ScriptKind,
-        StatisticsCookieData, Syntax, SyntaxNode, SyntaxT, TimestampData,
+        Interval, LinkData, LinkFlags, LinkFormat, LinkType, MacroData, NodeArena, NodeId,
+        RadioTargetData, ScriptFlags, ScriptKind, StatisticsCookieData, Syntax, SyntaxNode,
+        SyntaxT, TimestampData,
     },
     drawer::REGEX_DRAWER,
     environment,
@@ -86,6 +87,9 @@ pub struct Parser<'input, 'bumpalo, Environment: environment::Environment> {
     /// Indent of the enclosing list item when `list_struct` is called while
     /// scanning that item's content.  `None` at top-level (section/headline).
     pub item_indent_ctx: Option<usize>,
+    /// Radio target texts collected from `<<<...>>>` definitions.
+    /// Used to detect radio links during object parsing.
+    radio_targets: Vec<&'input str>,
 }
 
 macro_rules! looking_at {
@@ -148,6 +152,135 @@ fn plain_link_proto_len(bytes: &[u8], link_types: &[&str]) -> Option<usize> {
         let t = ty.as_bytes();
         (bytes.starts_with(t) && bytes.get(t.len()) == Some(&b':')).then_some(t.len() + 1)
     })
+}
+
+/// Match `text` against a radio target string, with case-insensitive
+/// comparison and whitespace-run collapsing matching Emacs' `\\s-+`
+/// semantics (newlines, tabs, and spaces are all treated equally).
+/// Returns the number of bytes consumed from `text` on success, or
+/// `None` if no match.
+/// Pre-scan `input` for `<<<...>>>` radio target definitions and
+/// collect the target texts.  These are used later to detect radio
+/// links during object parsing.  Emacs builds a single compound
+/// regex from all targets (see `ol.el`'s `org-update-radio-target-regexp`),
+/// applying case-insensitive matching and collapsing whitespace runs
+/// (spaces, newlines, tabs) so `<<<Special comment section>>>` matches
+/// `"special comment\n  section"` in the document body.
+///
+/// Scanning is line-based, matching Emacs' `org-radio-target-regexp` which
+/// does not span line boundaries.  We also skip matches that appear inside
+/// `=...=` or `~...~` inline code spans.
+fn collect_radio_targets(input: &str) -> Vec<&str> {
+    let mut targets: Vec<&str> = Vec::new();
+    for line in input.lines() {
+        if let Some(target) = extract_radio_target_line(line) {
+            if !target.is_empty() && !targets.contains(&target) {
+                targets.push(target);
+            }
+        }
+    }
+    targets
+}
+
+/// Scan a single line for a `<<<...>>>` radio target, skipping inline
+/// code spans delimited by `=` or `~`.
+fn extract_radio_target_line(line: &str) -> Option<&str> {
+    let b = line.as_bytes();
+    // Quick check: must contain <<< and >>>
+    let open = memmem::find(b, b"<<<")?;
+    let after_open = open + 3;
+    let close = memmem::find(&b[after_open..], b">>>")?;
+    let target = &line[after_open..after_open + close];
+
+    // Skip if the match is inside =...= or ~...~ inline code.
+    // We check whether the text between `=...=` or `~...~` on this line
+    // fully contains the <<<...>>> range.
+    if is_inside_code_span(line, open, after_open + close + 3) {
+        return None;
+    }
+
+    Some(target)
+}
+
+/// Returns true if the byte range [start..end) on `line` falls entirely
+/// inside a `=...=` or `~...~` inline code span.
+fn is_inside_code_span(line: &str, start: usize, _end: usize) -> bool {
+    let b = line.as_bytes();
+    // Find all = and ~ positions (as potential code span delimiters)
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'=' || b[i] == b'~' {
+            // Check if this is a code delimiter (preceded by space, tab, start-of-line,
+            // or punctuation; followed by a non-space)
+            if i == 0 || b[i - 1].is_ascii_whitespace() || is_pre_char(b[i - 1]) {
+                // Find matching close delimiter on same line
+                if let Some(close) = memmem::find(&b[i + 1..], &[b[i]]) {
+                    let close_pos = i + 1 + close;
+                    // Make sure close is followed by boundary
+                    if close_pos + 1 >= b.len()
+                        || b[close_pos + 1].is_ascii_whitespace()
+                        || is_post_char(b[close_pos + 1])
+                    {
+                        // Range [i..=close_pos] is a code span
+                        if start >= i && start <= close_pos {
+                            return true;
+                        }
+                        i = close_pos + 1;
+                        continue;
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+    false
+}
+
+fn match_radio_target_text(text: &str, target: &str) -> Option<usize> {
+    let t = target.as_bytes();
+    let s = text.as_bytes();
+    let (mut ti, mut si) = (0, 0);
+
+    while ti < t.len() && si < s.len() {
+        let tc = t[ti];
+        let sc = s[si];
+
+        if tc == b' ' {
+            // Target has whitespace — consume one or more whitespace bytes
+            // in source (matching Emacs' `\\s-+`).
+            if !sc.is_ascii_whitespace() {
+                return None;
+            }
+            ti += 1;
+            si += 1;
+            while si < s.len() && s[si].is_ascii_whitespace() {
+                si += 1;
+            }
+        } else {
+            // Non-space character: case-insensitive compare
+            if tc.eq_ignore_ascii_case(&sc) {
+                ti += 1;
+                si += 1;
+            } else if sc.is_ascii_whitespace() {
+                // Source has unexpected whitespace — skip over it
+                // (handles cases where Emacs' `\\s-+` matches extra
+                // whitespace not present in the target).
+                si += 1;
+            } else {
+                return None;
+            }
+        }
+    }
+
+    if ti == t.len() {
+        // Match succeeded — do NOT consume trailing whitespace.
+        // Emacs separates the match extent (link-end / match-end 1)
+        // from post-blank, so trailing space/tab are handled by the
+        // caller.
+        Some(si)
+    } else {
+        None
+    }
 }
 
 /// Scan `bytes` for the first position that ends a plain-text run,
@@ -234,6 +367,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         bump: &'b bumpalo::Bump,
     ) -> Parser<'a, 'b, Environment> {
         let tab_width = environment.tab_width();
+        let radio_targets = collect_radio_targets(input);
         Parser {
             cursor: Cursor::new(input, 0),
             input,
@@ -244,6 +378,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             object_region_start: 0,
             tab_width,
             item_indent_ctx: None,
+            radio_targets,
         }
     }
 
@@ -926,6 +1061,9 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
 
             if let Some(c) = consumed {
                 pos += c;
+            } else if let Some((node, c)) = self.try_parse_radio_link(remaining, pos) {
+                children.push(node);
+                pos += c;
             } else if let Some((node, c)) = self.try_parse_plain_text(remaining, pos) {
                 // Coalesce with the previous child if it is also a PlainText
                 // ending exactly here.  This fuses the two pieces that result
@@ -1263,6 +1401,98 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         );
 
         Some((node, close + post_blank))
+    }
+
+    /// Pre-scan `input` for `<<<...>>>` radio target definitions and
+    /// collect the target texts.  These are used later to detect radio
+    /// links during object parsing.  Emacs builds a single compound
+    /// regex from all targets (see `ol.el`'s `org-update-radio-target-regexp`),
+    /// applying case-insensitive matching and collapsing whitespace runs
+    /// (spaces, newlines, tabs) so `<<<Special comment section>>>` matches
+    /// `"special comment\n  section"` in the document body.
+    /// Try to parse a radio link at the current position.
+    ///
+    /// A radio link occurs when the text matches a previously-defined
+    /// radio target (`<<<target>>>`).  Per Emacs' `org-element-link-parser`,
+    /// the match is case-insensitive and whitespace runs (including
+    /// newlines) are collapsed: e.g. `<<<Special comment section>>>`
+    /// matches `"special comment\n  section"`.
+    fn try_parse_radio_link(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
+        if self.radio_targets.is_empty() {
+            return None;
+        }
+
+        // Word-boundary check: the character before the match must be
+        // non-alphanumeric (or we're at the start of the buffer).
+        if start > 0 {
+            let prev = self.input.as_bytes()[start - 1];
+            if prev.is_ascii_alphanumeric() || prev == b'_' {
+                return None;
+            }
+        }
+
+        for target in &self.radio_targets {
+            if let Some(match_end) = match_radio_target_text(text, target) {
+                // Word-boundary after: the byte at `match_end` must be
+                // non-alphanumeric or end of buffer (matching Emacs'
+                // `[^[:alnum:]]` from `after-re`).  Emacs checks the
+                // byte AFTER the captured target text, before any
+                // post-blank is consumed.
+                if match_end < text.len() {
+                    let next = text.as_bytes()[match_end];
+                    if next.is_ascii_alphanumeric() || next == b'_' {
+                        continue;
+                    }
+                }
+
+                // Compute post-blank: trailing spaces/tabs after the match
+                // (matching Emacs' `skip-chars-forward " \t"`).
+                let post_blank = text[match_end..]
+                    .bytes()
+                    .take_while(|&b| b == b' ' || b == b'\t')
+                    .count();
+                let consumed = match_end + post_blank;
+
+                let raw = &text[..match_end];
+                let link_data = LinkData {
+                    application: None,
+                    flags: LinkFlags::new(LinkFormat::Plain, LinkType::Radio),
+                    path: target,
+                    raw_link: raw,
+                    search_option: None,
+                };
+
+                // Radio links in Emacs store the matched text as inner
+                // contents (a plain_text child).  Match Emacs by creating
+                // the plain text child here.
+                let mut inner_children = BumpVec::new_in(self.bump);
+                // The content is the matched text WITHOUT post-blank.
+                let pt = self.arena.alloc(
+                    SyntaxNode::new(
+                        Syntax::PlainText(&text[..match_end]),
+                        (start, start + match_end),
+                        self.bump,
+                    )
+                    .build(),
+                );
+                inner_children.push(pt);
+
+                let node = self.arena.alloc_with_children(
+                    SyntaxNode::new(
+                        Syntax::Link(self.bump.alloc(link_data)),
+                        (start, start + consumed),
+                        self.bump,
+                    )
+                    .content((start, start + consumed))
+                    .build(),
+                    inner_children,
+                );
+
+                return Some((node, consumed));
+            }
+        }
+
+        None
     }
 
     fn try_parse_target(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
@@ -1905,7 +2135,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
     }
 
     fn try_parse_plain_text(&mut self, text: &'a str, start: usize) -> Option<(NodeId, usize)> {
-        let consume = scan_plain_text_end(
+        let mut consume = scan_plain_text_end(
             text.as_bytes(),
             self.environment.link_types(),
             self.environment.link_start_bytes(),
@@ -1913,6 +2143,19 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         if consume == 0 {
             return None;
         }
+
+        // Check if a radio link starts within the plain text range.
+        // If so, truncate the plain text so the radio link is parsed
+        // on the next iteration of the object loop.
+        if !self.radio_targets.is_empty() {
+            if let Some(link_start) = self.find_radio_link_start(text, start, consume) {
+                consume = link_start;
+                if consume == 0 {
+                    return None;
+                }
+            }
+        }
+
         let node = self.arena.alloc(
             SyntaxNode::new(
                 Syntax::PlainText(&text[..consume]),
@@ -1922,6 +2165,56 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             .build(),
         );
         Some((node, consume))
+    }
+
+    /// Find the first occurrence of any radio target within `text[..limit]`.
+    /// Returns the byte offset within `text` where a radio link starts, or
+    /// `None` if no radio link is found.
+    fn find_radio_link_start(&self, text: &str, start: usize, limit: usize) -> Option<usize> {
+        let bytes = text.as_bytes();
+        let mut pos = 0;
+
+        while pos < limit {
+            // Word boundary before: must be non-alphanumeric or start of buffer
+            let abs_pos = start + pos;
+            if abs_pos > 0 {
+                let prev = self.input.as_bytes()[abs_pos - 1];
+                if prev.is_ascii_alphanumeric() || prev == b'_' {
+                    pos += 1;
+                    continue;
+                }
+            }
+
+            // Check each target starting at this position
+            for target in &self.radio_targets {
+                if let Some(match_end) = match_radio_target_text(&text[pos..], target) {
+                    // Word boundary after: byte at `match_end` must be
+                    // non-alphanumeric or end of buffer.
+                    let next_pos = pos + match_end;
+                    if next_pos < limit {
+                        let next = bytes[next_pos];
+                        if next.is_ascii_alphanumeric() || next == b'_' {
+                            continue;
+                        }
+                    }
+                    // Word boundary after
+                    let next_pos = pos + match_end;
+                    if next_pos < limit {
+                        let next = bytes[next_pos];
+                        if next.is_ascii_alphanumeric() || next == b'_' {
+                            continue;
+                        }
+                    }
+
+                    // Found a radio link starting at `pos`
+                    return Some(pos);
+                }
+            }
+
+            pos += 1;
+        }
+
+        None
     }
 
     /// Parse a timestamp from `text` and return the data + bytes consumed.
