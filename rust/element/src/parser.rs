@@ -2138,6 +2138,22 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             pos += 1;
         }
 
+        // If the command ends at a digit, the full `\NAME123` may be a
+        // known entity (e.g. `\frac12`, `\frac34`, `\there4`).  Extend
+        // through digits and defer to the entity parser when the longer
+        // name is recognised.  Otherwise the LaTeX fragment parser would
+        // steal the alpha prefix (`\frac`) and the entity parser never
+        // gets a turn.
+        if pos < len && bytes[pos].is_ascii_digit() {
+            let mut dig_end = pos;
+            while dig_end < len && bytes[dig_end].is_ascii_digit() {
+                dig_end += 1;
+            }
+            if EntityData::new(&text[1..dig_end]).is_some() {
+                return None;
+            }
+        }
+
         // Per Emacs' entity regex (org-element-entity-parser), `\NAME`
         // followed by `{}` is parsed as an Entity with `use-brackets-p=t`,
         // not as a LaTeX fragment with an empty brace argument. Defer to
