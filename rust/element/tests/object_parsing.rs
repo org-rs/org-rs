@@ -45,6 +45,23 @@ fn other_objects() {
     }
 }
 
+/// Emacs org-element requires ISO date format YYYY-MM-DD.  Non-ISO
+/// formats like the European DD-MM-YYYY (e.g. "<24-09-2011>") must NOT
+/// be parsed as timestamps.
+#[test]
+fn non_iso_date_not_a_timestamp() {
+    let ts = get_type_count(
+        "<24-09-2011>\n",
+        SyntaxT::Timestamp,
+        ParseGranularity::Object,
+    );
+    assert_eq!(
+        ts, 0,
+        "DD-MM-YYYY '<24-09-2011>' must not be parsed as a Timestamp, got {}",
+        ts
+    );
+}
+
 #[test]
 fn objects_after_punctuation() {
     for (input, typ, desc) in &[

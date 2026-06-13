@@ -69,6 +69,7 @@ pub enum ParserMode {
     NodeProperty,
     TableRow,
     PropertyDrawer,
+    FootnoteDefinition,
 }
 
 pub struct Parser<'input, 'bumpalo, Environment: environment::Environment> {
@@ -409,6 +410,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                 PropertyDrawer => ParserMode::NodeProperty,
                 Section => ParserMode::Planning,
                 Table => ParserMode::TableRow,
+                FootnoteDefinition => ParserMode::FootnoteDefinition,
                 _ => mode,
             }
         } else {
@@ -649,7 +651,9 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             }
             if b == Some(b'[') {
                 let span = ElementSpan::new((cur, limit)).build();
-                return if looking_at!(REGEX_FOOTNOTE_DEFINITION, self).is_some() {
+                return if mode != FootnoteDefinition
+                    && looking_at!(REGEX_FOOTNOTE_DEFINITION, self).is_some()
+                {
                     self.footnote_definition_parser(span)
                 } else {
                     self.paragraph_parser(span)

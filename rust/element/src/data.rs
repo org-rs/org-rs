@@ -2507,18 +2507,27 @@ impl<'a> TimestampData<'a> {
         let day_rest = dash_parts.next()?;
         let end_part = dash_parts.next();
 
-        let year_start: usize = year_str
-            .trim_start_matches('<')
-            .trim_start_matches('[')
-            .parse()
-            .ok()?;
+        let year_trimmed = year_str.trim_start_matches('<').trim_start_matches('[');
+        // Emacs' org-element--timestamp-regexp requires exactly 4-digit
+        // year and 2-digit month/day in YYYY-MM-DD order.  Reject
+        // non-ISO formats like DD-MM-YYYY (e.g. "<24-09-2011>").
+        if year_trimmed.len() != 4 || month_str.len() != 2 {
+            return None;
+        }
+        let year_start: usize = year_trimmed.parse().ok()?;
         let month_start: usize = month_str.parse().ok()?;
+        if !(1..=12).contains(&month_start) {
+            return None;
+        }
         let day_str = day_rest.split_whitespace().next().unwrap_or("1");
-        let day_start: usize = day_str
-            .trim_end_matches('>')
-            .trim_end_matches(']')
-            .parse()
-            .ok()?;
+        let day_trimmed = day_str.trim_end_matches('>').trim_end_matches(']');
+        if day_trimmed.len() != 2 {
+            return None;
+        }
+        let day_start: usize = day_trimmed.parse().ok()?;
+        if !(1..=31).contains(&day_start) {
+            return None;
+        }
 
         // Try to parse time if present
         let mut hour_start = None;

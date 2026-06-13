@@ -205,7 +205,19 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
         let mut end = line_end_pos;
         let mut pre_blank: u8 = 0;
 
-        let mut search_pos = line_end_pos;
+        // Skip the blank line(s) that separate the label from content.
+        // Without this, the `\n` right after `[fn:...]` looks like a
+        // blank-line terminator and the definition ends immediately.
+        let mut search_pos = {
+            let rest = &self.input.as_bytes()[after_label..limit];
+            let mut pos = 0;
+            // Advance past any sequence of: \n followed by optional
+            // spaces/tabs then another \n (i.e. one or more blank lines).
+            while pos < rest.len() && rest[pos] == b'\n' {
+                pos += 1;
+            }
+            after_label + pos
+        };
         while search_pos < limit {
             let remaining = &self.input[search_pos..limit];
 
