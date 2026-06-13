@@ -247,12 +247,18 @@ fn match_radio_target_text(text: &str, target: &str) -> Option<usize> {
 
         if tc == b' ' {
             // Target has whitespace — consume one or more whitespace bytes
-            // in source (matching Emacs' `\\s-+`).
+            // in source (matching Emacs' `\\s-+`), AND skip over all
+            // consecutive spaces in the target so that multiple spaces
+            // in the definition (e.g. "<<<Special   comment>>>") still
+            // match a single space in the running text.
             if !sc.is_ascii_whitespace() {
                 return None;
             }
             ti += 1;
             si += 1;
+            while ti < t.len() && t[ti] == b' ' {
+                ti += 1;
+            }
             while si < s.len() && s[si].is_ascii_whitespace() {
                 si += 1;
             }

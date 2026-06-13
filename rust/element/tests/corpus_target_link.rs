@@ -241,3 +241,168 @@ fn target_has_no_post_char_requirement() {
         value
     );
 }
+
+// ──────────────────────────────────────────────
+// Radio link tests (Class E)
+// ──────────────────────────────────────────────
+
+/// A `<<<target>>>` definition followed by a matching word in the text
+/// must produce a radio `Link` node.
+#[test]
+fn radio_link_basic() {
+    let input = "<<<target>>>\ntext with target in it.\n";
+    let link_count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+    assert_eq!(
+        link_count, 1,
+        "expected 1 radio Link matching 'target', got {}",
+        link_count
+    );
+}
+
+/// Radio links match case-insensitively.
+#[test]
+fn radio_link_case_insensitive() {
+    let input = "<<<Target>>>\ntext with target in it.\n";
+    let link_count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+    assert_eq!(
+        link_count, 1,
+        "case-insensitive radio link match should produce 1 Link, got {}",
+        link_count
+    );
+}
+
+/// Radio links normalise whitespace runs in the target.
+/// This was the specific pattern from `org-publish-html-tutorial.org`
+/// where `<<<Special comment section>>>` matched "special comment section"
+/// in text.
+#[test]
+fn radio_link_whitespace_normalized() {
+    let input = concat!(
+        "<<<Special   comment section>>>\n",
+        "Now remove the special comment section from the output.\n",
+    );
+    let link_count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+    assert_eq!(
+        link_count, 1,
+        "whitespace-normalized radio link should produce 1 Link, got {}",
+        link_count
+    );
+}
+
+/// Radio links must respect word boundaries: the matched text cannot be
+/// adjacent to alphanumeric characters or underscores.
+#[test]
+fn radio_link_word_boundary_after() {
+    let input = "<<<target>>>\nsometargetword\n";
+    let link_count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+    assert_eq!(
+        link_count, 0,
+        "radio link should not match when target is embedded in a word, got {}",
+        link_count
+    );
+}
+
+#[test]
+fn radio_link_word_boundary_before() {
+    let input = "<<<target>>>\nXYtarget\n";
+    let link_count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+    assert_eq!(
+        link_count, 0,
+        "radio link should not match when preceded by a word char, got {}",
+        link_count
+    );
+}
+
+/// When a target appears non-adjacent to word chars on BOTH sides, the
+/// radio link must still match.
+#[test]
+fn radio_link_word_boundary_both_sides() {
+    let input = "<<<target>>>\nXtargetY\n";
+    let link_count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+    assert_eq!(
+        link_count, 0,
+        "radio link should not match when surrounded by word chars, got {}",
+        link_count
+    );
+}
+
+/// Radio link nodes store the matched text as an inner `PlainText` child,
+/// matching Emacs' tree structure.
+#[test]
+fn radio_link_has_inner_plain_text() {
+    let input = "<<<target>>>\nsome target text.\n";
+    let bump = Bump::new();
+    let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+    let (arena, root) = parser.parse_buffer();
+
+    fn find_link(arena: &NodeArena, id: NodeId) -> Option<NodeId> {
+        if matches!(arena[id].data, Syntax::Link(_)) {
+            return Some(id);
+        }
+        for &child in &arena[id].children {
+            if let found @ Some(_) = find_link(arena, child) {
+                return found;
+            }
+        }
+        None
+    }
+
+    let link_id = find_link(&arena, root).expect("expected a radio Link node");
+    let children = &arena[link_id].children;
+    assert_eq!(
+        children.len(),
+        1,
+        "radio Link must have exactly 1 child, got {}",
+        children.len()
+    );
+    assert!(
+        matches!(arena[children[0]].data, Syntax::PlainText(_)),
+        "radio Link child must be PlainText"
+    );
+}
+
+/// Multiple occurrences of the same target in the text should each
+/// produce a separate radio Link.
+#[test]
+fn radio_link_multiple_occurrences() {
+    let input = "<<<target>>>\ntarget and target again.\n";
+    let link_count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+    assert_eq!(
+        link_count, 2,
+        "expected 2 radio Links for two occurrences, got {}",
+        link_count
+    );
+}
+
+/// A radio link must not match inside a `=code=` or `~code~` span.
+#[test]
+fn radio_link_not_inside_code_span() {
+    let input = "<<<target>>>\n=target= and ~target~.\n";
+    let link_count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+    assert_eq!(
+        link_count, 0,
+        "radio link should not match inside code spans, got {}",
+        link_count
+    );
+}
+
+/// Defining a radio target inside a code span should not register it.
+#[test]
+fn radio_target_inside_code_not_collected() {
+    let input = "=<<<target>>>= is not a radio target, but target should not match.\n";
+    // The `<<<target>>>` inside =...= is not collected, so "target" in
+    // the text should remain plain text (no Link).
+    let link_count = get_type_count(input, SyntaxT::Link, ParseGranularity::Object);
+    assert_eq!(
+        link_count, 0,
+        "radio target inside code should not be collected, got {}",
+        link_count
+    );
+    // No RadioTarget should be produced either.
+    let rt_count = get_type_count(input, SyntaxT::RadioTarget, ParseGranularity::Object);
+    assert_eq!(
+        rt_count, 0,
+        "no RadioTarget should be created from code-span content, got {}",
+        rt_count
+    );
+}

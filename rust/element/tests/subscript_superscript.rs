@@ -229,3 +229,57 @@ fn custom_id_is_subscript() {
         "Subscript should cover '_ID'"
     );
 }
+
+/// `\command[⟨prenote⟩][⟨postnote⟩]{⟨keys⟩}` must consume all bracket
+/// arguments as a single LatexFragment, not split into multiple fragments.
+///
+/// Before the Class F fix, `\cite[pre][post]{key}` was parsed as two
+/// LatexFragments because the bracket-arg loop used `if` instead of
+/// `while`.
+#[test]
+fn latex_fragment_multiple_bracket_args() {
+    let input = r"\cite[pre][post]{key}";
+    let lf_count = get_type_count(input, SyntaxT::LatexFragment, ParseGranularity::Object);
+    assert_eq!(
+        lf_count, 1,
+        "\\cite[pre][post]{{key}} should be a single LatexFragment, got {}",
+        lf_count
+    );
+}
+
+/// Single bracket arg should still work as before.
+#[test]
+fn latex_fragment_single_bracket_arg() {
+    let input = r"\command[opt]{key}";
+    let lf_count = get_type_count(input, SyntaxT::LatexFragment, ParseGranularity::Object);
+    assert_eq!(
+        lf_count, 1,
+        "\\command[opt]{{key}} should be a single LatexFragment, got {}",
+        lf_count
+    );
+}
+
+/// LaTeX fragment with no optional bracket arguments (only required brace
+/// groups).
+#[test]
+fn latex_fragment_no_args() {
+    let input = r"\emph{text}";
+    let lf_count = get_type_count(input, SyntaxT::LatexFragment, ParseGranularity::Object);
+    assert_eq!(
+        lf_count, 1,
+        "\\emph{{text}} should be a single LatexFragment, got {}",
+        lf_count
+    );
+}
+
+/// Three bracket args.
+#[test]
+fn latex_fragment_three_bracket_args() {
+    let input = r"\command[one][two][three]{key}";
+    let lf_count = get_type_count(input, SyntaxT::LatexFragment, ParseGranularity::Object);
+    assert_eq!(
+        lf_count, 1,
+        "\\command[one][two][three]{{key}} should be a single LatexFragment, got {}",
+        lf_count
+    );
+}
