@@ -65,8 +65,8 @@ fn macro_with_args_is_detected() {
     assert_eq!(loc.start, 6, "Macro should begin at the first `{{`");
     assert_eq!(
         &input[loc.start..loc.end],
-        "{{{kbd(C-c C-c)}}}",
-        "Macro span should cover the whole `{{{{{{...}}}}}}` construct"
+        "{{{kbd(C-c C-c)}}} ",
+        "Macro span should cover `{{{{{{...}}}}}}` plus trailing whitespace (Emacs :end includes post-blank)"
     );
 
     if let Syntax::Macro(data) = &arena[id].data {
@@ -96,6 +96,30 @@ fn macro_without_args_is_detected() {
     if let Syntax::Macro(data) = &arena[macros[0]].data {
         assert_eq!(data.key, "version", "macro key");
         assert!(data.args.is_empty(), "argless macro should have no args");
+    } else {
+        unreachable!("node is not a Macro");
+    }
+}
+
+#[test]
+fn macro_with_args_spanning_newline() {
+    // `{{{kbd(C-c\nC-c)}}}` appears in the guide's footnote text.
+    let input = "before {{{kbd(C-c\nC-c)}}} after\n";
+    let bump = Bump::new();
+    let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+    let (arena, root) = parser.parse_buffer();
+
+    let macros = find_macros(&arena, root);
+    assert_eq!(
+        macros.len(),
+        1,
+        "expected one Macro node for multiline `{{{{{{kbd(...)}}}}}}`, got {}",
+        macros.len()
+    );
+
+    if let Syntax::Macro(data) = &arena[macros[0]].data {
+        assert_eq!(data.key, "kbd", "macro key");
+        assert_eq!(data.args, vec!["C-c\nC-c"], "macro args preserve newline");
     } else {
         unreachable!("node is not a Macro");
     }
