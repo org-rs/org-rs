@@ -100,6 +100,13 @@ macro_rules! capturing_at {
     };
 }
 
+/// Non-breaking space (U+00A0) — Emacs syntax-table classifies this as
+/// whitespace, so it must not appear at an emphasis content boundary.
+const NBSP: char = '\u{00a0}';
+/// Zero-width space (U+200B) — Emacs syntax-table classifies this as
+/// whitespace, so it must not appear at an emphasis content boundary.
+const ZWS: char = '\u{200b}';
+
 /// Returns `true` when `b` is an Org-mode pre-character: a byte that may
 /// immediately precede an emphasis marker or plain-link protocol to open a
 /// markup span.
@@ -1352,7 +1359,7 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             return None;
         }
         if let Some(c) = text[1..].chars().next() {
-            if c.is_whitespace() || c == '\u{200b}' {
+            if c == NBSP || c == ZWS || c.is_ascii_whitespace() {
                 return None;
             }
         }
@@ -1377,8 +1384,9 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                         if prev != b' ' && prev != b'\t' && prev != b'\n' {
                             let content = &text[1..i];
                             let last_char = content.chars().last();
-                            let is_ws =
-                                last_char.map_or(false, |c| c.is_whitespace() || c == '\u{200b}');
+                            let is_ws = last_char.map_or(false, |c| {
+                                c == NBSP || c == ZWS || c.is_ascii_whitespace()
+                            });
                             if !is_ws {
                                 let valid_post = i + 1 >= text.len() || is_post_char(bytes[i + 1]);
                                 if valid_post {

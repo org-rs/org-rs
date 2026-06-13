@@ -38,6 +38,9 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     /// A keyword follows the pattern `#+KEY: VALUE`.  `start` is the
     /// buffer position at the beginning of the first affiliated keyword
     /// (or the keyword itself when there is no affiliation).
+    ///
+    /// Emacs positions `:begin` at the BOL position (including any
+    /// leading whitespace), so `span.span.start` is used as-is.
     #[inline]
     pub fn keyword_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
         let ElementSpan {

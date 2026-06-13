@@ -421,6 +421,16 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     fn item_content_end(&self, content_start: usize, end: usize, item_indent: usize) -> usize {
         let bytes = self.input.as_bytes();
         let mut pos = content_start;
+
+        // Skip leading blank lines (between the bullet and the first content
+        // line).  These are part of the item but two consecutive blank lines
+        // here should not trigger item termination — the "two blank lines
+        // break the list" rule applies between content segments, not before
+        // the first one.
+        while pos < end && bytes.get(pos) == Some(&b'\n') {
+            pos += 1;
+        }
+
         // Track whether we are inside a `#+BEGIN_`/`#+END_` block so that blank
         // lines within block bodies are not mistaken for item-content
         // boundaries.  Two consecutive blank lines normally close an item, but

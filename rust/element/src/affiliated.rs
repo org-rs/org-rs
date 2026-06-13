@@ -317,6 +317,13 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             return ElementSpan::new((origin, limit)).build();
         }
 
+        // If the cursor never moved (no lines consumed) there are no
+        // affiliated keywords — return `None` so downstream code does
+        // not mistake an empty AffiliatedData for a real collection.
+        if self.cursor.pos() == origin {
+            return ElementSpan::new((origin, limit)).build();
+        }
+
         ElementSpan::new((origin, limit))
             .affiliated(Some(output))
             .content_start(self.cursor.pos())
