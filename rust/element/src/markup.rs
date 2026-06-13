@@ -255,18 +255,25 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
             .find(|c: char| !c.is_whitespace())
             .map_or(contents_start_raw, |i| contents_start_raw + i);
 
+        // Emacs' :contents-end for a footnote definition includes the final
+        // newline of the last content line (but not the following blank line).
+        // Keeping that newline in the interval lets the recursive element
+        // parser emit a trailing PlainText object for it, matching
+        // org-element.  Without it, an object that ends the paragraph (e.g. a
+        // link) leaves no room for the trailing newline node and the next
+        // footnote's content appears to be missing relative to the oracle.
         let contents_end = if pre_blank > 0 {
-            let blank_start = if pre_blank == 2 {
+            if pre_blank == 2 {
                 end
             } else {
                 line_end_pos + 1
-            };
-            self.input[contents_start..blank_start].trim_end().len() + contents_start
+            }
         } else {
-            self.input[contents_start..end].trim_end().len() + contents_start
+            end
         };
 
-        let value = &self.input[contents_start..contents_end];
+        // `value` is the raw content with surrounding whitespace stripped.
+        let value = self.input[contents_start..contents_end].trim_end();
 
         let post_blank = if end < limit {
             let remaining = &self.input[end..limit];

@@ -421,6 +421,12 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
     fn item_content_end(&self, content_start: usize, end: usize, item_indent: usize) -> usize {
         let bytes = self.input.as_bytes();
         let mut pos = content_start;
+        // Track whether we are inside a `#+BEGIN_`/`#+END_` block so that blank
+        // lines within block bodies are not mistaken for item-content
+        // boundaries.  Two consecutive blank lines normally close an item, but
+        // not when they appear inside a (greater) block element — mirroring the
+        // block-aware skipping in `list_struct`.
+        let mut in_block = false;
         // Scan character-by-character looking for blank-line-separated
         // segments.  A blank line (empty or whitespace-only line) followed
         // by a line whose indent <= item_indent terminates the item content.
@@ -434,6 +440,42 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                     let line = &rest[..nl_pos];
                     let is_blank = line.iter().all(|&b| b == b' ' || b == b'\t');
                     let next_line_pos = pos + nl_pos + 1;
+
+                    // Block-aware skipping: a `#+BEGIN_` line indented more than
+                    // the item opens a block whose body (including any blank
+                    // lines) belongs to the item until the matching `#+END_`.
+                    let ws = line
+                        .iter()
+                        .position(|&b| b != b' ' && b != b'\t')
+                        .unwrap_or(line.len());
+                    let trimmed = &line[ws..];
+                    if in_block {
+                        if trimmed.len() >= 5
+                            && trimmed[0] == b'#'
+                            && trimmed[1] == b'+'
+                            && trimmed[2..5].eq_ignore_ascii_case(b"END")
+                        {
+                            in_block = false;
+                        }
+                        pos = next_line_pos;
+                        continue;
+                    }
+                    if trimmed.len() >= 7
+                        && trimmed[0] == b'#'
+                        && trimmed[1] == b'+'
+                        && trimmed[2..7].eq_ignore_ascii_case(b"BEGIN")
+                    {
+                        let (indent, _) = Self::get_indent(
+                            std::str::from_utf8(line).unwrap_or(""),
+                            self.tab_width,
+                        );
+                        if indent > item_indent {
+                            in_block = true;
+                            pos = next_line_pos;
+                            continue;
+                        }
+                    }
+
                     if is_blank && next_line_pos <= end {
                         // Check the indent of the next non-blank line
                         // after the blank line.
