@@ -1344,9 +1344,17 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             return None;
         }
 
-        // First content char must be non-whitespace
+        // First content char must be non-whitespace.
+        // Emacs treats NBSP (U+00A0), ZWS (U+200B) and other Unicode
+        // whitespace as "space" for emphasis boundary checks (via syntax
+        // table classification).
         if bytes[1] == b' ' || bytes[1] == b'\t' || bytes[1] == b'\n' {
             return None;
+        }
+        if let Some(c) = text[1..].chars().next() {
+            if c.is_whitespace() || c == '\u{200b}' {
+                return None;
+            }
         }
 
         let mut found_close = None;
@@ -1362,13 +1370,21 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                     if bytes[i] == b'\n' {
                         pos = i + 1;
                     } else {
-                        // Found marker - last content char must be non-whitespace
+                        // Found marker - last content char must be non-whitespace.
+                        // Emacs also treats NBSP (U+00A0), ZWS (U+200B) etc. as
+                        // whitespace here via syntax-table classification.
                         let prev = bytes[i - 1];
                         if prev != b' ' && prev != b'\t' && prev != b'\n' {
-                            let valid_post = i + 1 >= text.len() || is_post_char(bytes[i + 1]);
-                            if valid_post {
-                                found_close = Some(i);
-                                break;
+                            let content = &text[1..i];
+                            let last_char = content.chars().last();
+                            let is_ws =
+                                last_char.map_or(false, |c| c.is_whitespace() || c == '\u{200b}');
+                            if !is_ws {
+                                let valid_post = i + 1 >= text.len() || is_post_char(bytes[i + 1]);
+                                if valid_post {
+                                    found_close = Some(i);
+                                    break;
+                                }
                             }
                         }
                         pos = i + 1;
