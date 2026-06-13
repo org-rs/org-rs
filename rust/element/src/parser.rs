@@ -24,8 +24,8 @@ use crate::{
     blocks::{REGEX_BLOCK_BEGIN, REGEX_DYNAMIC_BLOCK},
     cursor::Cursor,
     data::{
-        Brackets, BumpVec, CitationData, EntityData, FootnoteReferenceData, Interval, LinkData,
-        MacroData, NodeArena, NodeId, RadioTargetData, ScriptFlags, ScriptKind,
+        Brackets, BumpVec, CitationData, EntityData, FootnoteReferenceData, InlineBabelCallData,
+        Interval, LinkData, MacroData, NodeArena, NodeId, RadioTargetData, ScriptFlags, ScriptKind,
         StatisticsCookieData, Syntax, SyntaxNode, SyntaxT, TimestampData,
     },
     drawer::REGEX_DRAWER,
@@ -167,10 +167,11 @@ fn scan_plain_text_end(bytes: &[u8], link_types: &[&str], link_start_bytes: &[u8
     let mut p2 = memchr2(b'*', b'/', bytes);
     let mut p3 = memchr3(b'+', b'=', b'~', bytes);
     let mut p5 = memchr2(b'_', b'^', bytes);
+    let mut pc = memchr(b'c', bytes);
     let mut pl = find_link(bytes);
 
     loop {
-        let i = match [p1, p_dollar, p_lbrace, p2, p3, p5, pl]
+        let i = match [p1, p_dollar, p_lbrace, p2, p3, p5, pc, pl]
             .iter()
             .copied()
             .flatten()
@@ -185,6 +186,9 @@ fn scan_plain_text_end(bytes: &[u8], link_types: &[&str], link_start_bytes: &[u8
             return i;
         }
         if matches!(b, b'*' | b'/' | b'+' | b'=' | b'~') && i > 0 && is_pre_char(bytes[i - 1]) {
+            return i;
+        }
+        if matches!(b, b'c') && i > 0 && is_pre_char(bytes[i - 1]) {
             return i;
         }
         if matches!(b, b'_' | b'^') && i > 0 {
@@ -207,6 +211,7 @@ fn scan_plain_text_end(bytes: &[u8], link_types: &[&str], link_start_bytes: &[u8
             b'*' | b'/' => p2 = memchr2(b'*', b'/', rest).map(|r| next + r),
             b'+' | b'=' | b'~' => p3 = memchr3(b'+', b'=', b'~', rest).map(|r| next + r),
             b'_' | b'^' => p5 = memchr2(b'_', b'^', rest).map(|r| next + r),
+            b'c' => pc = memchr(b'c', rest).map(|r| next + r),
             // Any other paused byte is a (possibly non-link) link-start byte.
             _ => pl = find_link(rest).map(|r| next + r),
         }
@@ -855,6 +860,14 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
                             }
                             c
                         }),
+                        b'c' => self
+                            .try_parse_inline_babel_call(remaining, pos)
+                            .map(|(n, c)| {
+                                if restriction(SyntaxT::InlineBabelCall) {
+                                    children.push(n);
+                                }
+                                c
+                            }),
                         // Plain-link start bytes come from the environment so
                         // the recognised types stay configurable.
                         _ if self.environment.link_start_bytes().contains(&bytes[0]) => {
@@ -1668,6 +1681,88 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         let node = self.arena.alloc(
             SyntaxNode::new(
                 Syntax::Macro(self.bump.alloc(MacroData { key, args, value })),
+                (start, start + close + post_blank),
+                self.bump,
+            )
+            .post_blank(post_blank)
+            .build(),
+        );
+
+        Some((node, close + post_blank))
+    }
+
+    fn try_parse_inline_babel_call(
+        &mut self,
+        text: &'a str,
+        start: usize,
+    ) -> Option<(NodeId, usize)> {
+        let bytes = text.as_bytes();
+
+        // Must start with "call_"
+        if !text.starts_with("call_") {
+            return None;
+        }
+
+        let mut i = 5; // past "call_"
+
+        // Function name: must start with a letter
+        if i >= bytes.len() || !bytes[i].is_ascii_alphabetic() {
+            return None;
+        }
+        i += 1;
+        while i < bytes.len()
+            && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'-' || bytes[i] == b'_')
+        {
+            i += 1;
+        }
+
+        let call_name = &text[5..i];
+        let inside_header: Option<&'a str> = None;
+
+        // Must have '('
+        if i >= bytes.len() || bytes[i] != b'(' {
+            return None;
+        }
+        i += 1;
+
+        // Parse arguments until matching ')'
+        let arg_start = i;
+        let mut depth = 1u32;
+        while i < bytes.len() && depth > 0 {
+            match bytes[i] {
+                b'(' => depth += 1,
+                b')' => depth -= 1,
+                _ => {}
+            }
+            if depth > 0 {
+                i += 1;
+            }
+        }
+        if depth != 0 {
+            return None;
+        }
+        let arguments = Some(&text[arg_start..i]);
+        i += 1; // past ')'
+
+        let close = i;
+
+        // Absorb trailing spaces/tabs as post-blank.
+        let post_blank = bytes[close..]
+            .iter()
+            .take_while(|&&b| b == b' ' || b == b'\t')
+            .count();
+
+        let value = &text[..close];
+
+        let node = self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::InlineBabelCall(self.bump.alloc(InlineBabelCallData {
+                    call: call_name,
+                    inside_header,
+                    arguments,
+                    end_header: None,
+                    value,
+                })),
                 (start, start + close + post_blank),
                 self.bump,
             )
