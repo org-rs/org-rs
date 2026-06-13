@@ -1165,6 +1165,11 @@ Options:
                         the corpus: a clean exit (0) means the file produced no
                         discrepancies and can be discarded; exit 1 means the
                         file exposes a parser discrepancy worth capturing.
+  -a, --add             Used together with --url: if discrepancies are found,
+                        automatically add the file to the corpus directory.
+                        Reports the discrepancies found but does not generate
+                        tests.  If the file has no discrepancies it is
+                        silently discarded.
   -f, --filter <PAT>    Only process files whose name contains <PAT>
                         (case-insensitive substring match)
   -t, --type <TYPES>    Only show discrepancies for given Emacs element types
@@ -1213,6 +1218,7 @@ fn main() {
     let mut benchmark = false;
     let mut no_cache = false;
     let mut no_emacs = false;
+    let mut add_to_corpus = false;
 
     {
         let mut i = 1;
@@ -1312,6 +1318,9 @@ fn main() {
                 "--no-emacs" => {
                     no_emacs = true;
                 }
+                "-a" | "--add" => {
+                    add_to_corpus = true;
+                }
                 _ => {
                     eprintln!("error: unknown option '{}'", args[i]);
                     eprint!("usage: ");
@@ -1323,18 +1332,81 @@ fn main() {
         }
     }
 
+    // --add requires --url
+    if add_to_corpus && url.is_none() {
+        eprintln!(
+            "error: --add requires --url (there is nothing to add when checking the local corpus)"
+        );
+        std::process::exit(1);
+    }
+
     // URL mode: fetch a single file into a temp dir and check only that file.
     let org_files: Vec<_> = if let Some(ref u) = url {
-        match fetch_url_to_temp(u) {
+        let fetched_path = match fetch_url_to_temp(u) {
             Ok(path) => {
                 eprintln!("fetched {u}\n     -> {}", path.display());
-                vec![path]
+                path
             }
             Err(e) => {
                 eprintln!("error: {e}");
                 std::process::exit(1);
             }
+        };
+
+        if add_to_corpus {
+            // Process the single file inline and potentially add to corpus.
+            let corpus_dir = corpus_path.unwrap_or_else(|| {
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .parent()
+                    .unwrap()
+                    .join("corpus")
+            });
+            let dn = fetched_path
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string();
+            let cache = if no_cache { None } else { OracleCache::new() };
+            let stderr_lock = Arc::new(Mutex::new(()));
+
+            match process_file(&fetched_path, &dn, 1, 1, &stderr_lock, cache.as_ref()) {
+                Ok((_input, discrepancies, _timings)) => {
+                    if discrepancies.is_empty() {
+                        eprintln!("No discrepancies found — file matches Emacs oracle perfectly");
+                        eprintln!("Not adding to corpus (no issues to capture)");
+                        std::process::exit(0);
+                    } else {
+                        eprintln!(
+                            "Found {} discrepancy(ies) — adding to corpus",
+                            discrepancies.len()
+                        );
+                        let filename = url_to_filename(u);
+                        let corpus_dest = corpus_dir.join(&filename);
+                        std::fs::copy(&fetched_path, &corpus_dest).unwrap_or_else(|e| {
+                            eprintln!("error: failed to copy to {}: {e}", corpus_dest.display());
+                            std::process::exit(1);
+                        });
+                        println!("Added to corpus: {}", corpus_dest.display());
+                        for d in &discrepancies {
+                            println!(
+                                "  {}: {} at byte {}",
+                                d.kind.kind_name(),
+                                d.type_name,
+                                d.byte_pos()
+                            );
+                        }
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("error processing {u}: {e}");
+                    std::process::exit(1);
+                }
+            }
         }
+
+        vec![fetched_path]
     } else {
         let corpus = corpus_path.unwrap_or_else(|| {
             Path::new(env!("CARGO_MANIFEST_DIR"))
