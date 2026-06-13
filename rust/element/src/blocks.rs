@@ -179,12 +179,29 @@ fn find_block_bounds_impl(
     limit: usize,
     is_end: impl Fn(&str) -> bool,
 ) -> Option<BlockBounds> {
-    let content_start =
+    let content_start_first =
         memchr(b'\n', &input.as_bytes()[start..limit]).map_or(limit, |i| start + i + 1);
 
-    if content_start >= limit {
+    if content_start_first >= limit {
         return None;
     }
+
+    // When affiliated keywords precede the block, `start` points to the
+    // first affiliated keyword line.  The first newline after `start`
+    // then lands on the `#+begin_*` header rather than after it.  In
+    // that case, skip past the begin header line so the content
+    // interval excludes it — otherwise the content parser sees the
+    // `#+begin_*` header and creates a nested block.
+    let content_start = {
+        let line_end = memchr(b'\n', &input.as_bytes()[content_start_first..limit])
+            .map_or(limit, |i| content_start_first + i + 1);
+        let line = input[content_start_first..line_end].trim();
+        if line.len() > 6 && line.as_bytes()[..7].eq_ignore_ascii_case(b"#+BEGIN") {
+            line_end
+        } else {
+            content_start_first
+        }
+    };
 
     let mut pos = content_start;
     while pos < limit {
