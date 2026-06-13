@@ -1,0 +1,415 @@
+#+TITLE:    Tutoriel Org (emacs org-mode)
+#+AUTHOR:   David O'Toole
+#+LANGUAGE: fr
+
+Cette page est une traduction du [[http://dto.freeshell.org/notebook/OrgTutorial.html][tutoriel original]] de [[http://dto.freeshell.org/notebook/][David O'Toole]].
+
+Dernière mise à jour: <10-07-2009>
+
+[[file:../index.org][{Retour à l'index de Worg}]]
+
+* Introduction
+
+# Org-mode is a personal information management and outlining tool for
+# Emacs. This document is intended to give the reader a "feel" for
+# org-mode and to teach basic usage with step-by-step instructions and
+# plentiful screenshots. It is not intended to replace the [[https://orgmode.org/manual/index.html][manual]], as
+# only a subset of org-mode's features are covered.
+
+Org-mode est un gestionnaire d'informations personnelles pour Emacs.
+Il fonctionne avec Emacs.  Ce document a pour but de donner au lecteur
+un aperçu de org-mode et de lui apprendre son usage élémentaire, avec
+des instructions pas-à-pas et beaucoup de copies d'écran.  Il ne
+remplace pas le [[https://orgmode.org/manual/index.html][manuel]] (en anglais) et seul un sous-ensemble des
+fonctionnalités d'org-mode est décrit.
+
+# *Update* -- This document has been [[http://hpcgi1.nifty.com/spen/index.cgi?OrgTutorial][translated into Japanese]] by a
+# Mr. T. Okano. Special thanks to Mr. Okano for doing this.
+
+Ce document existe aussi en [[http://hpcgi1.nifty.com/spen/index.cgi?OrgTutorial][japonais]], en [[http://hokmen.chan.googlepages.com/OrgTutorial.en-cn.html][chinois]] et en [[http://jmjeong.com/index.php%3Fdisplay%3DEmacs/OrgMode][coréen]].  Un merci
+particulier aux traducteurs.  Cette version française est une traduction
+de la [[http://dto.freeshell.org/notebook/OrgTutorial.html][version originale anglaise]] de [[http://dto.freeshell.org][David O'Toole]].
+
+** Obtenir org-mode
+
+# You can download org-mode from the
+# [[https://orgmode.org]org-mode home
+# page.]]
+
+Org-mode fait partie de Emacs 22 et Emacs 23, donc si vous avez une
+version moderne d'Emacs vous avez Org-mode.
+
+Sinon, vous pouvez télécharger Org-mode depuis [[https://orgmode.org/][son site web]], le
+dépaqueter et faire pointer le =load-path= d'Emacs vers le répertoire où
+se trouver Org-mode.
+
+: (add-to-list 'load-path "REPERTOIRE_OU_VOUS_AVEZ_DECOMPRESSE_ORGMODE/lisp")
+
+** Installation
+
+Ajoutez les lignes suivantes à votre .emacs :
+
+: (require 'org)
+: (define-key global-map "\C-cl" 'org-store-link)
+: (define-key global-map "\C-ca" 'org-agenda)
+: (setq org-log-done t)
+
+Cela va assurer le chargement de org, et définir quelques raccourcis
+claviers globaux.  Nous décrirons "org-store-link" et "org-agenda"
+plus loin dans ce document.
+
+# This will make sure org gets loaded, and some basic global key
+# combinations are defined. We'll go over what "org-store-link" and
+# "org-agenda" do later in this document.
+
+# One more thing---it's best to set aside a separate directory where
+# your org files will be kept. I recommend using ~/org.
+
+Encore une chose.  Il est préférable de conserver vos fichiers org
+dans un répertoire à part.  Je recommande d'utiliser ~/org.
+
+* Les bases
+
+Cette section illustre l'usage élémentaire de org-mode en montrant
+comment j'ai utilisé org-mode pour créer ce document.
+
+# This section illustrates basic org-mode usage by showing how I used
+# org-mode to create this document.
+
+** Créer un nouveau fichier
+
+Si vous avez configuré votre fichier d'initialisation d'Emacs comme
+suggéré ci-dessus, Emacs devrait passer en mode org-mode dès que vous
+visitez ou créez un fichier dont l'extension est ".org".
+
+# If you've configured your Emacs initialization file as suggested
+# above, Emacs should enter org-mode whenever you visit or create a file
+# with the extension ".org".
+
+J'ai créé un nouveau fichier nommé "OrgTutorial.org" et vu
+l'indication "Org" dans la modeline, indiquant que nous sommes bien
+dans le mode org-mode.
+
+# I created a new file called "OrgTutorial.org" and saw the "Org"
+# indicator in the modeline, showing that we've entered org-mode.
+
+
+** Une simple liste de tâches
+
+J'ai d'abord entré une *titre de section* appelé "Tasks" pour y placer
+les tâches.  Ce n'est pas nécessaire mais c'est souvent pratique,
+surtout quand vous voulez garder la liste des tâches séparée du corps
+du document que vous écrivez.
+
+# First I entered a *headline* called "Tasks" to keep tasks under. This
+# isn't necessary but is often convenient, especially when you want to
+# keep tasks separate from the body of a document you're writing.
+
+Les titres de sections de premier niveau commencent avec un astérisque;
+ceux des sections de deuxième niveau avec deux astérisque, et ainsi de
+suite.
+
+# First-level headlines begin with one star; second-level headlines
+# begin with two stars, and so on.
+
+Dans org-mode, les entrées TODO sont toujours des titres de section.
+J'ai saisie une entrée TODO pour "Start new org file for tutorial."
+
+# In org-mode, TODO items are always headlines. I entered a TODO item
+# for "Start new org file for tutorial."
+
+[[file:../images/dto/tutorial-1.png]]
+
+C'est un peu stupide, parce que nous avons déjà commencé un nouveau
+fichier.  Disons donc qu'on va marquer cet élément TODO comme DONE en
+déplaçant le curseur sur cette ligne et en pressant *C-c C-t*, ce qui
+envoie la commande *org-todo*.
+
+# This is a bit silly, because we've already started a new file. So,
+# let's mark the TODO item DONE by moving the cursor onto that line and
+# hitting *C-c C-t*, which runs the command *org-todo*.
+
+# Here is the result:		
+
+Voici le résultat :
+
+[[file:../images/dto/tutorial-2.png]]
+
+Remarquez comme org-mode utilise un marqueur temporel ("timestamp")
+pour enregistrer le moment où un élément TODO a été achevé.
+
+# Notice how org-mode uses a timestamp to record when a TODO item was
+# closed.
+
+# Let's add some more TODO items. Position the cursor on the next line,
+# and hit *M-shift-RET* to call *org-insert-todo-heading*. You can hit it
+# several times to add several TODOs.
+
+Ajoutons plus d'éléments TODO. Positionnez le curseur sur la ligne
+suivante et pressez *M-shift-RET* pour
+lancer *org-insert-todo-heading*.  Vous pouvez presser le raccourci
+pour ajouter plusieurs TODOs.
+
+[[file:../images/dto/tutorial-3.png]]
+
+** Utiliser plusieurs titres de sections pour structurer un document
+
+# Using headlines to structure a document
+
+# Often the best way to organize your ideas is an outline. My next step
+# is to outline the different topics of the tutorial. By doing this, you
+# break up the intimidating blank page into a series of
+# less-intimidating smaller chunks. Then it becomes easier to fill them
+# in.
+
+Souvent, la meilleure façon d'organiser vos idées est d'en visualiser
+la structure.  Ma prochaine étape consiste à mettre en relief les
+différents sujets de ce tutoriel.  En faisant ça, vous divisez cette
+page blanche intimidante en morceaux plus petits qu'il devient plus
+facile de remplir.
+
+# Remember that one star begins a first-level heading, and two stars
+# begin a second-level heading. If you need deeper nesting, go ahead and
+# use three or more stars!
+
+Souvenez-vous qu'une section de premier niveau commence par un
+astérisque, et une section de deuxième niveau par deux astérisque.  Si vous
+avez besoin d'une plus grande profondeur de niveau, allez-y, utilisez
+trois astérisque ou plus !
+
+# Here is what it looked like after I finished outlining the document:
+
+Voici à quoi ça ressemble une fois que j'ai fini de structurer le
+document :
+
+[[file:../images/dto/tutorial-4.png]]
+
+# Notice I marked "Outline document" as DONE after I finished.
+
+Remarquez que j'ai noté "Outline document" comme DONE une fois que
+j'ai fini.
+
+** Remplir les sections
+
+# You can easily add body text underneath any headline.
+
+Vous pouvez facilement ajouter le corps du texte sous les titres de
+section. 
+
+[[file:../images/dto/tutorial-5.png]]
+
+** Les liens vers d'autres ressources
+
+Dans la section sur "Obtaining Org-mode" j'ai besoin de créer un lien
+vers le site d'org-mode.  Le lien se fait à l'aide d'une syntaxe
+spéciale utilisant les crochets droits :
+
+# In the section on "Obtaining Org-mode" I need to provide a link to the
+# org-mode website. A special bracket syntax is used when linking:
+
+[[file:../images/dto/tutorial-6.png]]
+
+: [[sec-1.2][description]]
+
+Voyez comment j'ai d'abord saisi le lien et sa description, puis
+laissé ouvert le dernier crochet :
+
+# Watch how I first type the link and description, leaving open the last
+# bracket:
+
+# Then when I type the last bracket, the link "collapses" and simply
+# shows the description.
+
+Ensuite je saisi le dernier crochet, le lien "disparaît" et seule la
+description apparaît.
+
+[[file:../images/dto/tutorial-7.png]]
+
+Essayez de déplacer le curseur au-dessus du lien et pressez *C-c C-o*
+pour *org-open-at-point*.
+
+# Try moving the cursor over the link and press *C-c C-o* 
+# for *org-open-at-point*.
+
+Vous pouvez aussi créer des liens vers des fichiers locaux.  Essayez
+d'ouvrir un autre fichier - par exemple votre fichier de configuration
+d'Emacs.  Pressez *C-c l* pour lancer la commande *org-store-link*.
+Vous verrez un message apparaître disant qu'un lien pointant vers
+l'emplacement courant dans le fichier a été enregistré.
+
+# You can also link to local files. Try visiting another file---for
+# example, your emacs initialization file. Then hit *C-c l* to
+# call *org-store-link*. You'll see a message that a link was stored to
+# the current location in the file you're visiting.
+
+Maintenant revenez à votre buffer org-mode et copiez le lien en
+utilisant *C-c C-l* pour lancer la commande *org-insert-link*.  (Vous
+aurez peut-être besoin d'utiliser les flèches pour faire défiler les
+liens et trouver le bon.)
+
+# Then switch back to your org-mode buffer and paste the link using 
+#  *C-c C-l* to call *org-insert-link*. (You may need to press the arrow
+# keys to scroll through and find the link you just recorded.)
+
+** Survol d'un document 
+
+Désormais, mon document est en train de devenir plus long et ne peut
+plus tenir sur un seul écran.  *Org-mode* vous permet facilement de
+survoler votre document en appuyant sur *shift-TAB*.
+
+# By this time, my document is getting longer and I can no longer fit it
+# all on one screen. *Org-mode* makes it easy to get an overview of your
+# document by pressing *shift-TAB*.
+
+[[file:../images/dto/tutorial-9.png]]
+
+Notez que seules les sections de plus haut niveau apparaissent.  Vous
+pouvez appuyer à nouveau sur *shift-TAB* pour voir toutes les
+sections, y compris les éléments TODO :
+
+# Notice that just the top-level headings are shown. You can
+# hit *shift-TAB* again to show *all* headings, including TODO items:
+
+[[file:../images/dto/tutorial-10.png]]
+
+Appuyez encore pour retourner à l'affichage normal de votre document,
+avec le corps des sections apparents :
+
+# Then hit it again to show a normal view of the document, with section
+# bodies shown:
+
+[[file:../images/dto/tutorial-11.png]]
+
+** Ajouter une note à une tâche
+
+Vous pouvez ajouter autant de texte que vous le voulez sous le titre
+d'un élément TODO.  En fait, vous pouvez même avoir des sous-sections
+sous un TODO et des TODOs sous les TODOs !
+
+# You can put as much text as you want under a TODO item's heading. In
+# fact, you can even have subheadings under a TODO, and TODOs within
+# TODOs!
+
+# Being able to annotate tasks makes it easy to collect related links
+# and thoughts along with a task. Being able to nest tasks is great for
+# modeling workflow---quite often, a larger task is broken into smaller
+# subtasks you want to check off as you do them.
+
+La possibilité d'annoter les tâches permet de rassembler facilement
+les liens et réflexions associées à la tâche.  La possibilité
+d'insérer des tâches dans les tâches est très pratique pour modéliser
+le suivi du travail -- assez souvent, une grande tâche est divisée en
+sous-tâches plus petites que vous voulez pouvoir marquer comme "DONE"
+au fur et à mesure que vous les accomplissez.
+
+* Un avant-goût des fonctionnalités avancées
+
+Avant de finir, nous allons toucher à la liste globale TODO, la
+planification et les fonctionnalités de l'agenda.  Celles-ci sont
+utilisées pour arranger différents éléments TODO et les afficher par
+ordre de priorité et par ordre chronologique.  Vous pouvez aussi vous
+en servir pour voir quelles tâches ont été accomplies, et quand.
+
+# Before we finish, we'll touch on org-mode's global TODO list,
+# scheduling, and agenda features. These are used to combine relevant
+# TODO items from different org files into a prioritized, chronological
+# display. You can also use it to see which tasks were completed, and
+# when.
+
+** Configuration
+
+Vous devez d'abord définir la variable *org-agenda-files* de sorte
+qu'org-mode sache dans quels fichiers chercher pour les élements TODOs
+et les éléments planifiés.
+
+# First you must set the variable *org-agenda-files* so that org-mode
+# will know which files to search for TODOs and scheduled items.
+
+# Let's imagine you already have several org files---say, one for work,
+# one for home, and one for school.
+
+Imaginons que vous avez déjà plusieurs fichiers org -- disons un pour
+le travail ("work"), un pour la maison ("home") et un pour l'école
+("school").
+
+Ainsi vous ajouterez ceci dans votre fichier d'initialisation
+d'Emacs :
+
+# Then you'd add the following to your emacs initialization file:
+
+: (setq org-agenda-files (list "~/org/work.org"
+:                              "~/org/school.org" 
+:                              "~/org/home.org"))
+
+** La liste TODO globale
+
+Pressez *C-c a t* pour entrer dans la liste globale TODO.  Org-mode va
+scanner les fichiers de *org-agenda-files* et présenter une liste de
+tous les éléments TODO encore en cours :
+
+# Press *C-c a t* to enter the global todo list. Org-mode will scan the
+# files in *org-agenda-files* and present a listing of all the open TODO
+# items:
+
+[[file:../images/dto/tutorial-16.png]]
+
+Vous pouvez déplacer le curseur entre les différents éléments TODO, et
+appuyer sur "t" pour marquer un élément comme DONE, ou bien *RET* pour
+ouvrir le fichier dans lequel cet élément se trouve.
+
+# You can move the cursor around to the different todo items, and hit
+# "t" to mark an item DONE, or hit *RET* to jump to the source file
+# where the TODO is located.
+
+** Planifier des tâches et utiliser l'agenda
+
+Disons que je veux planifier "Finish document" pour aujourd'hui.  Je
+déplace le curseur jusqu'à la ligne contenant l'élément TODO "Finish
+document", et j'appuie sur *C-c C-s* pour lancer la
+commande *org-schedule*.  Le calendrier surgit et je peux soit saisir
+la date, soit cliquer dessus :
+
+# Let's say I want to schedule "Finish document" for today. I move the
+# cursor to the line after the TODO item "Finish document", and hit 
+#  *C-c C-s* to run *org-schedule*. The calendar pops up, and I can
+# either enter or click the desired date:
+
+[[file:../images/dto/tutorial-12.png]]
+
+# Once I select the date, org-mode inserts a scheduling timestamp after
+# the TODO item:
+
+Une fois que je sélectionne la date, org-mode insère un marqueur
+temporel ("timestamp") de planification après l'élément TODO :
+
+[[file:../images/dto/tutorial-13.png]]
+
+# Now save your file, and hit *C-c a a* for *org-agenda*. A display of
+# this week's scheduled items are displayed:
+
+Maintenant sauvegardez votre fichier et pressez *C-c a a*
+pour *org-agenda*.  Les éléments planifiés pour cette semaine
+s'affichent :
+
+[[file:../images/dto/tutorial-14.png]]
+
+# Now press "l" (lowercase L) to turn on log display. This displays the
+# all finished tasks and their completion times.
+
+Maintenant appuyez sur "l" (L en bas-de-casse) pour afficher les
+journaux ("log").   Cela affiche toutes les tâches finies et la date à
+laquelle elle ont été achevées.
+
+[[file:../images/dto/tutorial-15.png]]
+
+* Adieu
+
+Ce n'était qu'un petit aperçu de org-mode.  Encore plus de
+réjouissances vous attendent dans le [[https://orgmode.org/manual/index.html][manuel en ligne d'org-mode.]]
+
+# This has been only a brief tour of org-mode. More excitement awaits
+# you at the 
+
+[[http://bzg.fr][Retour à la page Bastien Guerry]]
+
+
