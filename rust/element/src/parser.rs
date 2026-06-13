@@ -1922,16 +1922,23 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
             end += 2;
         }
 
+        // Absorb trailing spaces/tabs as post-blank, matching Emacs.
+        let post_blank = bytes[end..]
+            .iter()
+            .take_while(|&&b| b == b' ' || b == b'\t')
+            .count();
+
         let node = self.arena.alloc(
             SyntaxNode::new(
                 Syntax::Entity(self.bump.alloc(entity_data)),
-                (start, start + end),
+                (start, start + end + post_blank),
                 self.bump,
             )
+            .post_blank(post_blank)
             .build(),
         );
 
-        Some((node, end))
+        Some((node, end + post_blank))
     }
 
     /// Parse a LaTeX fragment from `text`, consuming the fragment text and
