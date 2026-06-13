@@ -231,17 +231,12 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 break;
             }
 
-            // Blank-line terminator: works for both LF (\n\n) and CRLF (\n\r\n).
-            // search_pos points to the \n at the end of a content line.
-            // A blank line is the next line containing only whitespace (\r, spaces, tabs).
+            // Blank-line terminator: a line containing only a newline
+            // terminates the definition.
             if remaining.starts_with('\n') {
-                let after = &remaining[1..];
-                let next_nl = after.find('\n').map_or(after.len(), |i| i);
-                if after[..next_nl].trim().is_empty() {
-                    end = search_pos;
-                    pre_blank = 1;
-                    break;
-                }
+                end = search_pos;
+                pre_blank = 1;
+                break;
             }
 
             if let Some(nl) = memchr(b'\n', remaining.as_bytes()) {
@@ -269,20 +264,11 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
 
         // Emacs' :contents-end for a footnote definition includes the final
         // newline of the last content line (but not the following blank line).
-        // Keeping that newline in the interval lets the recursive element
-        // parser emit a trailing PlainText object for it, matching
-        // org-element.  Without it, an object that ends the paragraph (e.g. a
-        // link) leaves no room for the trailing newline node and the next
-        // footnote's content appears to be missing relative to the oracle.
-        let contents_end = if pre_blank > 0 {
-            if pre_blank == 2 {
-                end
-            } else {
-                line_end_pos + 1
-            }
-        } else {
-            end
-        };
+        // `end` already points to the blank line (or next-element boundary),
+        // so the content interval (contents_start..end) naturally excludes
+        // the blank line while including the trailing newline of the last
+        // content line.
+        let contents_end = end;
 
         // `value` is the raw content with surrounding whitespace stripped.
         let value = self.input[contents_start..contents_end].trim_end();
