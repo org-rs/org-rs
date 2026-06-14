@@ -226,17 +226,31 @@ impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Enviro
                 break;
             }
 
-            if remaining.starts_with('*') && remaining.chars().nth(1) == Some(' ') {
-                end = search_pos;
-                break;
+            // Headline at any level (1+, e.g. `* `, `** `, …) terminates
+            // the footnote definition.
+            if remaining.starts_with('*') {
+                let stars = remaining
+                    .as_bytes()
+                    .iter()
+                    .take_while(|&&b| b == b'*')
+                    .count();
+                if stars > 0 && remaining.as_bytes().get(stars) == Some(&b' ') {
+                    end = search_pos;
+                    break;
+                }
             }
 
             // Blank-line terminator: a line containing only a newline
-            // terminates the definition.
+            // (or whitespace + newline) is a blank line.  The definition
+            // terminates when TWO consecutive blank lines are found.
             if remaining.starts_with('\n') {
-                end = search_pos;
-                pre_blank = 1;
-                break;
+                let after = &remaining[1..];
+                let next_nl = after.find('\n').map_or(after.len(), |i| i);
+                if after[..next_nl].trim().is_empty() {
+                    end = search_pos;
+                    pre_blank = 1;
+                    break;
+                }
             }
 
             if let Some(nl) = memchr(b'\n', remaining.as_bytes()) {

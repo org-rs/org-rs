@@ -46,6 +46,11 @@ surrounding siblings."
 (let ((file (car command-line-args-left)))
   (with-temp-buffer
     (insert-file-contents file)
-    (org-mode)
+    ;; `#+STARTUP: align' makes `org-mode' rewrite tables (padding cells to
+    ;; equal width) during initialisation, which shifts every byte position
+    ;; after the table.  org-rs is a pure parser that never mutates its input,
+    ;; so we neuter table alignment to capture Emacs' parse of the *raw* text.
+    (cl-letf (((symbol-function 'org-table-align) #'ignore))
+      (org-mode))
     (prin1 (oracle-emit (org-element-parse-buffer)))
     (terpri)))

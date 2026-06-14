@@ -248,6 +248,70 @@ fn footnotes_separated_by_blank_line_are_siblings() {
     assert_eq!(data2.value, "Second.");
 }
 
+/// A footnote definition can contain emphasis/verbatim markers whose
+/// content spans multiple lines (e.g. `=C-c\na t=`).  Regression test
+/// for the `advanced-searching.org` corpus bug where the footnote
+/// definition's content interval was truncated to the first line,
+/// cutting off the verbatim's closing marker.
+#[test]
+fn verbatim_across_lines_inside_footnote() {
+    let input = "[fn:1] Note that the command (=C-c\na t=) works.\n";
+    let bump = Bump::new();
+    let mut parser = Parser::new(input, ParseGranularity::Object, DefaultEnvironment, &bump);
+    let (arena, root) = parser.parse_buffer();
+
+    let section = arena[root].children[0];
+    let fn_node = arena[section].children[0];
+    let Syntax::FootnoteDefinition(_) = &arena[fn_node].data else {
+        panic!("expected FootnoteDefinition");
+    };
+
+    let fn_children = &arena[fn_node].children;
+    assert_eq!(fn_children.len(), 1, "fn should have 1 child (paragraph)");
+    let paragraph = fn_children[0];
+    assert_eq!(SyntaxT::from(&arena[paragraph].data), SyntaxT::Paragraph);
+
+    let para_children = &arena[paragraph].children;
+    let has_verbatim = para_children
+        .iter()
+        .any(|&child| matches!(&arena[child].data, Syntax::Verbatim(_)));
+    assert!(
+        has_verbatim,
+        "paragraph should contain a Verbatim object for =C-c\\na t="
+    );
+}
+
+/// A footnote definition with a level-2+ headline before it: the
+/// headline must NOT terminate the definition at level 1 only.
+#[test]
+fn footnote_terminated_by_any_headline_level() {
+    let input = "[fn:1] Note that the command (=C-c\na t=) works.\n\n\
+                  ** A level-2 headline\n";
+    let bump = Bump::new();
+    let mut parser = Parser::new(input, ParseGranularity::Element, DefaultEnvironment, &bump);
+    let (arena, root) = parser.parse_buffer();
+
+    let section = arena[root].children[0];
+    let fn_node = arena[section].children[0];
+    let Syntax::FootnoteDefinition(_) = &arena[fn_node].data else {
+        panic!("expected FootnoteDefinition");
+    };
+
+    // The footnote must NOT swallow the headline.
+    assert_eq!(
+        arena[section].children.len(),
+        1,
+        "section should have exactly 1 child (the footnote)"
+    );
+    assert_eq!(
+        arena[root].children.len(),
+        2,
+        "root should have 2 children: section + headline"
+    );
+    let headline = arena[root].children[1];
+    assert_eq!(SyntaxT::from(&arena[headline].data), SyntaxT::Headline);
+}
+
 /// A footnote followed by a headline: the footnote must NOT
 /// swallow the headline.
 #[test]
