@@ -1,0 +1,157 @@
+:PROPERTIES:
+:ID:       0fdb5c53-390f-4108-bf49-4e417cfe0296
+:END:
+#+title: trop.in Streams Schedule
+
+#+begin_src elisp
+(face-remap-add-relative 'default :weight 'bold)
+(face-remap-add-relative 'default :weight 'bold :inherit 'org-verbatim)
+#+end_src
+
+* To Schedule
+| Draft Name                               | Possible Date    |
+|------------------------------------------+------------------|
+| rde: How to Fork                         |                  |
+| Building a Custom Kernel for Guix        |                  |
+| [[id:7225e4cc-6198-4d85-8328-749b796fda1e][Installing Guix on Raspberry Pi]]          |                  |
+| My Hardware Overview                     |                  |
+| Using native-comp Emacs                  |                  |
+| Guile Dev Environment                    |                  |
+| Greetd and seatd                         |                  |
+| Top 10 applications I use                |                  |
+| Prot trying rde emacs config?            |                  |
+| Testing changes in qemu                  |                  |
+| Multiple emacs servers, why?             |                  |
+| How many emacs instances do I need?      |                  |
+| Home environment in system config        |                  |
+| Using Postgres in rde                    |                  |
+| Voice synthesis                          |                  |
+| 5 projects to make in guile              |                  |
+
+** Next
+*** Restreaming with NGINX
+*** A Stream Page
+*** Reporting guix problems
+*** Compiling project
+*** Streaming Experience Report
+- I can talk loudly and confidently.
+- I fought perfectionism hard.
+- 10 times much more content, 2x watch time and views.
+- Almost, no peertube activity.
+- More attempts -> More data to analyze.
+- Optimal stream time < 1 hour.
+- Timing is difficult to watch live.
+- Technical titles usually are more attractive.
+*** Impossible tasks
+Do I have resources (money, skills, required dependencies) to complete
+the task?  No?  Throw it out.
+
+is assert?
+
+*** Elisp Serialization
+*** Addressing Contribution
+*** Extending Emacs Features
+*** Documenting Features/Writing Manual
+Write ADR on how to document features.
+*** Nginx Config Serialization
+*** Notifications for IRC
+*** Tree-sitter for Scheme
+*** Better CI
+Deployment of the manual.
+*** Guile Libraries Distribution
+*** Where is the Business?
+** PLs
+*** Continuations call/cc
+https://cleare.st/code/call-cc-yin-yang-puzzle
+
+https://archive.jlongster.com/Whats-in-a-Continuation
+*** Monads and Algebraic effects
+[[https://youtu.be/nGhoZzihbHY][Monads are everywhere... Maybe that's bad? by Till Schröder]]
+
+*** Algebraic effects
+https://www.eff-lang.org/handlers-tutorial.pdf
+https://www.microsoft.com/en-us/research/wp-content/uploads/2016/08/algeff-tr-2016-v2.pdf
+
+https://www.janestreet.com/tech-talks/effective-programming/
+[[https://youtu.be/hrBq8R_kxI0][Daan Leijen - Asynchrony with Algebraic Effects]]
+
+[[https://www.cs.cmu.edu/~rwh/pfpl/2nded.pdf][Practical Foundations for Programming Languages]]
+*** Unison Language
+
+- Don't need to re-run tests.
+- Can rename things or change the definition of the name, nothing will
+  break.
+- Documentation is tightly integrated with lang, one can put
+  references to the types/variables/etc, evaluate code.
+- Just-in-time deployement allows to transfer needed code on demand.
+- No need for RPC, just send the code!
+- Search by signature can prevent from writing the code twice.
+
+- With content-addressing, you can easily realize that the function is
+  already written and use lib version instead of inventing the wheel.
+
+**** Questions
+- How is refactoring works?
+- Learn about continuations.
+- GC for cleaning up unneeded history?
+*** Content Addressable Code
+What is SRFI?
+
+*** Goblins
+[[id:7ec47431-b9a1-445b-9f6e-ea1a7f5d1813][Spritelby Goblins]]
+
+** Series
+*** 7 langs?
+*** Technologies for cool kids
+*** FOC (Future of Computing)
+*** Paper Reading Club
+*** Guile Work
+**** Guile Quicheck
+https://ngyro.com/software/guile-quickcheck.html
+*** Road to Blog/Site
+*** fpure, funclub
+
+* Schedule
+| Name                                                         | Date                   |
+|--------------------------------------------------------------+------------------------|
+| [[id:49057edb-c175-4df4-968b-842562ceb692][Guix Build Systems]]                                           | <2022-09-06 Tue 16:00> |
+| [[id:cba7d6a3-cf88-4872-ae04-e5f47d27f861][Emacs Snippets and Templates]]                                 | <2022-08-11 Thu 16:00> |
+| [[id:48c20b75-aeea-4b92-a8ac-5f0fcb3a0161][Emacs Completion Explained]]                                   | <2022-07-19 Tue 16:00> |
+| [[id:1a27280b-b340-4690-b46b-838280a4365f][Emacs packages in Guix]]                                       | <2022-06-21 Tue 16:00> |
+| [[id:386c8a45-8266-4518-9228-0cf69e836cf3][rde: Per-project features.]]                                   | <2022-05-10 Tue 16:00> |
+| [[id:7da1171c-6756-4a39-ac8f-b6faf5f5ea75][sway: Workflow and Configuration]]                             | <2022-02-08 Tue 18:00> |
+| [[id:490ec763-0b0b-4aab-9821-e925a10affbe][Using IRC in 2022]]                                            | <2022-01-25 Tue 18:00> |
+| [[id:d46031a4-6989-4867-91eb-80452eea3f63][Info and Texinfo]]                                             | <2022-01-11 Tue 18:00> |
+| [[id:942cf3b8-ea3b-4c9f-98a4-89d8cf23926a][Small Christmas Stream]]                                       | <2021-12-28 Tue 18:00> |
+| [[id:b8446fe3-94b1-4531-9df1-915c8ccea456][Custom GNU/Linux LiveCD]]                                      | <2021-12-14 Tue 18:00> |
+| [[id:f1a693ce-02d5-4f8b-b4ff-01284ebcf662][Reproducible Dev Environment for Clojure with Guix and Emacs]] | <2021-11-30 Tue 18:00> |
+| [[id:070a6b4b-39ef-4233-8a83-753ca2a4a8bd][guix shell: Overview]]                                         | <2021-11-16 Tue 18:00> |
+| [[id:f6b05f22-746c-4d78-bba2-61a8706c6609][Guix Escape Hatches]]                                          | <2021-10-05 Tue 18:00> |
+| [[id:d7739104-da63-4206-b0ff-f4fa04039f0d][Deploy GNU Guix to VPS]]                                       | <2021-09-21 Tue 18:00> |
+| [[id:d0311574-3528-49fb-95a5-2233b2b371a9][Not Very Advanced Git]]                                        | <2021-09-07 Tue 18:00> |
+| [[id:65d096bd-7438-4b25-af01-e7da37aafade][Per-Project Dev Environment]]                                  | <2021-08-24 Tue 18:00> |
+| [[id:95f5c8a7-007a-4b0c-b3c7-c971d0346b98][The Modern Emacs]]                                             | <2021-08-10 Tue 18:00> |
+| [[id:80734097-5d8b-4b4d-b4ba-2ad13b8efbc9][Pull Requests vs Patches]]                                     | <2021-07-13 Tue 18:00> |
+| [[id:2a8b9445-45da-4c68-82d0-0d93a9518641][Emacs: Managing Emails and Mailing Lists]]                     | <2021-06-29 Tue 18:00> |
+| [[id:41d8a265-921d-421c-96ab-b0ef38bc24c2][Migrated to PipeWire, Screensharing in Wayland]]               | <2021-06-15 Tue 18:00> |
+| [[id:7b1231e9-3ae0-487e-b108-261b65f26dba][My Minimal Guix Configuration 2021-06-01]]                     | <2021-06-01 Tue 18:00> |
+| [[id:4da6e427-499c-4b5d-8431-86abcf393563][rde: Simplifying Guix configuration]]                          | <2021-05-18 Tue 18:00> |
+| [[id:f71366ce-24d8-4d54-a9ee-536370fd14cf][Quotes and Gexps]]                                             | <2021-05-04 Tue 18:00> |
+| [[id:f98634f0-dc12-4011-96c9-bf0b4d51fdb4][Scheme tutorial feat. Guile, Guix and Gexps]]                  | <2021-04-20 Tue 18:00> |
+| [[id:80578282-1801-471e-87d0-90cae84339c3][guix home: shells, rde]]                                       | <2021-04-06 Tue 18:00> |
+| [[id:45abbbd2-fc04-453f-b2db-c5856310db3d][guix home: state]]                                             | <2021-03-23 Tue 18:00> |
+| [[id:0a01de75-7fa9-4c68-b24b-93719e696083][guix home: on-reconfigure and symlink-manager]]                | <2021-03-09 Tue 18:00> |
+| [[id:e60dce84-0f0c-4c0b-a7aa-457fd93b3ca3][guix home: Environment variables, Profiles and Shepherd]]      | <2021-02-22 Mon 18:00> |
+| [[id:e24711fb-7b7c-473d-812b-715094106acf][How guix home works]]                                          | <2021-02-09 Tue 18:00> |
+| [[id:a557af5c-65cc-40c5-9243-fae79d0f21ac][Guix: Packaging tutorial]]                                     | <2021-01-26 Tue 18:00> |
+| [[id:ce0d2529-a7d1-4f65-8e43-d1cba379ce8f][Guix Services and Shepherd]]                                   | <2021-01-12 Tue 18:00> |
+| [[id:0546f087-1d8f-4247-a9c0-67fba7dc3669][Plans for 2021]]                                               | <2020-12-29 Tue 18:00> |
+| [[id:74d7b288-906a-4309-91ef-05109d19a63d][Installing GNU Guix]]                                          | <2020-12-15 Tue 18:00> |
+| [[id:badddb19-edbc-4584-90c2-580176480aa4][Stateless OS]]                                                 | <2020-12-01 Tue 18:00> |
+| [[id:896d4623-9ada-4ab5-af9a-3696ef90b1a1][gpg explained]]                                                | <2020-11-17 Tue 18:00> |
+| [[id:b571e9f6-2f43-4ae5-b469-480a3c29b3a5][Nix vs Guix]]                                                  | <2020-11-03 Tue 18:00> |
+| [[id:eed725a7-72df-4da2-b3fc-936347651480][Flakes in Nix 3.0]]                                            | <2020-10-20 Tue 18:00> |
+| [[id:ad769738-bb12-436e-98f5-9a68ad4eb33e][Building reproducible Emacs (nix)]]                            | <2020-09-22 Tue 18:00> |
+| [[id:0d9cb82b-5a1e-4e62-9c49-15a2a98b228b][Better than virtualenv]]                                       | <2020-08-25 Tue 18:00> |
+| [[id:3e445d03-17a8-4e86-aa32-f6c92c4c87e7][Almost Perfect Dotfiles Management w/ nix]]                    | <2020-07-28 Tue 18:00> |
+

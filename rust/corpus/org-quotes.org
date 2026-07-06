@@ -1,0 +1,446 @@
+#+TITLE: Quotes about Org-mode
+#+AUTHOR: Org
+#+EMAIL: bzg AT gnu DOT org
+#+LANGUAGE:  en
+#+OPTIONS:   H:3 num:nil toc:t \n:nil ::t |:t ^:t -:t f:t *:t tex:t d:nil tags:not-in-toc author:nil creator:nil ':t
+#+INFOJS_OPT: view:nil toc:nil ltoc:t tdepth:1 mouse:underline buttons:0 path:https://orgmode.org/org-info.js
+#+HTML_LINK_UP:    index.html
+#+HTML_LINK_HOME:  https://orgmode.org/worg/
+
+# This file is released by its authors and contributors under the GNU
+# Free Documentation license v1.3 or later, code examples are released
+# under the GNU General Public License v3 or later.
+
+* Quotes about Org mode from the mailing list and the web.
+  :PROPERTIES:
+  :ID:       70F3B7D4-3EE9-4518-900D-D1D20434F2C2
+  :END:
+
+#+begin_quote
+I'm sure I'll be tweaking it forever though, it's almost as satisfying
+as actually using it.@@html:<div align="right"><i>@@8ninjani8 [[https://www.reddit.com/r/emacs/comments/eylzlc/an_annotated_spacemacs_for_an_orgmode_workflow/fgk94nj/][on
+/r/emacs]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+I honestly don't know how I ever lived without org-mode @@html:<div
+align="right"><i>@@Luke Gaudreau on [[http://twitter.com/infosoph][Twitter]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+I'm having the same feeling for org-mode that I did when I first
+learned to really program and use emacs.  @@html:<div
+align="right"><i>@@Jeffery Travis on [[http://twitter.com/travisjeffery][Twitter]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-mode is one of those tools that change the way you work and think
+forever.  @@html:<div align="right"><i>@@Kaluza
+[[http://twitter.com/#!/kaluza/statuses/40810643061874688][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+This handy system uses a fairly simple, single-file outlining
+paradigm, upon which it overlays concepts like due dates and
+priorities. I find its method both non-intrusive and easy to edit by
+hand, which are absolute necessities for me.  @@html:<div
+align="right"><i>@@John Wiegley in 2007 in his [[http://newartisans.com/2007/08/using-org-mode-as-a-day-planner/][blog
+post]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+I've passed 2500 tasks logged with Org-mode!  This has been, by far,
+the most consistently I've used any organizational tool on any system,
+ever. :) @@html:<div align="right"><i>@@John Wiegley in 2009 in an
+Email to the Org-mode author.@@html:</i></div>@@
+#+end_quote
+
+
+#+begin_quote
+Someone mentioned that org-mode is a bit like perl. I agree. Way back,
+someone described perl as "the Swiss army chainsaw of UNIX
+programming". Over the last 12 months, I think org mode has evolved
+into something akin to the "Swiss army JCB of organisational software"
+(to stretch a metaphor until it screams for mercy!).  @@html:<div
+align="right"><i>@@Pete Phillips in a [[https://list.orgmode.org/21793.1161516517@lap1.smtl.co.uk][post on
+emacs-orgmode]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+I think a main reason for [Org-mode's] utility is that basic use
+requires little thought. When I'm using it for brainstorming, it's
+almost like I'm not aware that I'm using any program --- I'm just
+thinking.  @@html:<div align="right"><i>@@Someone, in Charles Cave's
+[[https://orgmode.org/survey.html#sec-11][survey of Org users]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-mode bends the definition of outliners until you realise that
+outlines are text and text is outline. [...] In org-mode, I'm... not
+editing a document.  I'm editing a piece of fiction, one piece at
+a time. On a computer. In a way that makes sense.  @@html:<div
+align="right"><i>@@Urpo Lankinen in a [[http://beastwithin.org/users/wwwwolf/fantasy/avarthrel/blog/2011/05/lets-just-use-emacs.html][blog post]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+I'm continually amazed by what org can do, and also by how intuitive
+it is.  It's not at all unusual that I find myself thinking that it
+would be great if Org/Emacs did "x", trying what seems to me to be the
+way that it would do "x" if it could, and discovering that it
+functions just as I expect.  @@html:<div align="right"><i>@@Someone,
+in Charles Cave's [[https://orgmode.org/survey.html#sec-11][survey of Org users]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+I love Org's timeclocking support, and I think you will too. Because
+it's integrated with your task list, you don't have to switch to
+separate application or reenter data.  @@html:<div
+align="right"><i>@@Sacha Chua in a [[http://sachachua.com/blog/2007/12/clocking-time-with-emacs-org][blog post]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+I've been trying lots of different Web-based GTD task managers like
+Remember the Milk, Toodledo, and GTDAgenda.  I'm slowly coming to the
+conclusion that there's nothing quite like Org for Emacs.  @@html:<div
+align="right"><i>@@Sacha Chua in a [[http://sachachua.com/blog/2009/04/nothing-quite-like-org-for-emacs/][blog post]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+*BG:* We’ve got a lot more books coming out in the pipeline. [...]
+The one which is my favourite is the Emacs Org-Mode Reference
+Manual. [...]  Honestly, it’s the greatest Emacs mode in 20
+years. [...]\\
+*CW:* /Would you say Org-Mode is one of the more exciting projects in
+the Free Software world at the moment?/ \\
+*BG:* Definitely. Maybe it’s even /the/ most exciting. Certainly it’s
+transformed the way that I organise my work, and I think it has for
+a lot of other people as well, so it’s software that can revolutionise
+your life, not just perform a function.  @@html:<div
+align="right"><i>@@Brian Gough of [[http://www.network-theory.co.uk/][Netork Theory Limited]] in an
+interview by Chris Woolfrey, published in this [[http://blogs.fsfe.org/fellowship-interviews/?p%3D156][blog
+post]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+By far my favorite featureset in org-mode that muse lacks[fn:1] is the
+table support, which piggybacks on calc to form more of a spreadsheet
+than table support. Insanely cool.  @@html:<div
+align="right"><i>@@Patrick Hawkins in a [[https://lists.nongnu.org/archive/html/emacs-wiki-discuss/2006-04/msg00111.html][post on
+emacs-wiki-discuss]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org is a new working experience for me and there is nothing comparable
+to working with emacs AND Org-mode.  @@html:<div
+align="right"><i>@@Sebastian Rose in his [[https://orgmode.org/worg/code/org-info-js/][org-info.js
+documentation]].@@htl:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-mode definition:\\
+Org-mode is an emacs mode for doing anything you dream of. If it can't
+do it yet, post a message on the mailing list at night, go for
+a sleep, and grab in the morning a fresh copy with your features
+implemented.  @@html:<div align="right"><i>@@Paul Rivier in an email
+message to the Org-mode author.@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+From: Christian Moe\\
+Re: Copy/Search Outline \\
+
+I post a howto over my morning coffee at 8:38am. By 11:30am, Florian
+has encapsulated it into a neat function with added goodies. Within 40
+minutes, Carsten reports
+
+> there is a key (C-c C-x v) and a menu entry,\\
+> and documentation in manual and refcard for it.
+
+Gotta love this community.
+
+Yours, Christian @@html:<div align="right"><i>@@Christian Moe in
+a [[https://list.orgmode.org/87d3h2xe2t.fsf@sophokles.streitblatt.de][message]] to the Org-mode mailing list.@@html:</i></div>@@
+#+end_quote
+
+
+
+#+begin_quote
+[...] Org-mode [...] continues to amaze me with its power and utility
+each and every day.  @@html:<div align="right"><i>@@Bernt Hansen in
+a [[https://list.orgmode.org/874p2fr71x.fsf@gollum.intra.norang.ca][post on emacs-orgmode]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+PT> Damn! Org is again a step ahead of me. :D\\
+Nick> Yup - get used to it ;-) @@html:<div align="right"><i>@@PT and
+Nick Dokos [[https://list.orgmode.org/orgmode/loom.20090902T072922-128@post.gmane.org/][on emacs-orgmode]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-mode has changed my life!  @@html:<div align="right"><i>@@Jonathan
+E. Magen in a [[http://yonkeltron.com/blog/2008/11/10/org-mode-has-changed-my-life/][blog post]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+If humans could mate with software, I'd have org-mode's babies.
+@@html:<div align="right"><i>@@Chris League on
+[[http://twitter.com/chrisleague][Twitter]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+If I hated everything about Emacs, I would still use it for
+org-mode. [...]  @@html:<div align="right"><i>@@Avdi on
+[[http://twitter.com/avdi][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-mode is like half the awesomeness of emacs @@html:<div
+align="right"><i>@@Pavel on [[http://twitter.com/#!/Pavel_92/statuses/93245405906747393][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+[...] It's fascinating. I'm still dubious as to the mental sanity of
+the developer, but intriguing. [...]  @@html:<div
+align="right"><i>@@Carlo Piana on [[http://twitter.com/#!/carlopiana/statuses/37160201652011009][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-mode is so awesome because everything is ultimately still plain
+text files.  @@html:<div align="right"><i>@@Philip J. Hollenback on
+[[http://twitter.com/philiph/statuses/21019501383][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+The sheer elaborated insanity of the org-mode spreadsheet is
+a distilled microcosm of all that is wonderful and brain-damaged about
+emacs.  @@html:<div align="right"><i>@@Zenoli on
+[[http://twitter.com/zenoli][Twitter]].@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+If Emacs is an operating system, Org-mode is the office/productivity
+suite.  @@html:<div align="right"><i>@@Eric Schulte in his [[https://orgmode.org/worg/images/screenshots/org-mode-publishing.jpg][screenshot]]
+on [[https://orgmode.org/worg/][Worg]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+I think I understand the difference between /org-mode/ and
+/planner.el/ now.  The former is more like an outline with dates and
+hypertext and lots of other features, while the latter is more like
+a schedule with outlines and hypertext and lots of other features.\\
+@@html:<div align="right"><i>@@Samuel Wales in
+[[http://thread.gmane.org/gmane.emacs.planner.general/1279/focus%3D1283][a
+post on the planner mailing list]] (broken link)@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-mode seemed like a way to tame the text file beast and ride it off
+into the sunset.\\
+@@html:<div align="right"><i>@@Joey Doll in a [[http://www.guyslikedolls.com/set-phasers-to-org-mode][blog
+post]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+I have no idea how long [these files] are, probably 1000 lines each,
+but it doesn't matter. I can combine long winded notes about my latest
+fabrication process with that thing that I have to do on it next week,
+fold everything back up, and then keep easy tabs on everything using
+the agenda view.  @@html:<div align="right"><i>@@Joey Doll in a [[http://www.guyslikedolls.com/set-phasers-to-org-mode][blog
+post]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+If you're like me, over the years you'll have had your todo lists
+scattered over multiple programs and places. First a simple text file
+with homebrewn format, then various Windows programs, then various
+Linux GUI programs, then back to Notepad and joe/gedit/kate, then
+various apps on cellphones, then pencil & paper (due to cellphones
+keep getting lost/stolen), then some cloud apps, then todo.txt, then
+finally org-mode. And if you're anything like me or many others,
+you'll find that org-mode is *it*.  @@html:<div
+align="right"><i>@@Stephen Haryanto in a [[http://blogs.perl.org/users/steven_haryanto/2011/03/orgparser.html][blog post]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-mode is a note taking tool unparalleled in it's simplicity and
+ease of use.\\
+@@html:<div align="right"><i>@@Shrutarshi Basu in a [[http://bytebaker.com/2009/06/23/too-many-formats/][blog
+post]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-mode is like doubling the RAM in your brain.\\
+@@html:<div align="right"><i>@@Casey Brant on
+[[http://twitter.com/BaseCase/statuses/10127206552][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-mode is like heroin. After the first hit. You're addicted. Then,
+that's all you can think about.\\
+@@html:<div align="right"><i>@@Sergio T. Ruiz on
+[[http://twitter.com/sergio_101/statuses/21851630268][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-mode; gestalt of The One True Editor.  Sentience is close at
+hand.\\
+@@html:<div align="right"><i>@@Richard Hoskins on
+[[http://twitter.com/RichardHoskins/statuses/25090314533][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Ceiling Cat, bestow your benevolent purring upon the authors of
+Org-mode for #Emacs, as I'm not sure how I'd manage my life without
+it.\\
+@@html:<div align="right"><i>@@Tom X. Tobin on
+[[http://twitter.com/tomxtobin/statuses/25381303142][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Emacs org-mode makes my geek heart flutter. [...]\\
+@@html:<div align="right"><i>@@Sacha Chua on
+[[http://twitter.com/sachac/statuses/25553224867][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+It looks like it's from 1983, and it feels like taking a course in 7D
+geometry but org-mode is truly (and I use this word rarely) awesome.\\
+@@html:<div align="right"><i>@@David Griffiths on
+[[http://twitter.com/dgriffiths/statuses/25812307488][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Once again found what looked like a door to a sub-basement actually
+leads to a cathedral: emacs org mode\\
+@@html:<div align="right"><i>@@Neal Ford on [[https://twitter.com/#!/neal4d/statuses/145905694791565312][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org-Mode is without a doubt the most useful piece of software that
+I have ever installed.\\
+@@html:<div align="right"><i>@@Christopher Dolan on
+[[http://twitter.com/codingstream/statuses/26326566388][Twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+While on-topic, just want to clear up misconceptions of org-mode. It
+is different from all the software/website task managers mentioned
+here. You can think of it as a meta-organization tool. A org software
+factory if you will. You can customize it to exactly how you want your
+thoughts, tasks, notes, etc organized.  See
+http://doc.norang.ca/org-mode.html for an idea of the sheer breadth of
+options available to make it work exactly for you.  This may sound
+like a lot of work, but there are a lot of sensible defaults, which is
+why most org-mode tutorials that scratch the surface make it seem like
+a sibling to other task management software. [...]  If I may pilfer
+a quote, org-mode "outshines other [task management solutions] in
+approximately the same way the noonday sun does the stars." (Neal
+Stephenson on Emacs)\\
+@@html:<div align="right"><i>@@Someone in a discussion on [[http://news.ycombinator.com/item?id%3D1230716][Hacker
+News]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+I've spent a few days reading the manual, and looking at various
+guides/tutorials on using it, especially with GTD approach -- and it
+does everything I want, and so easily (once I've understood what to
+do!).\\
+@@html:<div align="right"><i>@@Michael Maloney by
+email@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+TODO lists in #orgmode is the best thing that happened to creative
+writing since the metaphor.\\
+@@html:<div align="right"><i>@@Keith R. Potempa on
+[[https://twitter.com/#!/keithrpotempa/status/143407790130597888][twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Little by little org-mode will take over my life.  @@html:<div
+align="right"><i>@@Mehul Sanghvi@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+The best thing that happened to Emacs since Emacs itself: Org Mode.
+@@html:<div align="right"><i>@@Tomas S. Grigera on
+[[https://twitter.com/#!/grigeratomas/status/151737481333710849][twitter]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Every time I go to use Org-mode, I find something new and helpful.
+@@html:<div align="right"><i>@@Katherine Cox on [[https://plus.google.com/b/102778904320752967064/100662126766165980060/posts/cE2J1SYUhPi][Google+]] @@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+What makes me so excited about org mode is that it's the
+first time I've seen literate programming move a tick up into the
+realm of actually creating a tellable Story.
+@@html:<div align="right"><i>Lawrence Bottorff on @@[[https://list.orgmode.org/CAFAhFSV0L+_8FLw2pGcx9yFJLsxbeX_V3DnzB5LqHcfWOu-kJw@mail.gmail.com][the mailing list]]@@html:</i></div>@@
+#+end_quote
+
+#+begin_quote
+Org is amazing. I don't know elisp, I'm certainly not an advanced user
+of Emacs, and I don't know how to do that really sophisticated Org
+stuff that others talk about on this list, but I can make a functional
+web site with Org without trouble by using the basic export functions.
+Adding new pages, editing old pages, and updating is trivial. I know
+a lot of people who use Markdown and static site generators, but Org
+is much better for my purposes. And I can use it for many other things
+too.  Sorry for this unnecessary rant, but I just love Org.
+@@html:<div align="right"><i>@@Scott Randby [[http://lists.gnu.org/archive/html/emacs-orgmode/2017-06/msg00063.html][on emacs-orgmode]]@@html:</i></div>@@
+#+end_quote
+
+* Some 24/7 lectures about Org-mode
+
+The famous 24/7 lectures are part of the ceremony for handing out the
+[[https://en.wikipedia.org/wiki/Ig_Nobel_Prize][Ig Nobel Prizes]].  All speakers have to give a 24/7 lecture on their
+subject. This means, they have to give a /complete technical
+description/ of their work in /24 words/ (may be totally cryptic), and
+then a /7 word/ explanation that is more or less /understandable for
+the public/, and it may be either tongue in cheek or serious.  In
+summer 2008, a few people tried to [[https://list.orgmode.org/3A44135C-FC7A-4D2C-AA74-A68B5F45BA1B@gmail.com][formulate]] such lectures about
+Org-mode:
+
+** Technical description in 24 words
+
+These was only a single entry in the "24" category:
+
+  - Org-mode does outlining, note-taking, hyperlinks, spreadsheets,
+    TODO lists, project planning, GTD, HTML and LaTeX authoring, all
+    with plain text files in Emacs (/Carsten Dominik/)
+
+** Simple summary in 7 words
+
+   This is only a selection of the submitted entries.  My loose
+   criterion was to use entries that are either a good description or
+   are funny - both valid approaches to the "7" part of 24/7 lectures.
+   I also left a few entries which are not exactly seven words,
+   because I liked them a lot.
+
+   - Organize and track everything in plain text (/Bernt Hansen/)
+
+   - Organize outlines, lists and table in text. (/Eddward DeVilla/)
+
+   - Emacs Org Mode: your life in text (/Matthew Parker/)
+
+   - Do work and play in plain text (/Kene Meniru/)
+
+   - Madness? This is org-mode! [[http://www.youtube.com/watch%3Fv%3DUgrsNBu51nU][*Real Spartans use emacs!*]] (/Russell
+     Adams[fn:2]/)
+
+   - Plain text with frickin' lasers. [[https://en.wikipedia.org/wiki/Dr._Evil][*pinky to lips*]] (/Russell
+     Adams[fn:2]/)
+
+   - It is the text that binds us. [[http://www.urbandictionary.com/define.php%3Fterm%3Dshikaka][*Shekaka!*]] (/Russell Adams[fn:2]/)
+
+
+   - Org-mode --- lifehacker's orgy :-P (/Dmitry Dzhus/)
+
+   - Back to the future for plain text (/Carsten Dominik/)
+
+[fn:1] Muse now understands the syntax of Org-mode tables, so you can use
+Orgtbl-mode to get the same tables in Muse.
+
+[fn:2] The linked text is from Adam, but the link itself has been added
+by me.

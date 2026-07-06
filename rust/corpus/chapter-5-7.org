@@ -1,0 +1,773 @@
+:PROPERTIES:
+:ID:       d316552a-62b9-44b5-a0de-3f2623090019
+:END:
+#+TITLE: 5.7. org-attachによる添付ファイル管理
+#+DESCRIPTION: Org modeの添付ファイル管理システムorg-attachの詳細解説
+#+STARTUP: fold
+#+OPTIONS: toc:nil
+* org-attachとは
+- 見出しにファイルを添付する仕組み
+- IDベースのファイル管理
+  - 各見出しに一意のIDを付与
+  - IDに基づいたディレクトリ構造
+- org-roamとの親和性
+  - ノートと添付ファイルの一元管理
+  - バックリンクからの添付ファイル参照
+
+#+begin_src emacs-lisp
+;; org-attachの基本設定
+(require 'org-attach)
+
+;; 添付ファイルのルートディレクトリ
+(setq org-attach-id-dir "~/org/data/")
+
+;; 添付ディレクトリの相対パス（org-attach-id-dirからの相対）
+(setq org-attach-directory "attach/")
+
+;; 添付時にIDを自動生成
+(setq org-attach-auto-tag nil)  ; ATTACHタグを自動付与しない
+
+;; 添付メソッドのデフォルト
+(setq org-attach-method 'cp)  ; cp, mv, ln, lns
+#+end_src
+
+* 基本操作
+** C-c C-a - org-attach-dispatch
+添付ファイル操作のメインメニューを開く
+
+#+begin_src emacs-lisp
+;; org-attach-dispatchのキーバインド確認
+(describe-key (kbd "C-c C-a"))
+#+end_src
+
+** 添付ファイルの追加・管理
+| キー | コマンド                      | 説明                           |
+|------+-------------------------------+--------------------------------|
+| a    | org-attach-attach             | ファイルを添付（コピー）       |
+| m    | org-attach-attach-mv          | ファイルを移動して添付         |
+| c    | org-attach-attach-cp          | ファイルをコピーして添付       |
+| l    | org-attach-attach-ln          | シンボリックリンクのみ作成     |
+| n    | org-attach-new                | 新規ファイルを作成             |
+| z    | org-attach-sync               | FTP/Trampでリモート同期        |
+
+#+begin_src emacs-lisp
+;; 添付操作のカスタマイズ例
+(defun my/org-attach-screenshot ()
+  "スクリーンショットを撮影して添付する"
+  (interactive)
+  (let* ((attach-dir (org-attach-dir t))
+         (filename (format-time-string "screenshot_%Y%m%d_%H%M%S.png"))
+         (filepath (expand-file-name filename attach-dir)))
+    ;; macOSの場合
+    (shell-command (format "screencapture -i %s" filepath))
+    ;; Linuxの場合
+    ;; (shell-command (format "import %s" filepath))
+    (org-attach-attach filepath nil 'mv)
+    (insert (format "[[attachment:%s]]" filename))))
+
+;; キーバインドの追加
+(with-eval-after-load 'org-attach
+  (define-key org-attach-commands-map (kbd "s") #'my/org-attach-screenshot))
+#+end_src
+
+** 添付ファイルの参照・削除
+| キー | コマンド                      | 説明                           |
+|------+-------------------------------+--------------------------------|
+| o    | org-attach-open               | 添付ファイルをEmacsで開く      |
+| O    | org-attach-open-in-emacs      | Emacs以外で開く                |
+| f    | org-attach-reveal             | 添付ディレクトリを開く         |
+| F    | org-attach-reveal-in-emacs    | Finder/ファイルマネージャで開く|
+| d    | org-attach-delete-one         | 添付ファイルを削除             |
+| D    | org-attach-delete-all         | 添付ディレクトリを削除         |
+| s    | org-attach-set-directory      | 添付メソッド設定               |
+
+#+begin_src emacs-lisp
+;; 添付ファイルを開く際のカスタム設定
+(setq org-file-apps
+      '((auto-mode . emacs)
+        ("\\.pdf\\'" . "open %s")           ; macOS
+        ("\\.png\\'" . "open %s")
+        ("\\.jpg\\'" . "open %s")
+        ;; Linuxの場合
+        ;; ("\\.pdf\\'" . "xdg-open %s")
+        ))
+
+;; org-attach-revealの挙動カスタマイズ
+(defun my/org-attach-reveal-in-finder ()
+  "macOSのFinderで添付ディレクトリを開く"
+  (interactive)
+  (let ((attach-dir (org-attach-dir)))
+    (if attach-dir
+        (shell-command (format "open %s" (shell-quote-argument attach-dir)))
+      (message "No attachment directory for this entry"))))
+#+end_src
+
+* 添付ディレクトリの構造
+** org-attach-id-dir
+添付ファイルのルートディレクトリを指定
+
+#+begin_src emacs-lisp
+;; 添付ディレクトリの基本設定
+(setq org-attach-id-dir "~/org/data/")
+
+;; プロジェクトごとに異なるディレクトリを使用
+(setq org-attach-id-dir
+      (expand-file-name "attachments" org-directory))
+#+end_src
+
+** IDベースのパス生成
+- data/xx/xxxxxxxx-xxxx... 形式
+- IDの最初の2文字でサブディレクトリを作成
+- 例: ID =abc123= → =data/ab/abc123/=
+
+#+begin_src emacs-lisp
+;; IDからパスを生成する関数の確認
+(org-attach-id-uuid-folder-format "abc12345-6789-0def-ghij-klmnopqrstuv")
+;; => "ab/abc12345-6789-0def-ghij-klmnopqrstuv"
+
+;; カスタムフォルダフォーマットの設定
+(setq org-attach-id-to-path-function-list
+      '(org-attach-id-uuid-folder-format
+        org-attach-id-ts-folder-format))
+
+;; タイムスタンプベースのフォーマット
+;; ID: 20231215T123456 → 2023/12/20231215T123456
+#+end_src
+
+** org-attach-directory（相対パス）
+#+begin_src emacs-lisp
+;; 相対パスでの添付ディレクトリ指定
+;; 各orgファイルと同じディレクトリに「attach」フォルダを作成
+(setq org-attach-directory "attach/")
+
+;; 絶対パスと相対パスの使い分け
+(setq org-attach-id-dir nil)  ; IDベースを無効化
+(setq org-attach-directory "./attachments/")  ; 相対パス
+#+end_src
+
+* 添付メソッド
+** org-attach-method
+添付時のファイル操作方法を指定
+
+#+begin_src emacs-lisp
+;; コピー（デフォルト）
+(setq org-attach-method 'cp)
+
+;; 移動（元ファイルを削除）
+(setq org-attach-method 'mv)
+
+;; シンボリックリンク（絶対パス）
+(setq org-attach-method 'ln)
+
+;; シンボリックリンク（相対パス）
+(setq org-attach-method 'lns)
+#+end_src
+
+#+begin_src emacs-lisp
+;; 添付時にメソッドを選択するカスタム関数
+(defun my/org-attach-with-method ()
+  "添付メソッドを選択してファイルを添付"
+  (interactive)
+  (let ((method (intern (completing-read
+                         "Attach method: "
+                         '("cp" "mv" "ln" "lns")
+                         nil t))))
+    (let ((org-attach-method method))
+      (call-interactively #'org-attach-attach))))
+#+end_src
+
+* プロパティ設定
+** :ATTACH_DIR: - カスタムディレクトリ
+特定の見出しに対してカスタムの添付ディレクトリを指定
+
+#+begin_src org
+,* プロジェクトA
+  :PROPERTIES:
+  :ATTACH_DIR: ~/projects/projectA/docs/
+  :END:
+
+添付ファイルは ~/projects/projectA/docs/ に保存される
+#+end_src
+
+** :ATTACH_DIR_INHERIT: - 継承設定
+子見出しが親の添付ディレクトリを継承するかどうか
+
+#+begin_src org
+,* Chapter A
+  :PROPERTIES:
+  :DIR:      ./Chapter_A/
+  :ATTACH_DIR_INHERIT: t
+  :END:
+
+,** Section 1
+親のDIRを継承して ./Chapter_A/ を使用
+
+,** Section 2
+  :PROPERTIES:
+  :DIR:      ./Chapter_A/Section2/
+  :END:
+独自のディレクトリを使用
+#+end_src
+
+#+begin_src emacs-lisp
+;; 継承設定のグローバル設定
+(setq org-attach-use-inheritance t)
+
+;; 継承を使用する際の注意点
+;; - 親ノードにDIRまたはIDプロパティが必要
+;; - 深い階層では意図しない継承に注意
+#+end_src
+
+** :ID: - 添付先の識別子
+#+begin_src org
+,* タスク
+  :PROPERTIES:
+  :ID:       95d50008-c12e-479f-a4f2-cc0238205319
+  :END:
+
+添付ファイルはIDに基づいたディレクトリに保存される
+data/95/95d50008-c12e-479f-a4f2-cc0238205319/
+#+end_src
+
+#+begin_src emacs-lisp
+;; IDの自動生成設定
+(require 'org-id)
+
+;; UUID形式のID生成
+(setq org-id-method 'uuid)
+
+;; タイムスタンプベースのID生成
+(setq org-id-method 'ts)
+
+;; org-attachでID自動生成を有効化
+(setq org-attach-store-link-p 'attached)
+#+end_src
+
+* 添付ファイルへのリンク
+** attachment:filename 形式
+#+begin_src org
+,* ドキュメント
+  :PROPERTIES:
+  :ID:       abc12345-6789-0def-ghij-klmnopqrstuv
+  :END:
+
+添付ファイルへのリンク: [[attachment:report.pdf]]
+画像の埋め込み: [[attachment:diagram.png]]
+検索付きリンク: [[attachment:notes.org::*Section]]
+行番号指定: [[attachment:code.py::42]]
+#+end_src
+
+** [[attachment:image.png]] の表示
+#+begin_src emacs-lisp
+;; インライン画像として添付ファイルを表示
+(setq org-startup-with-inline-images t)
+
+;; 画像サイズの制限
+(setq org-image-actual-width '(600))
+
+;; 添付画像の表示をトグル
+;; C-c C-x C-v (org-toggle-inline-images)
+
+;; 特定の添付ファイルのみ表示
+(defun my/org-display-attachment-images ()
+  "添付された画像ファイルのみインライン表示"
+  (interactive)
+  (org-display-inline-images nil t))
+#+end_src
+
+** org-attach-use-inheritance
+#+begin_src emacs-lisp
+;; 添付ディレクトリの継承を有効化
+(setq org-attach-use-inheritance t)
+
+;; 継承時の挙動確認
+(defun my/org-attach-check-inheritance ()
+  "現在のエントリの添付ディレクトリを確認"
+  (interactive)
+  (message "Attach dir: %s" (org-attach-dir)))
+#+end_src
+
+* org-download との連携
+** ドラッグ&ドロップでの添付
+#+begin_src emacs-lisp
+;; org-downloadのインストールと設定
+(use-package org-download
+  :ensure t
+  :after org
+  :config
+  ;; ドラッグ&ドロップを有効化
+  (add-hook 'dired-mode-hook 'org-download-enable)
+
+  ;; 添付ディレクトリをorg-attachと統合
+  (setq org-download-method 'attach)
+
+  ;; スクリーンショットコマンド（macOS）
+  (setq org-download-screenshot-method "screencapture -i %s")
+  ;; Linux
+  ;; (setq org-download-screenshot-method "import %s")
+  ;; Windows
+  ;; (setq org-download-screenshot-method "snippingtool /clip")
+  )
+#+end_src
+
+** スクリーンショットの添付
+#+begin_src emacs-lisp
+;; スクリーンショットの設定
+(setq org-download-screenshot-method
+      (cond
+       ((eq system-type 'darwin) "screencapture -i %s")
+       ((eq system-type 'gnu/linux) "scrot -s %s")
+       ((eq system-type 'windows-nt) "snippingtool /clip")))
+
+;; スクリーンショットのファイル名形式
+(setq org-download-timestamp "%Y%m%d-%H%M%S_")
+
+;; キーバインド
+(global-set-key (kbd "C-c s") 'org-download-screenshot)
+#+end_src
+
+** org-download-method
+#+begin_src emacs-lisp
+;; 添付方法の設定
+(setq org-download-method 'attach)  ; org-attachを使用
+
+;; その他のメソッド
+;; 'directory - 指定ディレクトリに保存
+;; 'attach    - org-attachを使用
+;; nil        - カレントディレクトリ
+
+;; ディレクトリ指定時の設定
+(setq org-download-method 'directory)
+(setq org-download-image-dir "./images/")
+#+end_src
+
+** org-download-image-dir
+#+begin_src emacs-lisp
+;; 画像の保存先ディレクトリ
+(setq org-download-image-dir "./images/")
+
+;; 見出しごとにサブディレクトリを作成
+(setq org-download-heading-lvl 1)
+
+;; ファイル名のカスタマイズ
+(setq org-download-image-org-width 600)
+(setq org-download-abbreviate-filename-function 'file-relative-name)
+#+end_src
+
+* org-roam との統合
+** org-roam-attach
+#+begin_src emacs-lisp
+;; org-roamとorg-attachの統合設定
+(use-package org-roam
+  :ensure t
+  :config
+  ;; org-roamノートのIDをorg-attachに利用
+  (setq org-attach-id-dir
+        (expand-file-name "attachments" org-roam-directory))
+
+  ;; ノート作成時に添付ディレクトリを自動作成しない
+  (setq org-attach-auto-tag nil))
+#+end_src
+
+** ノートと添付ファイルの一元管理
+#+begin_src emacs-lisp
+;; org-roamノートへの添付を簡単にする関数
+(defun my/org-roam-attach-file ()
+  "org-roamノートにファイルを添付"
+  (interactive)
+  (unless (org-roam-buffer-p)
+    (user-error "Not in an org-roam buffer"))
+  (org-attach-attach (read-file-name "Attach file: ")))
+
+;; キーバインド
+(with-eval-after-load 'org-roam
+  (define-key org-roam-mode-map (kbd "C-c n a") #'my/org-roam-attach-file))
+#+end_src
+
+** バックリンクからの添付ファイル参照
+#+begin_src emacs-lisp
+;; バックリンクバッファで添付ファイルを表示
+(defun my/org-roam-show-attachments ()
+  "現在のノードの添付ファイル一覧を表示"
+  (interactive)
+  (let ((attach-dir (org-attach-dir)))
+    (if attach-dir
+        (dired attach-dir)
+      (message "No attachments for this node"))))
+
+;; 添付ファイルへのクイックアクセス
+(defun my/org-roam-open-attachment ()
+  "添付ファイルを選択して開く"
+  (interactive)
+  (let* ((attach-dir (org-attach-dir))
+         (files (and attach-dir
+                     (directory-files attach-dir nil "^[^.]"))))
+    (if files
+        (find-file
+         (expand-file-name
+          (completing-read "Open attachment: " files nil t)
+          attach-dir))
+      (message "No attachments"))))
+#+end_src
+
+* バックアップとSync
+** 添付ディレクトリのバックアップ
+#+begin_src emacs-lisp
+;; バックアップスクリプト例
+(defun my/backup-org-attachments ()
+  "org添付ファイルをバックアップ"
+  (interactive)
+  (let* ((source org-attach-id-dir)
+         (backup-dir "~/backups/org-attachments/")
+         (timestamp (format-time-string "%Y%m%d_%H%M%S"))
+         (dest (concat backup-dir timestamp "/")))
+    (make-directory dest t)
+    (shell-command
+     (format "rsync -av --progress %s %s" source dest))
+    (message "Backup completed: %s" dest)))
+#+end_src
+
+** Git管理のコツ（LFS）
+#+begin_src bash
+# Git LFSのセットアップ
+git lfs install
+
+# 大きなファイルをLFSで管理
+git lfs track "*.pdf"
+git lfs track "*.png"
+git lfs track "*.jpg"
+git lfs track "*.mp4"
+
+# .gitattributesをコミット
+git add .gitattributes
+git commit -m "Configure Git LFS for attachments"
+#+end_src
+
+#+begin_src emacs-lisp
+;; .gitignoreで特定の添付ファイルを除外
+(defun my/create-org-attach-gitignore ()
+  "添付ディレクトリ用の.gitignoreを作成"
+  (interactive)
+  (let ((gitignore-path (expand-file-name ".gitignore" org-attach-id-dir)))
+    (with-temp-file gitignore-path
+      (insert "# Temporary files\n")
+      (insert "*.tmp\n")
+      (insert "*~\n")
+      (insert "\n")
+      (insert "# Large binary files (use Git LFS instead)\n")
+      (insert "# *.mp4\n")
+      (insert "# *.zip\n"))))
+#+end_src
+
+** Dropbox/Syncthing での同期
+#+begin_src emacs-lisp
+;; Dropboxを使用する場合
+(setq org-attach-id-dir "~/Dropbox/org/data/")
+
+;; Syncthingを使用する場合
+(setq org-attach-id-dir "~/Sync/org/data/")
+
+;; 同期競合を避けるための設定
+(setq org-attach-store-link-p t)
+
+;; 同期状態の確認
+(defun my/check-sync-status ()
+  "添付ディレクトリの同期状態を確認"
+  (interactive)
+  (let ((dir org-attach-id-dir))
+    (shell-command (format "ls -la %s | head -20" dir))))
+#+end_src
+
+** org-attach-sync
+#+begin_src emacs-lisp
+;; リモートとの同期設定
+;; TRAMP経由でのリモートディレクトリ指定
+(setq org-attach-id-dir "/ssh:user@server:~/org/data/")
+
+;; 同期コマンドのカスタマイズ
+(defun my/org-attach-sync-with-remote ()
+  "リモートサーバーと添付ファイルを同期"
+  (interactive)
+  (let ((local-dir (expand-file-name org-attach-id-dir))
+        (remote-dir "user@server:~/org/data/"))
+    (shell-command
+     (format "rsync -avz --progress %s %s" local-dir remote-dir))))
+#+end_src
+
+* 実践的なワークフロー
+** 会議資料の添付
+#+begin_src org
+,* TODO 週次ミーティング
+  SCHEDULED: <2024-01-15 Mon 10:00>
+  :PROPERTIES:
+  :ID:       meeting-20240115
+  :END:
+
+,** アジェンダ
+- [ ] 先週の振り返り
+- [ ] 今週の計画
+
+,** 資料
+- [[attachment:agenda.pdf][アジェンダPDF]]
+- [[attachment:slides.pptx][スライド]]
+- [[attachment:meeting_notes.org][議事録]]
+
+,** 参加者
+- Alice
+- Bob
+- Charlie
+#+end_src
+
+#+begin_src emacs-lisp
+;; 会議用テンプレート
+(add-to-list 'org-capture-templates
+  '("m" "Meeting" entry
+    （file+headline "~/org/meetings.org" "Meetings"）
+    "* TODO %^{Meeting Title}
+  SCHEDULED: %^T
+  :PROPERTIES:
+  :ID:       meeting-%<%Y%m%d%H%M%S>
+  :END:
+
+** アジェンダ
+%?
+
+** 資料
+
+** 参加者
+
+** 議事録
+"
+    :empty-lines 1))
+#+end_src
+
+** プロジェクトドキュメント管理
+#+begin_src org
+,* Project Alpha
+  :PROPERTIES:
+  :ATTACH_DIR: ~/projects/alpha/docs/
+  :ATTACH_DIR_INHERIT: t
+  :END:
+
+,** 仕様書
+[[attachment:specification_v1.2.pdf]]
+
+,** 設計資料
+[[attachment:architecture.png]]
+[[attachment:sequence_diagram.puml]]
+
+,** 開発ログ
+[[attachment:changelog.md]]
+#+end_src
+
+#+begin_src emacs-lisp
+;; プロジェクト用の添付設定
+(defun my/setup-project-attachments (project-dir)
+  "プロジェクト用の添付ディレクトリを設定"
+  (interactive "DProject directory: ")
+  (org-entry-put nil "ATTACH_DIR"
+                 (expand-file-name "docs/" project-dir))
+  (org-entry-put nil "ATTACH_DIR_INHERIT" "t"))
+#+end_src
+
+** 研究資料の整理
+#+begin_src org
+,* Research: Machine Learning
+  :PROPERTIES:
+  :ID:       research-ml-2024
+  :END:
+
+,** 論文
+- [[attachment:paper1.pdf][Attention Is All You Need]]
+- [[attachment:paper2.pdf][BERT: Pre-training of Deep Bidirectional Transformers]]
+
+,** データセット
+- [[attachment:dataset_info.txt][データセット情報]]
+
+,** 実験結果
+[[attachment:results/experiment_001.csv]]
+[[attachment:results/charts/accuracy.png]]
+#+end_src
+
+#+begin_src emacs-lisp
+;; 論文PDF添付時に自動でメタデータを抽出
+(defun my/org-attach-pdf-with-metadata ()
+  "PDFを添付してメタデータを挿入"
+  (interactive)
+  (let* ((file (read-file-name "PDF file: " nil nil t nil
+                               (lambda (f) (string-match-p "\\.pdf$" f))))
+         (filename (file-name-nondirectory file)))
+    (org-attach-attach file nil 'cp)
+    (insert (format "- [[attachment:%s][%s]]\n"
+                    filename
+                    (file-name-sans-extension filename)))))
+#+end_src
+
+** 画像・図の管理
+#+begin_src emacs-lisp
+;; 画像添付のワークフロー
+(defun my/org-attach-image-workflow ()
+  "画像ファイルを添付してリンクを挿入"
+  (interactive)
+  (let* ((file (read-file-name "Image file: "))
+         (filename (file-name-nondirectory file))
+         (attach-dir (org-attach-dir t)))
+    ;; ファイルをコピー
+    (copy-file file (expand-file-name filename attach-dir) t)
+    ;; リンクを挿入
+    (insert (format "\n#+ATTR_ORG: :width 500\n[[attachment:%s]]\n" filename))
+    ;; 画像を表示
+    (org-display-inline-images nil t)))
+
+;; ペーストボードから画像を添付（macOS）
+(defun my/org-attach-image-from-clipboard ()
+  "クリップボードの画像を添付"
+  (interactive)
+  (let* ((attach-dir (org-attach-dir t))
+         (filename (format-time-string "clipboard_%Y%m%d_%H%M%S.png"))
+         (filepath (expand-file-name filename attach-dir)))
+    (shell-command (format "pngpaste %s" filepath))
+    (if (file-exists-p filepath)
+        (progn
+          (insert (format "[[attachment:%s]]" filename))
+          (org-display-inline-images nil t))
+      (message "No image in clipboard"))))
+#+end_src
+
+* トラブルシューティング
+** 添付ファイルが見つからない
+#+begin_src emacs-lisp
+;; 添付ディレクトリのパスを確認
+(defun my/org-attach-debug-path ()
+  "添付ディレクトリの情報をデバッグ表示"
+  (interactive)
+  (let ((id (org-entry-get nil "ID" t))
+        (dir (org-entry-get nil "DIR" t))
+        (attach-dir (org-attach-dir)))
+    (message "ID: %s\nDIR: %s\nResolved attach-dir: %s\nExists: %s"
+             id dir attach-dir
+             (and attach-dir (file-exists-p attach-dir)))))
+
+;; 添付ディレクトリを作成
+(defun my/org-attach-ensure-dir ()
+  "添付ディレクトリが存在することを確認"
+  (interactive)
+  (let ((dir (org-attach-dir t)))  ; t で存在しなければ作成
+    (message "Attach directory: %s" dir)))
+#+end_src
+
+** IDの不整合
+#+begin_src emacs-lisp
+;; IDの再生成
+(defun my/org-regenerate-id ()
+  "現在のエントリのIDを再生成"
+  (interactive)
+  (let ((old-id (org-entry-get nil "ID")))
+    (org-entry-delete nil "ID")
+    (org-id-get-create)
+    (message "Old ID: %s -> New ID: %s"
+             old-id (org-entry-get nil "ID"))))
+
+;; 全ファイルのID整合性チェック
+(defun my/org-check-id-consistency ()
+  "org-id-locationsの整合性をチェック"
+  (interactive)
+  (org-id-update-id-locations
+   (directory-files-recursively org-directory "\\.org$"))
+  (message "ID locations updated"))
+
+;; IDと添付ディレクトリの対応確認
+(defun my/org-attach-verify-id-mapping ()
+  "IDと添付ディレクトリのマッピングを確認"
+  (interactive)
+  (let* ((id (org-entry-get nil "ID"))
+         (expected-dir (when id
+                         (expand-file-name
+                          (org-attach-id-uuid-folder-format id)
+                          org-attach-id-dir))))
+    (if expected-dir
+        (message "Expected attach dir: %s\nExists: %s"
+                 expected-dir (file-exists-p expected-dir))
+      (message "No ID found for this entry"))))
+#+end_src
+
+** リンク切れの修復
+#+begin_src emacs-lisp
+;; 壊れた添付リンクを検出
+(defun my/org-find-broken-attachment-links ()
+  "壊れた添付リンクを検索"
+  (interactive)
+  (let ((broken-links '()))
+    (org-element-map (org-element-parse-buffer) 'link
+      (lambda (link)
+        (when (string= (org-element-property :type link) "attachment")
+          (let* ((path (org-element-property :path link))
+                 (attach-dir (save-excursion
+                               (goto-char (org-element-property :begin link))
+                               (org-attach-dir)))
+                 (full-path (and attach-dir
+                                 (expand-file-name path attach-dir))))
+            (when (and full-path (not (file-exists-p full-path)))
+              (push (list (org-element-property :begin link) path) broken-links))))))
+    (if broken-links
+        (progn
+          (message "Broken attachment links found:")
+          (dolist (link broken-links)
+            (message "  Line %d: %s"
+                     (line-number-at-pos (car link))
+                     (cadr link))))
+      (message "No broken attachment links found"))))
+
+;; 添付リンクの一括修復
+(defun my/org-repair-attachment-link ()
+  "カーソル位置の添付リンクを修復"
+  (interactive)
+  (let* ((context (org-element-context))
+         (type (org-element-property :type context)))
+    (when (string= type "attachment")
+      (let* ((old-path (org-element-property :path context))
+             (attach-dir (org-attach-dir))
+             (files (and attach-dir
+                         (directory-files attach-dir nil "^[^.]")))
+             (new-file (completing-read
+                        (format "Replace '%s' with: " old-path)
+                        files nil t)))
+        (when new-file
+          (delete-region (org-element-property :begin context)
+                         (org-element-property :end context))
+          (insert (format "[[attachment:%s]]" new-file)))))))
+#+end_src
+
+#+begin_src emacs-lisp
+;; 添付ファイルの存在確認とレポート生成
+(defun my/org-attach-health-check ()
+  "添付ファイルのヘルスチェックを実行"
+  (interactive)
+  (let ((report-buffer (get-buffer-create "*Org Attach Health Check*"))
+        (total-entries 0)
+        (entries-with-attachments 0)
+        (missing-dirs 0)
+        (broken-links 0))
+    (with-current-buffer report-buffer
+      (erase-buffer)
+      (insert "# Org Attach Health Check Report\n\n"))
+    (org-map-entries
+     (lambda ()
+       (cl-incf total-entries)
+       (let ((attach-dir (org-attach-dir)))
+         (when attach-dir
+           (cl-incf entries-with-attachments)
+           (unless (file-exists-p attach-dir)
+             (cl-incf missing-dirs)
+             (with-current-buffer report-buffer
+               (insert (format "Missing dir: %s\n  Entry: %s\n\n"
+                               attach-dir
+                               (org-get-heading t t t t)))))))))
+    (with-current-buffer report-buffer
+      (goto-char (point-max))
+      (insert (format "\n## Summary\n"))
+      (insert (format "- Total entries: %d\n" total-entries))
+      (insert (format "- Entries with attachments: %d\n" entries-with-attachments))
+      (insert (format "- Missing directories: %d\n" missing-dirs)))
+    (switch-to-buffer report-buffer)))
+#+end_src

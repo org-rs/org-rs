@@ -1,0 +1,1354 @@
+:PROPERTIES:
+:ID:       a8d3f2e1-7c4b-9e5f-3a1d-6b8c2e4f0a9d
+:END:
+#+TITLE: 2.7. org-captureテンプレートの高度なパターン
+#+DESCRIPTION: org-captureテンプレートの詳細設定と実践的なパターン集
+#+STARTUP: fold
+#+OPTIONS: toc:nil
+* テンプレート変数の完全ガイド
+** ユーザー入力系
+*** %^{prompt} - ユーザー入力
+
+#+BEGIN_SRC emacs-lisp
+;; 基本的なプロンプト
+"* TODO %^{タスク名}\n"
+
+;; デフォルト値付き
+"* TODO %^{タスク名|デフォルトタスク}\n"
+
+;; 選択肢付きプロンプト（|で区切る）
+"* %^{優先度|高|中|低} のタスク: %^{内容}\n"
+
+;; 複数行入力（%^{prompt}に続けて\nを使用）
+"* %^{見出し}\n%^{詳細説明}\n"
+#+END_SRC
+
+*** %^{prop}p - プロパティプロンプト
+
+#+BEGIN_SRC emacs-lisp
+;; プロパティとして入力を受け取る
+"* %^{タスク名}
+:PROPERTIES:
+:AUTHOR: %^{AUTHOR}p
+:CATEGORY: %^{CATEGORY}p
+:EFFORT: %^{EFFORT}p
+:END:
+"
+
+;; デフォルト値付きプロパティ
+"* %^{タスク名}
+:PROPERTIES:
+:STATUS: %^{STATUS|planning|in-progress|done}p
+:END:
+"
+#+END_SRC
+
+*** %^t, %^T, %^u, %^U - 日時入力
+
+#+BEGIN_SRC emacs-lisp
+;; %^t - アクティブタイムスタンプ（時刻なし）をプロンプト
+"* TODO %^{タスク}\nSCHEDULED: %^t\n"
+
+;; %^T - アクティブタイムスタンプ（時刻あり）をプロンプト
+"* Meeting: %^{会議名}\n%^T\n"
+
+;; %^u - インアクティブタイムスタンプ（時刻なし）をプロンプト
+"* Note: %^{メモ}\n作成: %^u\n"
+
+;; %^U - インアクティブタイムスタンプ（時刻あり）をプロンプト
+"* %^{イベント}\n記録日時: %^U\n"
+
+;; プロンプト文字列をカスタマイズ
+"* %^{予定}\nSCHEDULED: %^{開始日}t\nDEADLINE: %^{締切日}t\n"
+#+END_SRC
+
+*** %^g, %^G - タグ入力
+
+#+BEGIN_SRC emacs-lisp
+;; %^g - org-tag-alistからタグを選択
+"* %^{見出し} %^g\n"
+
+;; %^G - ファイル内の既存タグ + org-tag-alistから選択
+"* TODO %^{タスク} %^G\n"
+
+;; タグ選択はC-c C-cで確定、複数選択可能
+#+END_SRC
+
+** 自動挿入系
+*** %（sexp） - Elisp式評価
+
+#+BEGIN_SRC emacs-lisp
+;; 現在時刻を特定フォーマットで
+"* ログ %(format-time-string \"%Y-%m-%d %H:%M\")\n"
+
+;; 環境変数を使用
+"* Task from %(getenv \"USER\")\n"
+
+;; 複雑な処理
+"* %(let ((project (completing-read \"Project: \" '(\"A\" \"B\" \"C\"))))
+      (format \"[%s] \" project))%^{タスク}\n"
+
+;; 外部コマンドの結果
+"* Git branch: %(shell-command-to-string \"git branch --show-current\")\n"
+
+;; org-read-dateを使用した柔軟な日付入力
+"* Event on %(org-read-date)\n"
+
+;; ランダムID生成
+"* Task %(format \"%08x\" (random (expt 16 8)))\n"
+#+END_SRC
+
+*** %a, %A - アノテーションリンク
+
+#+BEGIN_SRC emacs-lisp
+;; %a - org-store-linkで保存されたリンク（短形式）
+"* TODO %^{タスク}\n%a\n"
+
+;; %A - アノテーションリンク（長形式、説明付き）
+"* TODO %?\n参照: %A\n"
+
+;; キャプチャ前にC-c lでリンクを保存しておくと有効
+;; 例: ファイル、メール、Webページなどへのリンク
+#+END_SRC
+
+*** %i - 初期コンテンツ
+
+#+BEGIN_SRC emacs-lisp
+;; 選択リージョンの内容を挿入
+"* Quote\n#+BEGIN_QUOTE\n%i\n#+END_QUOTE\n"
+
+;; org-store-linkで保存された内容
+"* Clipped content\n%i\n%?"
+
+;; インデント付きで挿入
+"* Notes\n  %i\n"
+#+END_SRC
+
+*** %c, %x - クリップボード
+
+#+BEGIN_SRC emacs-lisp
+;; %c - クリップボード内容をorg-link形式で
+"* Link from clipboard\n%c\n"
+
+;; %x - X clipboardの内容（そのまま）
+"* Raw clipboard\n%x\n"
+
+;; クリップボードをコードブロックとして
+"* Code snippet\n#+BEGIN_SRC\n%x\n#+END_SRC\n"
+#+END_SRC
+
+*** %k, %K - クロッキング関連
+
+#+BEGIN_SRC emacs-lisp
+;; %k - 現在クロック中のタスクの見出しテキスト
+"* Sub-task of: %k\n%?\n"
+
+;; %K - 現在クロック中のタスクへのリンク
+"* Related to %K\n%?\n"
+
+;; クロック中のコンテキストを活用
+"* Note while working on %k\nParent: %K\n%?\n"
+#+END_SRC
+
+*** %n, %f, %F - ユーザー・ファイル情報
+
+#+BEGIN_SRC emacs-lisp
+;; %n - ユーザー名（user-full-name）
+"* Note by %n\n%?\n"
+
+;; %f - キャプチャ元のファイル名（ベースネーム）
+"* From file: %f\n%?\n"
+
+;; %F - キャプチャ元のフルパス
+"* From: %F\n%?\n"
+
+;; 組み合わせ例
+"* %n's note from %f\n%U\n%?\n"
+#+END_SRC
+
+** 自動タイムスタンプ系
+*** %t, %T, %u, %U - 現在日時の自動挿入
+
+#+BEGIN_SRC emacs-lisp
+;; %t - アクティブタイムスタンプ（日付のみ）
+"* TODO %^{タスク}\nCreated: %t\n"
+
+;; %T - アクティブタイムスタンプ（日時）
+"* Event at %T\n%?\n"
+
+;; %u - インアクティブタイムスタンプ（日付のみ）
+"* Note %u\n%?\n"
+
+;; %U - インアクティブタイムスタンプ（日時）- 最も一般的
+"* %^{見出し}\n%U\n%?\n"
+#+END_SRC
+
+* ファイルターゲットの高度な指定
+** file+headline - ファイル＋見出し
+
+#+BEGIN_SRC emacs-lisp
+;; 特定のファイルの特定見出し配下に追加
+(setq org-capture-templates
+      '(("t" "Todo" entry
+         (file+headline "~/org/gtd.org" "Inbox")
+         "* TODO %?\n%U\n")))
+
+;; 見出しが存在しない場合は作成される
+(setq org-capture-templates
+      '(("n" "Note" entry
+         (file+headline "~/org/notes.org" "Unfiled Notes")
+         "* %^{Title}\n%U\n%?\n")))
+#+END_SRC
+
+** file+olp - アウトラインパス指定
+
+#+BEGIN_SRC emacs-lisp
+;; 階層的なパスで指定（親→子→孫...）
+(setq org-capture-templates
+      '(("w" "Work Task" entry
+         (file+olp "~/org/work.org" "Projects" "Current" "Tasks")
+         "* TODO %^{Task}\nDEADLINE: %^t\n%?\n")))
+
+;; 深い階層への直接アクセス
+(setq org-capture-templates
+      '(("m" "Meeting Note" entry
+         (file+olp "~/org/work.org" "Meetings" "2024")
+         "* %^{Meeting Title} %T\n** Attendees\n- %?\n** Notes\n** Action Items\n")))
+#+END_SRC
+
+** file+olp+datetree - 日付ツリー配下
+
+#+BEGIN_SRC emacs-lisp
+;; 基本的な日付ツリー（年/月/日の階層）
+(setq org-capture-templates
+      '(("j" "Journal" entry
+         (file+olp+datetree "~/org/journal.org")
+         "* %U %^{Title}\n%?\n")))
+
+;; 見出し配下の日付ツリー
+(setq org-capture-templates
+      '(("d" "Daily Log" entry
+         (file+olp+datetree "~/org/log.org" "Daily Logs")
+         "* %U\n%?\n")))
+
+;; 週ベースのツリー（:tree-type week）
+(setq org-capture-templates
+      '(("w" "Weekly" entry
+         (file+olp+datetree "~/org/weekly.org")
+         "* Week %U\n%?\n"
+         :tree-type week)))
+
+;; 月ベースのツリー（:tree-type month）
+(setq org-capture-templates
+      '(("m" "Monthly" entry
+         (file+olp+datetree "~/org/monthly.org")
+         "* Month %U\n%?\n"
+         :tree-type month)))
+#+END_SRC
+
+** file+function - 関数による動的指定
+
+#+BEGIN_SRC emacs-lisp
+;; カスタム関数で位置を決定
+(defun my/find-project-heading ()
+  "プロジェクト名を入力して該当見出しを探す"
+  (let ((project (completing-read "Project: "
+                                  '("ProjectA" "ProjectB" "ProjectC"))))
+    (goto-char (point-min))
+    (re-search-forward (format "^\\* %s$" project) nil t)
+    (end-of-line)))
+
+(setq org-capture-templates
+      '(("p" "Project Task" entry
+         (file+function "~/org/projects.org" my/find-project-heading)
+         "** TODO %^{Task}\n%?\n")))
+
+;; 今日の見出しを探すか作成する
+(defun my/find-or-create-today ()
+  "今日の日付の見出しを探すか作成する"
+  (let ((today (format-time-string "%Y-%m-%d")))
+    (goto-char (point-min))
+    (unless (re-search-forward (format "^\\* %s" today) nil t)
+      (goto-char (point-max))
+      (insert (format "\n* %s\n" today)))
+    (end-of-line)))
+
+(setq org-capture-templates
+      '(("t" "Today's Task" entry
+         (file+function "~/org/daily.org" my/find-or-create-today)
+         "** TODO %^{Task}\n%?\n")))
+#+END_SRC
+
+** clock - 現在クロック中のタスク配下
+
+#+BEGIN_SRC emacs-lisp
+;; クロック中のタスクの子として追加
+(setq org-capture-templates
+      '(("s" "Sub-task" entry
+         (clock)
+         "* TODO %^{Subtask}\n%?\n")))
+
+;; クロック中のタスクへのメモ追加
+(setq org-capture-templates
+      '(("n" "Clock Note" item
+         (clock)
+         "- %U %?\n")))
+
+;; クロックがなければフォールバック
+(setq org-capture-templates
+      '(("c" "Clock or Inbox" entry
+         (clock)
+         "* TODO %^{Task}\n%?\n"
+         :clock-fallback ("~/org/inbox.org" "Tasks"))))
+#+END_SRC
+
+** function - 完全カスタム
+
+#+BEGIN_SRC emacs-lisp
+;; 完全にカスタムな位置決定
+(defun my/dynamic-target ()
+  "コンテキストに応じて動的にターゲットを決定"
+  (let ((context (completing-read "Context: " '("work" "personal" "study"))))
+    (find-file (format "~/org/%s.org" context))
+    (goto-char (point-min))
+    (re-search-forward "^\\* Inbox$" nil t)
+    (end-of-line)))
+
+(setq org-capture-templates
+      '(("d" "Dynamic" entry
+         (function my/dynamic-target)
+         "** TODO %^{Task}\n%?\n")))
+
+;; 既存のバッファから選択
+(defun my/select-from-open-org-buffers ()
+  "開いているOrgバッファから選択"
+  (let* ((org-buffers (cl-remove-if-not
+                       (lambda (b)
+                         (with-current-buffer b
+                           (derived-mode-p 'org-mode)))
+                       (buffer-list)))
+         (buffer-names (mapcar #'buffer-name org-buffers))
+         (selected (completing-read "Buffer: " buffer-names)))
+    (switch-to-buffer selected)
+    (goto-char (point-max))))
+
+(setq org-capture-templates
+      '(("b" "To Buffer" entry
+         (function my/select-from-open-org-buffers)
+         "* %^{Heading}\n%?\n")))
+#+END_SRC
+
+* テンプレートオプション詳説
+** 位置制御オプション
+*** :prepend - 先頭に追加
+
+#+BEGIN_SRC emacs-lisp
+;; 見出しの先頭（最初の子として）に追加
+(setq org-capture-templates
+      '(("i" "Inbox (prepend)" entry
+         (file+headline "~/org/inbox.org" "Tasks")
+         "* TODO %^{Task}\n%?\n"
+         :prepend t)))
+
+;; デフォルト（nil）は末尾に追加
+(setq org-capture-templates
+      '(("a" "Append (default)" entry
+         (file+headline "~/org/inbox.org" "Tasks")
+         "* TODO %^{Task}\n%?\n"
+         :prepend nil)))
+#+END_SRC
+
+*** :empty-lines, :empty-lines-before, :empty-lines-after
+
+#+BEGIN_SRC emacs-lisp
+;; 前後に空行を追加
+(setq org-capture-templates
+      '(("n" "Note with spacing" entry
+         (file "~/org/notes.org")
+         "* %^{Title}\n%?\n"
+         :empty-lines 1)))  ; 前後に1行ずつ
+
+;; 前にのみ空行
+(setq org-capture-templates
+      '(("b" "Note before spacing" entry
+         (file "~/org/notes.org")
+         "* %^{Title}\n%?\n"
+         :empty-lines-before 2)))
+
+;; 後にのみ空行
+(setq org-capture-templates
+      '(("a" "Note after spacing" entry
+         (file "~/org/notes.org")
+         "* %^{Title}\n%?\n"
+         :empty-lines-after 1)))
+#+END_SRC
+
+** 完了制御オプション
+*** :immediate-finish - 確認なしで即完了
+
+#+BEGIN_SRC emacs-lisp
+;; プロンプトなしで即座に保存
+(setq org-capture-templates
+      '(("q" "Quick TODO" entry
+         (file+headline "~/org/inbox.org" "Quick")
+         "* TODO %^{Task}\n"
+         :immediate-finish t)))
+
+;; org-protocolと組み合わせて使用
+(setq org-capture-templates
+      '(("w" "Web Link" entry
+         (file+headline "~/org/links.org" "Web")
+         "* %:description\n%:link\n%U\n"
+         :immediate-finish t)))
+#+END_SRC
+
+*** :jump-to-captured - キャプチャ後にジャンプ
+
+#+BEGIN_SRC emacs-lisp
+;; キャプチャ完了後に該当エントリへジャンプ
+(setq org-capture-templates
+      '(("j" "Jump after capture" entry
+         (file+headline "~/org/notes.org" "Notes")
+         "* %^{Title}\n%?\n"
+         :jump-to-captured t)))
+
+;; 即時完了と組み合わせ
+(setq org-capture-templates
+      '(("J" "Quick Jump" entry
+         (file+headline "~/org/notes.org" "Quick")
+         "* %^{Title}\n"
+         :immediate-finish t
+         :jump-to-captured t)))
+#+END_SRC
+
+** クロック制御オプション
+*** :clock-in, :clock-keep, :clock-resume
+
+#+BEGIN_SRC emacs-lisp
+;; キャプチャと同時にクロックイン
+(setq org-capture-templates
+      '(("c" "Clock-in Task" entry
+         (file+headline "~/org/tasks.org" "Active")
+         "* TODO %^{Task}\n%?\n"
+         :clock-in t)))
+
+;; クロックインしたまま保持（:clock-resume tの逆）
+(setq org-capture-templates
+      '(("k" "Keep Clock" entry
+         (file+headline "~/org/tasks.org" "Active")
+         "* TODO %^{Task}\n%?\n"
+         :clock-in t
+         :clock-keep t)))
+
+;; 以前のクロックを再開（デフォルト）
+(setq org-capture-templates
+      '(("r" "Resume Clock" entry
+         (file+headline "~/org/tasks.org" "Active")
+         "* TODO %^{Task}\n%?\n"
+         :clock-in t
+         :clock-resume t)))
+
+;; 実践例: 電話対応テンプレート
+(setq org-capture-templates
+      '(("p" "Phone Call" entry
+         (file+headline "~/org/calls.org" "Calls")
+         "* PHONE %^{Who}\n%U\n%?\n"
+         :clock-in t
+         :clock-resume t)))
+#+END_SRC
+
+** バッファ・ファイル制御オプション
+*** :unnarrowed - ナローイングなし
+
+#+BEGIN_SRC emacs-lisp
+;; ファイル全体を表示しながらキャプチャ
+(setq org-capture-templates
+      '(("u" "Unnarrowed" entry
+         (file+headline "~/org/notes.org" "Notes")
+         "* %^{Title}\n%?\n"
+         :unnarrowed t)))
+
+;; コンテキストを確認しながら入力したい場合に有効
+#+END_SRC
+
+*** :no-save - 自動保存無効化
+
+#+BEGIN_SRC emacs-lisp
+;; キャプチャ後に自動保存しない
+(setq org-capture-templates
+      '(("n" "No Auto Save" entry
+         (file+headline "~/org/draft.org" "Drafts")
+         "* %^{Title}\n%?\n"
+         :no-save t)))
+
+;; 複数回編集してから保存したい場合
+#+END_SRC
+
+*** :kill-buffer - バッファを閉じる
+
+#+BEGIN_SRC emacs-lisp
+;; キャプチャ後にターゲットバッファを閉じる
+(setq org-capture-templates
+      '(("k" "Kill Buffer After" entry
+         (file+headline "~/org/archive.org" "Captured")
+         "* %^{Title}\n%?\n"
+         :kill-buffer t)))
+
+;; バッファを開いたままにしたくない場合
+#+END_SRC
+
+** リファイル関連オプション
+*** :refile-targets - refile先の制限
+
+#+BEGIN_SRC emacs-lisp
+;; キャプチャ時のrefile対象を制限
+(setq org-capture-templates
+      '(("r" "Refile Limited" entry
+         (file+headline "~/org/inbox.org" "Inbox")
+         "* %^{Title}\n%?\n"
+         :refile-targets (("~/org/projects.org" :maxlevel . 2)
+                          ("~/org/someday.org" :level . 1)))))
+
+;; 特定のファイルのみにrefile可能
+(setq org-capture-templates
+      '(("p" "Project Task" entry
+         (file+headline "~/org/inbox.org" "Tasks")
+         "* TODO %^{Task}\n%?\n"
+         :refile-targets (("~/org/projects.org" :tag . "PROJECT")))))
+#+END_SRC
+
+* 実践的テンプレート例10パターン
+** （1） 基本TODO - シンプルなタスク
+
+#+BEGIN_SRC emacs-lisp
+("t" "Todo" entry
+ (file+headline "~/org/inbox.org" "Tasks")
+ "* TODO %^{Task}
+%U
+%?
+%a"
+ :empty-lines 1)
+#+END_SRC
+
+** （2） 会議メモ - 参加者、日時、議題
+
+#+BEGIN_SRC emacs-lisp
+("m" "Meeting" entry
+ （file+olp+datetree "~/org/meetings.org"）
+ "* %^{Meeting Title} :meeting:
+%^T
+** Attendees
+%^{Attendees}
+** Agenda
+- %?
+** Notes
+
+** Action Items
+- [ ] "
+ :clock-in t
+ :clock-resume t
+ :empty-lines 1)
+#+END_SRC
+
+** （3） 読書メモ - 書籍情報、引用、感想
+
+#+BEGIN_SRC emacs-lisp
+("b" "Book Note" entry
+ （file+headline "~/org/books.org" "Reading Notes"）
+ "* %^{Book Title} :book:
+:PROPERTIES:
+:AUTHOR: %^{Author}
+:PAGES: %^{Pages}
+:STARTED: %u
+:END:
+** Summary
+%?
+** Key Quotes
+#+BEGIN_QUOTE
+
+#+END_QUOTE
+** My Thoughts
+
+** Action Items
+- [ ] "
+ :empty-lines 1)
+#+END_SRC
+
+** （4） コードスニペット - 言語、説明、コード
+
+#+BEGIN_SRC emacs-lisp
+("s" "Code Snippet" entry
+ (file+headline "~/org/snippets.org" "Snippets")
+ "* %^{Description} :%^{Language|elisp|python|javascript|shell|rust}:
+:PROPERTIES:
+:LANGUAGE: %\\1
+:CREATED: %U
+:SOURCE: %a
+:END:
+#+BEGIN_SRC %\\1
+%i%?
+#+END_SRC
+** Notes
+"
+ :empty-lines 1)
+#+END_SRC
+
+** （5） 日記/ジャーナル - datetree形式
+
+#+BEGIN_SRC emacs-lisp
+("j" "Journal" entry
+ （file+olp+datetree "~/org/journal.org"）
+ "* %U %^{Title}
+%?
+
+** What I did today
+-
+
+** What I learned
+-
+
+** Tomorrow's plan
+- [ ] "
+ :empty-lines 1)
+#+END_SRC
+
+** （6） 買い物リスト - チェックボックス
+
+#+BEGIN_SRC emacs-lisp
+("S" "Shopping Item" checkitem
+ (file+headline "~/org/shopping.org" "To Buy")
+ "[ ] %^{Item} (%^{Store|Amazon|Supermarket|Online})%?"
+ :prepend t)
+
+;; または複数アイテム用
+("L" "Shopping List" entry
+ (file+headline "~/org/shopping.org" "Lists")
+ "* %^{List Name} [/]
+%U
+- [ ] %?
+- [ ]
+- [ ]
+- [ ]
+- [ ] "
+ :empty-lines 1)
+#+END_SRC
+
+** （7） プロジェクトタスク - プロジェクト選択
+
+#+BEGIN_SRC emacs-lisp
+("P" "Project Task" entry
+ (file+function "~/org/projects.org"
+                (lambda ()
+                  (let ((project (completing-read
+                                  "Project: "
+                                  (org-map-entries
+                                   (lambda () (nth 4 (org-heading-components)))
+                                   "LEVEL=1"
+                                   '("~/org/projects.org")))))
+                    (goto-char (point-min))
+                    (re-search-forward (format "^\\* %s" (regexp-quote project)))
+                    (org-end-of-subtree))))
+ "** TODO %^{Task} [#%^{Priority|B|A|C}]
+DEADLINE: %^{Deadline}t
+:PROPERTIES:
+:EFFORT: %^{Effort|0:30|1:00|2:00|4:00|8:00}
+:END:
+%?
+"
+ :empty-lines 1)
+#+END_SRC
+
+** （8） バグレポート - 再現手順、期待結果
+
+#+BEGIN_SRC emacs-lisp
+("B" "Bug Report" entry
+ （file+headline "~/org/bugs.org" "Open Bugs"）
+ "* BUG %^{Summary} :%^{Component|frontend|backend|database|api}:
+:PROPERTIES:
+:REPORTED: %U
+:SEVERITY: %^{Severity|critical|major|minor|trivial}
+:STATUS: open
+:END:
+** Environment
+- OS: %^{OS|macOS|Linux|Windows}
+- Version: %^{Version}
+** Steps to Reproduce
+1. %?
+2.
+3.
+** Expected Result
+
+** Actual Result
+
+** Screenshots/Logs
+
+** Possible Fix
+"
+ :empty-lines 1)
+#+END_SRC
+
+** （9） ブログアイデア - カテゴリ、タグ
+
+#+BEGIN_SRC emacs-lisp
+("I" "Blog Idea" entry
+ （file+headline "~/org/blog-ideas.org" "Ideas"）
+ "* IDEA %^{Title} :%^{Category|tech|life|review|tutorial}:
+:PROPERTIES:
+:CREATED: %U
+:STATUS: idea
+:TARGET_LENGTH: %^{Target Length|short|medium|long}
+:END:
+** Hook/Opening
+%?
+** Main Points
+-
+-
+-
+** Target Audience
+
+** Keywords
+%^G
+** References
+- %a
+** Draft
+"
+ :empty-lines 1)
+#+END_SRC
+
+** （10） 連絡先 - 名前、メール、電話
+
+#+BEGIN_SRC emacs-lisp
+("C" "Contact" entry
+ （file+headline "~/org/contacts.org" "People"）
+ "* %^{Name}
+:PROPERTIES:
+:EMAIL: %^{Email}
+:PHONE: %^{Phone}
+:COMPANY: %^{Company}
+:POSITION: %^{Position}
+:ADDRESS: %^{Address}
+:BIRTHDAY: %^{Birthday}u
+:ADDED: %U
+:END:
+** Notes
+%?
+** Meeting History
+
+** TODO Follow-ups
+"
+ :empty-lines 1)
+#+END_SRC
+
+** 完全なテンプレート設定例
+
+#+BEGIN_SRC emacs-lisp
+(setq org-capture-templates
+      '(;; 基本カテゴリ
+        ("t" "Todo" entry
+         (file+headline "~/org/inbox.org" "Tasks")
+         "* TODO %^{Task}\n%U\n%?\n%a"
+         :empty-lines 1)
+
+        ;; 会議関連
+        ("m" "Meeting")
+        ("mm" "Meeting Note" entry
+         (file+olp+datetree "~/org/meetings.org")
+         "* %^{Meeting Title} :meeting:\n%^T\n** Attendees\n%^{Attendees}\n** Notes\n%?\n** Action Items\n- [ ] "
+         :clock-in t :clock-resume t)
+        ("ms" "Meeting Schedule" entry
+         (file+headline "~/org/calendar.org" "Meetings")
+         "* %^{Meeting Title}\n%^T\n%?"
+         :empty-lines 1)
+
+        ;; メモ関連
+        ("n" "Notes")
+        ("nn" "Quick Note" entry
+         (file+headline "~/org/notes.org" "Inbox")
+         "* %^{Title}\n%U\n%?\n"
+         :empty-lines 1)
+        ("nj" "Journal" entry
+         (file+olp+datetree "~/org/journal.org")
+         "* %U %^{Title}\n%?\n"
+         :empty-lines 1)
+
+        ;; 開発関連
+        ("d" "Development")
+        ("ds" "Code Snippet" entry
+         (file+headline "~/org/snippets.org" "Snippets")
+         "* %^{Description} :%^{Language|elisp|python|javascript}:\n#+BEGIN_SRC %\\1\n%i%?\n#+END_SRC\n"
+         :empty-lines 1)
+        ("db" "Bug Report" entry
+         (file+headline "~/org/bugs.org" "Open")
+         "* BUG %^{Summary}\n:PROPERTIES:\n:REPORTED: %U\n:END:\n** Steps to Reproduce\n1. %?\n** Expected\n\n** Actual\n"
+         :empty-lines 1)
+
+        ;; プロトコル用
+        ("w" "Web Capture" entry
+         (file+headline "~/org/web.org" "Captured")
+         "* %:description\n%:link\n%U\n%:initial\n"
+         :immediate-finish t)))
+#+END_SRC
+
+* 条件分岐とContext-aware capture
+** major-modeによる分岐
+
+#+BEGIN_SRC emacs-lisp
+;; org-capture-templates-contexts を使用
+(setq org-capture-templates-contexts
+      '(;; prog-mode でのみ表示
+        ("s" ((in-mode . "prog-mode")))
+        ;; org-mode でのみ表示
+        ("o" ((in-mode . "org-mode")))
+        ;; dired-mode でのみ表示
+        ("f" ((in-mode . "dired-mode")))
+        ;; メールモードでのみ表示
+        ("e" ((in-mode . "mu4e-view-mode")
+              (in-mode . "gnus-article-mode")))))
+
+;; テンプレート内でのモード判定
+("c" "Context Aware" entry
+ (file+headline "~/org/context.org" "Captured")
+ "* %(if (derived-mode-p 'prog-mode) \"CODE\" \"NOTE\"): %^{Title}
+:PROPERTIES:
+:SOURCE_MODE: %(symbol-name major-mode)
+:SOURCE_FILE: %F
+:END:
+%?
+%(when (derived-mode-p 'prog-mode)
+   (format \"#+BEGIN_SRC %s\n%s\n#+END_SRC\"
+           (replace-regexp-in-string \"-mode$\" \"\" (symbol-name major-mode))
+           (or (ignore-errors (buffer-substring-no-properties (region-beginning) (region-end))) \"\")))"
+ :empty-lines 1)
+#+END_SRC
+
+** dired-modeでのファイル情報取得
+
+#+BEGIN_SRC emacs-lisp
+;; diredからファイル情報をキャプチャ
+(defun my/dired-capture-file-info ()
+  "diredでマークされたファイルの情報を取得"
+  (if (derived-mode-p 'dired-mode)
+      (let ((files (dired-get-marked-files)))
+        (mapconcat
+         (lambda (f)
+           (format "- [[file:%s][%s]]" f (file-name-nondirectory f)))
+         files
+         "\n"))
+    ""))
+
+("F" "Files from Dired" entry
+ (file+headline "~/org/files.org" "File Notes")
+ "* File Note %U
+%(my/dired-capture-file-info)
+%?"
+ :empty-lines 1)
+
+;; 単一ファイルの詳細情報
+("f" "File Info" entry
+ (file+headline "~/org/files.org" "Files")
+ "* %^{Title}
+:PROPERTIES:
+:FILE: %(if (derived-mode-p 'dired-mode) (dired-get-filename) buffer-file-name)
+:SIZE: %(file-size-human-readable (file-attribute-size (file-attributes (if (derived-mode-p 'dired-mode) (dired-get-filename) buffer-file-name))))
+:MODIFIED: %(format-time-string \"%Y-%m-%d\" (file-attribute-modification-time (file-attributes (if (derived-mode-p 'dired-mode) (dired-get-filename) buffer-file-name))))
+:END:
+%?"
+ :empty-lines 1)
+#+END_SRC
+
+** prog-modeでのコード取得
+
+#+BEGIN_SRC emacs-lisp
+;; 選択中のコードをキャプチャ
+（defun my/get-code-context (）
+  "現在のプログラミングコンテキストを取得"
+  （when (derived-mode-p 'prog-mode）
+    （let （（lang (replace-regexp-in-string "-mode$" "" (symbol-name major-mode）））
+          （func （which-function））
+          （code (when (use-region-p）
+                  （buffer-substring-no-properties （region-beginning） （region-end））)))
+      (concat
+       （when func （format "Function: =%s=\n" func））
+       （when code （format "#+BEGIN_SRC %s\n%s\n#+END_SRC\n" lang code））))))
+
+("C" "Code Context" entry
+ （file+headline "~/org/code-notes.org" "Code Notes"）
+ "* %^{Title} :%^{tag|algorithm|bug|optimization|refactor}:
+:PROPERTIES:
+:FILE: %F
+:LINE: %（line-number-at-pos）
+:LANGUAGE: %（replace-regexp-in-string \"-mode$\" \"\" （symbol-name major-mode））
+:END:
+%U
+%（my/get-code-context）
+** Notes
+%?
+** TODO Follow-up
+"
+ :empty-lines 1)
+
+;; 関数全体をキャプチャ
+（defun my/capture-current-defun (）
+  "現在の関数定義全体を取得"
+  (save-excursion
+    （beginning-of-defun）
+    （let （（start (point）））
+      （end-of-defun）
+      （buffer-substring-no-properties start （point））)))
+
+("D" "Defun Capture" entry
+ （file+headline "~/org/code-notes.org" "Functions"）
+ "* %（which-function） :code:
+:PROPERTIES:
+:FILE: %F
+:LANGUAGE: %（replace-regexp-in-string \"-mode$\" \"\" （symbol-name major-mode））
+:END:
+#+BEGIN_SRC %(replace-regexp-in-string \"-mode$\" \"\" (symbol-name major-mode))
+%(my/capture-current-defun)
+#+END_SRC
+%?"
+ :empty-lines 1)
+#+END_SRC
+
+** mu4e/gnusでのメール情報
+
+#+BEGIN_SRC emacs-lisp
+;; mu4eメールからキャプチャ
+(setq org-capture-templates-contexts
+      '（("e" ((in-mode . "mu4e-view-mode"）
+              （in-mode . "mu4e-headers-mode"）))))
+
+("e" "Email TODO" entry
+ （file+headline "~/org/email-tasks.org" "Email Tasks"）
+ "* TODO %:fromname: %:subject
+:PROPERTIES:
+:FROM: %:fromname <%:fromaddress>
+:TO: %:toname <%:toaddress>
+:DATE: %:date
+:MESSAGE_ID: %:message-id
+:END:
+%U
+%a
+
+** Notes
+%?
+
+** TODO Reply by: "
+ :empty-lines 1)
+
+;; Gnusからキャプチャ
+(setq org-capture-templates-contexts
+      (append org-capture-templates-contexts
+              '（("g" ((in-mode . "gnus-article-mode"）
+                      （in-mode . "gnus-summary-mode"）)))))
+
+("g" "Gnus Email" entry
+ （file+headline "~/org/email-tasks.org" "Gnus"）
+ "* TODO Email from %:fromname: %:subject
+:PROPERTIES:
+:FROM: %:fromname
+:SUBJECT: %:subject
+:DATE: %:date
+:END:
+%a
+%?"
+ :empty-lines 1)
+#+END_SRC
+
+** 複合条件の設定
+
+#+BEGIN_SRC emacs-lisp
+;; 複数の条件を組み合わせ
+(setq org-capture-templates-contexts
+      '(;; prog-modeかつ特定のプロジェクトディレクトリ
+        ("p" ((in-mode . "prog-mode")
+              (in-file . "~/projects/myproject/")))
+
+        ;; org-agenda-modeでのみ
+        ("a" ((in-mode . "org-agenda-mode")))
+
+        ;; 特定のフレーム名
+        ("w" ((in-frame . "work")))
+
+        ;; 複数条件のOR
+        ("m" ("mu4e-view-mode" "gnus-article-mode" "message-mode"))
+
+        ;; 条件を満たさない場合に別テンプレートを使用
+        ("t" "T" ((not-in-mode . "org-mode")))))
+
+;; より複雑なフィルタリング関数
+(defun my/capture-context-filter (template)
+  "コンテキストに基づいてテンプレートをフィルタ"
+  (let ((hour (string-to-number (format-time-string "%H"))))
+    (cond
+     ;; 業務時間中は仕事用テンプレートを優先
+     ((and (>= hour 9) (<= hour 18)
+           (not (member (format-time-string "%u") '("6" "7"))))
+      (member (car template) '("w" "m" "p")))
+     ;; それ以外は個人用
+     (t (member (car template) '("j" "n" "b"))))))
+
+;; org-capture-before-finalize-hook での追加処理
+(add-hook 'org-capture-before-finalize-hook
+          (lambda ()
+            (when (derived-mode-p 'org-mode)
+              (org-align-tags))))
+#+END_SRC
+
+* doct（Declarative Org Capture Templates）の活用
+** doctの利点
+
+#+BEGIN_SRC emacs-lisp
+;; doctパッケージのインストール
+;; M-x package-install RET doct RET
+;; または use-package:
+(use-package doct
+  :ensure t
+  :commands (doct))
+
+;; doctの利点:
+;; 1. 可読性の向上 - キーワード引数で意図が明確
+;; 2. 構造化 - グループ化と継承が容易
+;; 3. 保守性 - 共通設定の再利用
+;; 4. バリデーション - 設定ミスの早期発見
+#+END_SRC
+
+** 基本的な使い方
+
+#+BEGIN_SRC emacs-lisp
+(require 'doct)
+
+;; 基本構文
+(setq org-capture-templates
+      (doct '(("Todo" :keys "t"
+               :file "~/org/inbox.org"
+               :headline "Tasks"
+               :template "* TODO %^{Task}\n%U\n%?"))))
+
+;; 従来の書き方との比較
+;; 従来:
+;; ("t" "Todo" entry
+;;  (file+headline "~/org/inbox.org" "Tasks")
+;;  "* TODO %^{Task}\n%U\n%?")
+
+;; doct:
+;; ("Todo" :keys "t"
+;;  :file "~/org/inbox.org"
+;;  :headline "Tasks"
+;;  :template "* TODO %^{Task}\n%U\n%?")
+#+END_SRC
+
+** 継承とグループ化
+
+#+BEGIN_SRC emacs-lisp
+(setq org-capture-templates
+      (doct '(;; グループ: Tasks
+              ("Tasks" :keys "t"
+               :file "~/org/tasks.org"
+               :prepend t
+               :children
+               (("Todo" :keys "t"
+                 :headline "Inbox"
+                 :template "* TODO %^{Task}\n%U\n%?")
+                ("Deadline" :keys "d"
+                 :headline "Deadlines"
+                 :template "* TODO %^{Task}\nDEADLINE: %^t\n%?")
+                ("Scheduled" :keys "s"
+                 :headline "Scheduled"
+                 :template "* TODO %^{Task}\nSCHEDULED: %^t\n%?")))
+
+              ;; グループ: Notes - 共通設定を継承
+              ("Notes" :keys "n"
+               :file "~/org/notes.org"
+               :empty-lines 1
+               :children
+               (("Quick Note" :keys "n"
+                 :headline "Quick"
+                 :template "* %^{Title}\n%U\n%?")
+                ("Detailed Note" :keys "d"
+                 :headline "Detailed"
+                 :template ("* %^{Title}"
+                            ":PROPERTIES:"
+                            ":CREATED: %U"
+                            ":END:"
+                            "%?"))))
+
+              ;; グループ: Journal
+              ("Journal" :keys "j"
+               :file "~/org/journal.org"
+               :datetree t
+               :template "* %U %^{Title}\n%?"))))
+#+END_SRC
+
+** 実践例
+
+#+BEGIN_SRC emacs-lisp
+(setq org-capture-templates
+      (doct
+       `(;; ============== Work ==============
+         ("Work" :keys "w"
+          :file "~/org/work.org"
+          :prepend t
+          :clock-in t
+          :clock-resume t
+          :children
+          (("Meeting" :keys "m"
+            :headline "Meetings"
+            :datetree t
+            :template ("* %^{Meeting Title} :meeting:"
+                       "%^T"
+                       "** Attendees"
+                       "%^{Attendees}"
+                       "** Agenda"
+                       "- %?"
+                       "** Notes"
+                       ""
+                       "** Action Items"
+                       "- [ ] "))
+
+           ("Task" :keys "t"
+            :headline "Tasks"
+            :template ("* TODO %^{Task} [#%^{Priority|B|A|C}]"
+                       "DEADLINE: %^{Deadline}t"
+                       ":PROPERTIES:"
+                       ":EFFORT: %^{Effort|0:30|1:00|2:00|4:00}"
+                       ":END:"
+                       "%?"))
+
+           ("Bug" :keys "b"
+            :headline "Bugs"
+            :template ("* BUG %^{Summary} :%^{component|frontend|backend|api}:"
+                       ":PROPERTIES:"
+                       ":REPORTED: %U"
+                       ":SEVERITY: %^{Severity|major|minor|critical}"
+                       ":END:"
+                       "** Reproduction Steps"
+                       "1. %?"
+                       "** Expected"
+                       ""
+                       "** Actual"
+                       ""))))
+
+         ;; ============== Personal ==============
+         ("Personal" :keys "p"
+          :file "~/org/personal.org"
+          :children
+          (("Journal" :keys "j"
+            :file "~/org/journal.org"
+            :datetree t
+            :template ("* %U %^{Title}"
+                       "%?"
+                       ""
+                       "** Reflection"
+                       ""))
+
+           ("Reading" :keys "r"
+            :headline "Books"
+            :template ("* %^{Book Title} :book:"
+                       ":PROPERTIES:"
+                       ":AUTHOR: %^{Author}"
+                       ":STARTED: %u"
+                       ":END:"
+                       "** Summary"
+                       "%?"
+                       "** Notes"
+                       ""
+                       "** Quotes"
+                       ""))
+
+           ("Shopping" :keys "s"
+            :type checkitem
+            :headline "Shopping List"
+            :template "[ ] %^{Item}"
+            :prepend t)))
+
+         ;; ============== Development ==============
+         ("Development" :keys "d"
+          :file "~/org/dev.org"
+          :children
+          (("Snippet" :keys "s"
+            :headline "Snippets"
+            :contexts (:in-mode "prog-mode")
+            :template ("* %^{Description} :%^{lang|elisp|python|javascript}:"
+                       "#+BEGIN_SRC %\\1"
+                       "%i%?"
+                       "#+END_SRC"))
+
+           ("Idea" :keys "i"
+            :headline "Ideas"
+            :template ("* IDEA %^{Title}"
+                       ":PROPERTIES:"
+                       ":CREATED: %U"
+                       ":END:"
+                       "** Problem"
+                       "%?"
+                       "** Solution"
+                       ""
+                       "** Implementation"
+                       ""))
+
+           ("TIL" :keys "t"
+            :headline "Today I Learned"
+            :datetree t
+            :template ("* %^{What did you learn?}"
+                       "%U"
+                       ""
+                       "%?"))))
+
+         ;; ============== Protocol ==============
+         ("Protocol" :keys "P"
+          :file "~/org/inbox.org"
+          :headline "Web Captures"
+          :immediate-finish t
+          :children
+          (("Link" :keys "l"
+            :template ("* %:description"
+                       ":PROPERTIES:"
+                       ":URL: %:link"
+                       ":CAPTURED: %U"
+                       ":END:"
+                       "%:initial"))
+
+           ("Selection" :keys "s"
+            :template ("* %:description"
+                       ":PROPERTIES:"
+                       ":URL: %:link"
+                       ":CAPTURED: %U"
+                       ":END:"
+                       "#+BEGIN_QUOTE"
+                       "%:initial"
+                       "#+END_QUOTE"
+                       "%?")))))))
+#+END_SRC
+
+** 高度なdoct設定
+
+#+BEGIN_SRC emacs-lisp
+;; 動的なテンプレート生成
+(defun my/doct-project-templates ()
+  "プロジェクトディレクトリから動的にテンプレートを生成"
+  (let ((projects (directory-files "~/projects" nil "^[^.]")))
+    (mapcar (lambda (proj)
+              `(,proj
+                :keys ,(substring proj 0 1)
+                :file ,(format "~/projects/%s/TODO.org" proj)
+                :headline "Tasks"
+                :template ("* TODO %^{Task}"
+                           "DEADLINE: %^t"
+                           "%?")))
+            projects)))
+
+;; カスタムキーワードの追加
+(setq org-capture-templates
+      (doct `(,@(my/doct-project-templates)
+              ("General" :keys "g"
+               :file "~/org/inbox.org"
+               :template "* TODO %?\n"))))
+
+;; doctとテンプレート関数の組み合わせ
+(defun my/meeting-template ()
+  "時刻に応じた会議テンプレート"
+  (let ((hour (string-to-number (format-time-string "%H"))))
+    (if (< hour 12)
+        "* Morning Meeting: %^{Title}\n%T\n%?"
+      "* Afternoon Meeting: %^{Title}\n%T\n%?")))
+
+(setq org-capture-templates
+      (doct '(("Meeting" :keys "m"
+               :file "~/org/meetings.org"
+               :datetree t
+               :function my/meeting-template))))
+#+END_SRC
+
+* フック関数を活用したカスタマイズ
+
+#+BEGIN_SRC emacs-lisp
+;; キャプチャ開始時のフック
+(add-hook 'org-capture-mode-hook
+          (lambda ()
+            ;; キャプチャバッファでのスペルチェック有効化
+            (flyspell-mode 1)
+            ;; 自動保存無効化
+            (auto-save-mode -1)))
+
+;; キャプチャ完了前のフック
+(add-hook 'org-capture-before-finalize-hook
+          (lambda ()
+            ;; タグの整列
+            (when (derived-mode-p 'org-mode)
+              (org-align-tags))
+            ;; 空行の削除
+            (delete-trailing-whitespace)))
+
+;; キャプチャ完了後のフック
+(add-hook 'org-capture-after-finalize-hook
+          (lambda ()
+            ;; キャプチャ完了を通知
+            (message "Captured to: %s" (buffer-file-name org-capture-last-stored-marker))
+            ;; カスタム処理
+            (when (eq (plist-get org-capture-plist :key) "t")
+              (org-save-all-org-buffers))))
+
+;; キャプチャ準備フック（テンプレート展開前）
+(add-hook 'org-capture-prepare-finalize-hook
+          (lambda ()
+            ;; 見出しが空の場合にデフォルト値を設定
+            (save-excursion
+              (goto-char (point-min))
+              (when (re-search-forward "^\\*+ $" nil t)
+                (insert "Untitled")))))
+#+END_SRC
+
+* org-protocolとの統合
+
+#+BEGIN_SRC emacs-lisp
+;; org-protocolの設定
+(require 'org-protocol)
+
+;; Webからのキャプチャ用テンプレート
+(setq org-capture-templates
+      (append org-capture-templates
+              '(("w" "Web Capture")
+                ("wl" "Web Link" entry
+                 (file+headline "~/org/web.org" "Links")
+                 "* %:description
+:PROPERTIES:
+:URL: %:link
+:CAPTURED: %U
+:END:
+%?"
+                 :empty-lines 1)
+
+                ("ws" "Web Selection" entry
+                 (file+headline "~/org/web.org" "Selections")
+                 "* %:description
+:PROPERTIES:
+:URL: %:link
+:CAPTURED: %U
+:END:
+#+BEGIN_QUOTE
+%:initial
+#+END_QUOTE
+%?"
+                 :empty-lines 1)
+
+                ("wt" "Web TODO" entry
+                 (file+headline "~/org/web-tasks.org" "Tasks")
+                 "* TODO %:description
+:PROPERTIES:
+:URL: %:link
+:END:
+%U
+%?"
+                 :immediate-finish t))))
+
+;; ブラウザ用ブックマークレット（モダンJS版）
+;; javascript:location.href='org-protocol://capture?'+
+;;   new URLSearchParams({template:'wl',url:location.href,title:document.title,body:getSelection()});
+
+;; クライアントキル設定
+(setq org-protocol-protocol-alist
+      '(("capture" :protocol "capture"
+         :function org-protocol-capture
+         :kill-client t)))
+#+END_SRC

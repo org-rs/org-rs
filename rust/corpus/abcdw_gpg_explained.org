@@ -1,0 +1,67 @@
+:PROPERTIES:
+:ID:       896d4623-9ada-4ab5-af9a-3696ef90b1a1
+:ROAM_REFS: https://youtu.be/4-Ks_f8rQFA
+:END:
+#+title: gpg explained
+#+filetags: Stream
+
+* Plan for today
+- Brief introduction
+- Managing keys
+- gpg key instead of ssh and gpg-agent instead of ssh-agent
+- hardware tokens
+* Disclaimer
+- I'm not a security expert.
+- We won't learn how to use tools for encryption/signing/etc today.
+* Asymmetric cryptography use cases
+aka Public-key cryptography.
+- Sign the work (binaries, commits, tags)
+- Encrypt (files, emails, passwords)
+- Authenticate (SSH, Git, VPN)
+- Create and sign other keys
+* Name confusion and a little history
+- PGP :: a software tool.
+- [[id:9353387c-bc3c-4c2f-8882-7ae5500bb9ca][OpenPGP]] :: a standard.
+- gpg or [[id:52b0eb9a-598c-4732-846f-654932eda0fd][GnuPG]] :: complete and free implementation of [[id:9353387c-bc3c-4c2f-8882-7ae5500bb9ca][OpenPGP]].
+* Is gpg ideal?
+* GPG key structure and capabilities
+https://rzetterberg.github.io/assets/yubikey-gpg-nixos/key-anatomy1.png
+- Sign
+- Encrypt
+- Authenticate
+- Certify
+* Managing keys
+** Generating key and subkeys
+Do it in a safe environment.
+#+begin_src shell
+gpg --expert --full-generate-key
+gpg --edit-key
+addkey
+#+end_src
+** Where to store keys?
+** Backing up keys
+#+begin_src shell
+# Use encrypted flash drive or similiar tool instead of ~/gpg-backup dir
+# For more information: https://github.com/drduh/YubiKey-Guide#backup
+mkdir ~/gpg-backup
+gpg --export-secret-keys > ~/gpg-backup/keys.gpg
+gpg --export-secret-subkeys > ~/gpg-backup/subkeys.gpg
+#+end_src
+** Publishing key
+- keyserver
+- web
+- email/etc
+** Searching for key
+#+begin_src shell
+gpg --keyserver keyserver.ubuntu.com --search-keys KEYID
+#+end_src
+** Importing keys
+** Generating ssh public key
+https://wiki.archlinux.org/index.php/GnuPG#SSH_agent
+https://github.com/drduh/YubiKey-Guide#ssh
+** Extending expire date
+* Links
+- https://github.com/drduh/YubiKey-Guide
+- https://wiki.archlinux.org/index.php/GnuPG
+- https://rzetterberg.github.io/yubikey-gpg-nixos.html
+- https://latacora.micro.blog/2019/07/16/the-pgp-problem.html

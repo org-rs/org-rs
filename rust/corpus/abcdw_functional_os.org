@@ -1,0 +1,130 @@
+:PROPERTIES:
+:ID:       7710f96f-d4bb-41d8-9750-027d5e9da763
+:END:
+#+title: Functional Operating Systems @ London Clojurians
+#+filetags: :Talk:
+<2022-01-18 Tue>
+
+* Introduction
+- Ways we interact with Operating Systems.
+- How principles from FP can be applied to OSes and PMs.
+- Make configurations truly declarative + demo.
+- Managing per-project development environments.
+- Lightweight comparison of Nix and Guix.
+
+** Basic terminology
+- Operating System :: FHS, bootloader, kernel, binutils, vfs,
+  services, etc.
+- Home Environment :: dotfiles, packages, services.
+- Development Environment :: tools, libs, lpackages, services.
+
+* The usual way
+After system installion steps:
+- ~apt install $wm~.
+- Copy template wm config to apropriate place and edit it.
+- ~apt install $terminal~.
+- Create a terminal config.
+- Add keybinding to the wm config.
+- ~apt install $editor~.
+- Create an editor config.
+- Set $EDITOR in your shell config.
+- Install font.
+- Create a fontconfig.
+- Set font in wm config.
+- Set font in terminal config.
+- Set font in editor config.
+- ~apt update~.
+- ...
+
+The whole point of this list is to demonstrate why imperative approach
+can be problematic.  Every new item depends on ALL previous.  The
+state is spread all over the system.
+
+Can we do it [[https://github.com/kalbasit/shabka/blob/master/doc/congruent.md][declaratively]]?
+
+* Inspired by FP
+- Functions :: in mathematical sense.
+- Values :: number, strings, abstract data types.
+- State :: a mutable objects, which store results.
+
+** How it relates to the topic?
+- Can config files be considered as a state?
+- Is package installation changes the state?
+- External repos is a state?
+- Time?
+  
+The package is a pseudo-pure function of its inputs: ~f(inputs)~.
+~guix edit sway~. ~guix build~, ~guix shell~. ~GNU Guix~.
+
+Operating system is a result of function taking two arguments: system
+config and package tree. ~g(config, packages)~.  Basically it's a
+folder, which contains symlinks to other packages in the store +
+activation script.  Generations.  ~Guix Sytem~.
+
+Home enviroment (dotfiles + user installed applications) is also a
+function of two arguments. ~h(home-config, packages)~. ~Guix Home~.
+
+State will reside in ~/var~ and ~/home/$USER~.
+
+* Declarative Way
+It's relatively easy to build a DP on top of FP.
+
+** Manifest
+- I want a cool wm.
+- I want a great terminal, which should be a default.
+- I want an awesome editor.
+- I want a wonderful font, which will be used across all apps.
+
+Neat, right?)
+
+figwheel-like activation experience.
+
+~guix home list-generations~.
+
+This is a difference between ad hoc and persistent solutions.
+
+[[https://git.sr.ht/~abcdw/rde/tree/e068ec9f/item/rde/examples/abcdw/configs.scm#L133][configs.scm]]
+
+* Managing Development Environments
+Python virtualenv-like language-agnostic tool.  You can manage several
+languages and additional tooling.
+
+IDE as a part of dev environment?
+
+Configuration as an emacs package.
+
+guix env -> container. No need to develop inside docker. We can build containers, but in a reproducible way.
+
+OS on remote server with ~guix deploy~.
+
+https://youtu.be/pS9JBKdAy4Q
+
+* Nix vs Guix
+- Language.
+- Software freedom.
+- Init system.
+- Consistentcy and Uniformity.
+- Supported platforms.
+- Bootstrapability.
+
+https://youtu.be/S9V-pcTrdL8
+
+* Conclusion
+- Build OSes and HEes in reproducible way.
+- Rollback and switch generations.
+- Build containers properly.
+- Manage per-project development environments.
+- Deploy to remote machines w/out docker.
+
+* Contact
+- abcdw
+- andrew [-at-] trop.in
+- [[https://trop.in/contact][trop.in/contact]]
+
+* Links
+- https://guix.gnu.org/
+- https://guix.gnu.org/en/manual/devel/en/guix.html#System-Configuration
+- https://guix.gnu.org/en/manual/devel/en/guix.html#Home-Configuration
+- https://guix.gnu.org/manual/en/guix.html#Invoking-guix-pack
+- https://guix.gnu.org/manual/en/guix.html#Invoking-guix-pack  
+- https://sr.ht/~abcdw/rde/

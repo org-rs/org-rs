@@ -1,0 +1,44 @@
+:PROPERTIES:
+:ID:       C109F0F9-7189-4CD7-8B6E-D1A9D7FF954A
+:END:
+#+title: jq
+#+category: jq
+
+#+BEGIN_SRC bash
+jq '.fruit.color,.fruit.price' fruit.json
+#+END_SRC
+
+* Iterating over arrays
+
+  #+BEGIN_SRC sh
+# select all from an array with []
+jq '.[]' fruits.json
+jq '.[].name' fruits.json
+jq '.[1].price' fruits.json
+
+# slices
+echo '[1,2,3,4,5,6,7,8,9,10]' | jq '.[6:9]'
+  #+END_SRC
+
+* Built-in Functions
+
+  - length
+  - keys
+
+    #+BEGIN_SRC sh
+jq '.fruit | keys' fruit.json
+    #+END_SRC
+
+  - min, max
+
+** map
+
+   #+BEGIN_SRC sh
+jq '.users | map(.age + 1)' data.json
+   #+END_SRC
+
+** select
+
+  #+BEGIN_SRC sh
+jq '.users | map(select(.city == "New York"))' data.json
+  #+END_SRC

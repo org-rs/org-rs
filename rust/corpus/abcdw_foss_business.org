@@ -1,0 +1,1078 @@
+:PROPERTIES:
+:ID:       9cfb356e-dc74-44b4-8d70-0b7b6d604368
+:END:
+#+title: Road to FOSS Business
+
+* Stream stuff
+** Thumbnail
+86 font size, variable pitch.
+#+begin_src org
+    ~Day 0:~
+  *Streaming*
+    *Setup*
+#+end_src
+
+* Day 0: Streaming Setup
+** Introduction
+I'm a FOSS developer, mostly known for being an author of Guix Home
+and rde projects and for streams on Emacs, Guix and rde.  The small
+story about FOSS work here.
+
+** Lower your expectations
+I'm not a professional actor, narrator, streamer, business guru, not
+even a native english speaker.  I won't have a script and sometimes
+even an outline and I'll be doing my usual dev tasks, which can be quite
+boring to watch, so don't expect too much fun here :)
+
+** Why Streaming?
+- Meeting new people and opportunities.
+- Stating your intentions.
+- Discipline, focus.
+- Language practice.
+- I want to care less.
+
+** What we have?
+- Community (even a few).
+- Expertise in Guix, rde, guile, clojure, dev processes, architecture
+  and DevOps.
+- Good relationships with friends and [ex-]colleagues.
+- Much more.
+
+** Why Peertube?
+- Explorable.
+- Extensible.
+- Ethical.
+
+** Stream improvements
+*** Chat Overlay
+** Conclusion
+- Business models and ways to monetize.
+- Tools for streaming and blogging.
+- Updates and news on rde and guix.
+* Day 1: Architecutre Decision Records
+** Introduction
+I'm a FOSS developer, mostly known for being an author of Guix Home
+and rde projects and for streams on Guix, Emacs, rde and development
+related topics.  Here we talk about FOSS, the ways to make projects
+and their developers to keep living, about development tools,
+techniques and much more.
+
+** Previously on
+- Answered "Why to Stream?" question.
+- Discussed tools.
+- Made Chat overlay and "Automatic context retention".
+- Faced OBS/Streaming problems.
+
+** How to Develop Things?
+Make yourself the only person, who knows how things work. Secure your
+position.
+
+Remove most beefy dependency from your project - yourself.  It's about
+project quality and autonomy.
+
+** The Communication Ways
+- Meetings.
+- Streams and Videos.
+- Chats.
+- Emails.
+- Documentation.
+- Code.
+- Commit log.
+
+** How to Communicate to Future Developers?
+Show them the past.
+
+** My experience
+** Some Live Coding
+- Commit ADR.
+- Upstream telega package.
+
+** Conclusion
+- Record important decisions.
+- Make sustainable projects.
+* Day 2: Short Feedback Loops
+** Introduction
+I'm a FOSS developer, I contribute to guix and maintain rde project,
+also do streams on Guix, Emacs, rde and development related topics.
+The small story about FOSS work here.
+
+** Previously on
+- Atonomous projects.
+- Ways to communicate.
+- OBS crashes cause.
+
+We improve rde, dev processes and stream setup to be able to:
+- Allocate more resources.
+- Develop faster.
+- Share the word and get feedback easier.
+
+** Today
+- About feedback loops.
+- Update OBS.
+- Graft qt5.
+
+** Feedback Loops
+- Build, Run, Test -> Read, eval, print.
+- Record, Publish, Gather Feedback, Itearate -> Stream, Read Comments, Improve.
+- Rebuild everything, check -> Graft, check.
+- Stream once a month -> Stream everyday.
+
+** Conclusion
+- Shorten your feedback loops!
+- Tests.
+
+* Day 3: Persistent Results
+** Introduction
+I'm a FOSS developer, I contribute to guix and rde projects, also do
+streams on various Guix, Emacs and dev related topics.  Here we talk
+about development tools and practices, FOSS, and how to make a
+sustainable ethical business out of it, also do some usual duties like
+code review, maintanance and development.
+
+** Previously on
+- Discussed short feedback loops and why they are important.
+- Fixed OBS crashes by patching qt5wayland.
+
+** Today
+- Discussing persistent results.
+- Adapt or create tools for testing guile projects.
+
+** Getting Results
+When we want to provide value we need to figure out a way to make this
+value and persist the results.  It sounds simple and obvious, but
+isn't a trivial task.  Why we need to persist?  How to make a value?
+
+We can take almost random actions in a hope to get value out of it or
+make small improvements over and over again on existing thing
+providing a value.  Which way is better?  Usually it's some
+combination of those two, and one can see a transition from luck to
+skill from exploration to routine with time, which leads to
+consistency and predictability.
+
+Why it's better to care about the tail part?
+
+Start from 100, with +X%/daily, gains in one year:
+1% -> 3 778
+2% -> 137 723
+3% -> 4 847 868
+
+It's nice to start with something already very valuable, but if the
+project consistently improves, no matter what the starting point was,
+you will get great results.  Usually it's continious process and the
+value is accumulative.
+
+Not all the aspects of our life require persistent results, but it's
+usually neccessary to grow and scale.  If one can do even only a
+fraction of things consistently good and persist the results (getting
+this small delta, which adds and improves) they will provide a lot of
+value to this world.
+
+** Persisting Results
+- Make it easily repeatable (reproducible and scalable).
+- Reduce regressions (maintainable).
+
+** How to Support
+Follow @abcdw on fosstodon.org and diode.zone.
+
+** Tests
+Make the feedback loop shorter and allow to work faster and more
+productively.  TDD isn't the only way, but still.
+
+Improve quality and confidence.
+
+Prevent regressions.
+
+** Let's work
+How to pretty print records?
+
+~test-end~ should report if ~test-suite~ argument doesn't match current
+group, but it doesn't.
+
+** Conclusion
+- Automate your routine :)
+- Be consistent, make your work persistent.
+
+* Day 4: Open Technology
+** Introduction
+I'm a FOSS developer, I contribute to guix and rde projects, also do
+streams on various Guix, Emacs and dev related topics.  Here we talk
+about development tools and practices, FOSS, and how to make a
+sustainable ethical business out of it, also do some usual duties like
+code review, maintanance and development.
+
+** Previously on
+- Stream without crashes and other technical issues.
+- Talked about persistent results and accumulative value.
+- Explored a part of srfi-64, the scheme test suits API.
+
+** Week Summary
+- IRC chat overlay.
+- Proposed ADR format for rde.
+- Fixed OBS and qt5wayland applications crashes.
+- 32 people on IRC channel.
+- Made streaming less stressful for me.
+- Written guile test runner.
+
+Support me by using rde or telling your friends about it or just
+sending a message by IRC, mastodon or email.
+
+** Future Plans
+- FOSS business models.
+- Improved nginx configuration.
+- External test runner.
+
+** Today
+- Explore the rest of srfi-64.
+- Load test modules and run tests.
+- Rerun failed tests.
+
+** Open Technology
+
+** More Tests
+
+** Conclusion
+- Be kind and write tests.
+- Do what you enjoy.
+
+* Day 5: FOSS Business Models
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects, also do
+streams on various Guix, Emacs and dev related topics.  Here we talk
+about development tools and practices, FOSS, and how to make a
+sustainable ethical business out of it, also do some usual duties like
+code review, maintanance and development.
+
+** Today
+- Talk about FOSS monetezation strategies.
+- Merging patches to rde.
+
+** Previously on
+- Stream setup, chat overlay, qt5 crashes fix.
+- Short feedback loop, presistent value, open technologies.
+- Tests and srfi-64.
+
+** Duties
+- Maintanance.
+- Development.
+
+** Conclusion
+- Definitely possible.
+
+* Day 6: Dogfooding
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects, also do
+streams on various technical topics.  Here we talk about development
+tools and practices, FOSS, and how to make a sustainable ethical
+business out of it, also do some usual duties like code review,
+maintanance and development.
+
+** Previously on
+- [[id:d9bcc7ab-e43b-4aa4-8e92-bd07d040dcaa][FLOSS monetization]] options.
+- Modus themes and other patches.
+
+** Today
+- Talk dogfooding.
+- Work on rde-appearance feature.
+
+** Dogfooding
+- Developers are also users and testers.
+- Shorter feedback loop between user and developer.
+
+It's great, when professor in University is also a developer/expert in
+the field he explains.
+
+** Work
+
+** Conclusion
+- Something that looks pretty simple, maybe not so simple.
+- Dogfooding is cool, do it if you can!
+
+* Day 7: Having Fun
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects, also do
+streams on various technical topics.  Here we talk about development
+tools and practices, FOSS, and how to make a sustainable ethical
+business out of it, also do some usual duties like code review,
+maintanance and development.
+
+** Today
+- Talk about mental health, motivation and long-term projects.
+- Explore other test runners.
+
+** About Fun
+It's important to enjoy what you do.  If you don't what is the reason?
+
+#+begin_quote
+I have learned that my enthusiasm for the project is not evenly distributed over all the different tasks and areas and this uneven distribution changes over time. I can adjust where I focus my efforts depending on what I think feels fun and interesting for the moment and do less of what I am tired of or bored by.
+
+In projects I spend my efforts as a volunteer and nobody pays me for specific tasks it is important to have a laid back attitude and remember that they can always just fix it themselves if they really need to. I do not have to work on the bug or answer the questions immediately unless I want to. I can actually spend time implementing a silly new feature instead of doing user support over a weekend just because it is fun. It helps me keeping the joy of development alive.
+#+end_quote
+
+https://un.curl.dev/life/motivation
+
+** Work
+
+** ToDo
+- Find out how to reload module properly (with altering stale
+  bindings).
+
+** Conclusion
+- Take care of yourself.
+* Day 8: Consistency
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Breifly talked about enjoyement, mental health and motivation.
+- Refactored test modules.
+
+** Today
+- Talk about consistency.
+- Write tests for lisp and maybe ini.
+- Try another test runner?
+
+** Consistency
+After part of the thing has been learned, how much of the rest can be
+successfully guessed?
+
+Regulary repeating the actions over and over again.
+
+** Some Work
+You can always support me by sharing a word about my projects or
+talks.
+
+** Conclusion
+- Be consistent.
+- Make consistent things.
+
+* Day 9: Quantity over Quality
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Today
+- Discuss mistakes.
+- Finalize ADR RFC.
+- Fix repl module loading.
+- Write lisp serializer tests.
+
+** 2 weeks results
+- Made a good enough and stable streaming setup.
+- Talked about techniques I use for making long-term projects.
+- Got two leads.
+- Developed basic test infrastructer for rde.
+
+** Quantity over Quality
+Let people and yourself make mistakes.  Make a lot of them.
+
+** Work
+- ADR
+- lisp serializer tests
+
+** Conclusion
+- Make it easy to make mistakes.
+
+* Day 10: Creating Company
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Streaming setup.
+- How to get better long-term results.
+- Test infrastrutcture and tests.
+
+** Today
+- Legal Entity.
+- Running rde tests on CI.
+
+** Contacts
+- @abcdw@fosstodon.org
+- @abcdw@diode.zone
+- andrew@trop.in
+
+** Creating a Legal Entity
+- Taxes :: 1% for 150k/year.
+- Volume of paperwork :: minimal.
+- Number of Employees :: 0.
+
+** Running Tests on CI
+Launch a guile, load test modules, run tests.
+
+** Conclusion
+- Don't seek for a perfect solution, start somehow.
+
+* Day 11: Contracts
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previosly on
+- Legal Entities.
+- Running test via CLI.
+
+** Today
+- About Contracts.
+- Split eval and execute test phases.
+
+** Contracts and NDAs
+https://vadimkravcenko.com/shorts/contracts-you-should-never-sign/
+- Read it carefully.
+- Ask to explain unclear points.
+- Propose changes.
+- Consult with lawyer.
+
+** Work
+- Re-run failing tests.
+- Run a particular test.
+
+** Conclusion
+- It's ok to make a step back and get to it later.
+
+* Day 12: Nginx
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Contracts and NDAs.
+- Evaluation problems.
+
+** Today
+- A brief story about Nginx.
+- Update OBS.
+- Figure out load-path problem.
+
+** Nginx
+#+begin_quote
+Nginx (pronounced "engine x"[7] /ˌɛndʒɪnˈɛks/ EN-jin-EKS, stylized as NGINX) is a web server that can also be used as a reverse proxy, load balancer, mail proxy and HTTP cache. The software was created by Igor Sysoev and publicly released in 2004.[8] Nginx is free and open-source software, released under the terms of the 2-clause BSD license. A large fraction of web servers use Nginx,[9] often as a load balancer.[10]
+
+A company of the same name was founded in 2011 to provide support and Nginx Plus paid software.[11] In March 2019, the company was acquired by F5, Inc. for $670 million.[12]
+#+end_quote
+
+We will need it to make a site, to restream, to terminate ssl, to
+provide a forward proxy and much more.
+
+** Work
+
+** Conclusion
+- Read your contracts :)
+- Work is not always fun, perfect and exciting, but we need to find
+  our ways to deal with it.
+
+* Day 13: Nginx in Guix
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- About Nginx project.
+- Updated OBS, merged obs-vkcapture.
+- Fixed load-path issue.
+
+** Today
+- Review patch.
+- Check with-eval-after-load typo.
+- Explore nginx-service-type in Guix.
+
+** Support
+If you like what I do, you can support me by subscribing to the
+channel, joining irc or following me on mastodon.
+@abcdw@fosstodon.org
+
+** Work
+
+** Conclusion
+- Freedom is great.
+
+* Day 14: Extreme Cases
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** 3 Weeks Results
+- Tired :: intensity decreases and I have some exciting tasks.
+- Made a sane streaming setup :: still requires some work, but already
+  easy enough to stream daily.
+- Have a company and clear taxes :: can proceed and make contracts.
+- Did a lot for testing infrastructure for rde :: soon will be able
+  to partially automate qa and scale the development.
+- Reviewed and merged a bunch of emails :: keep improving rde and Guix.
+- Tried a lot :: get a lot of materials, which can be used for producing
+  documentation and video series.
+
+** Today
+- Extreme cases.
+- Build Emacs with tree-sitter support.
+- Update org-roam.
+- Merge rde patches.
+
+** Extreme Cases
+A technique for better understanding and decision making.
+
+- From improvisation to complete script reading.
+- From Spacemacs/Doom Emacs to bare bone Emacs.
+- From wide stance to narrow stance.
+
+** Work
+
+** Conclusion
+- Switching tasks can be a sign of procrastination, but also can be a
+  good way to relax, but still make progress.
+- We make small steps, but get good results.
+
+* Day 15: Structural Editing
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Various tips and tricks on how to make projects, provide more value.
+- Streaming setup, fixes for qt, updating obs and packages for it.
+- Openning company, taxes, accounting, finding and making contracts.
+- Nginx, it's configuration and guix service for it.
+- Tests in Guile/Scheme, SRFI-64 and possible improvements.
+- Code review, programming and other work on FOSS projects.
+
+** Today
+- tree-sitter and structural editing!
+
+** Guides
+- [[https://youtu.be/Jes3bD6P0To][Tree-sitter - a new parsing system for programming tools]] :: talk
+  about tree-sitter by Max Brunsfeld.
+- [[https://archive.casouri.cc/note/2023/tree-sitter-in-emacs-29/][Tree-sitter in Emacs 29 and Beyond]] :: about treesit and stuff in 29.
+- [[https://archive.casouri.cc/note/2023/tree-sitter-starter-guide/][Tree-sitter Starter Guide]] :: article on writing tree-sitter based
+  major modes.
+- [[https://git.savannah.gnu.org/cgit/emacs.git/tree/admin/notes/tree-sitter/starter-guide?h=master][starter-guide]] :: same article in emacs repo.
+
+** Grammars
+- https://github.com/casouri/tree-sitter-module/ :: grammar build instruction.
+- [[https://lists.gnu.org/archive/html/guix-devel/2022-12/msg00073.html][tree-sitter grammars for emacs memo]] :: experiments with tree-sitter in guix.
+- https://git.sr.ht/~akagi/rrr/tree/master/rrr/packages/emacs.scm#L614 :: guix
+  packages with tree-sitter.
+- [[https://blog.markhepburn.com/posts/experimenting-with-the-built-in-treesitter-support-in-emacs/][Experimenting With the Built-in Tree-sitter Support in Emacs]] :: just
+  an experience report on built-in tree-sitter.
+
+** Packages
+- [[https://www.masteringemacs.org/article/combobulate-structured-movement-editing-treesitter][Combobulate]] :: package for structural editing.
+- [[https://github.com/ethan-leba/tree-edit][tree-edit]] :: another package.
+
+** Work
+- Enable treesit in Emacs.
+- Package grammar.
+- Try out package for structural editing.
+
+** treesit
+M-x shortdoc RET treesit RET
+C-h i d m elisp RET g Parsing Program Source RET
+
+#+begin_src emacs-lisp
+(setq treesit-extra-load-path '("some-path"))
+
+(add-to-list 'major-mode-remap-alist
+             '(c-mode . c-ts-mode))
+
+(treesit-ready-p 'python)
+
+(treesit-explore-mode)
+(treesit--things-around)
+(treesit-search-forward-goto "function_definition" 'end)
+(treesit-node-at (point))
+#+end_src
+
+** Conclusion
+- Structural editing is a future IMO.
+- I hope we will get rid of files, text-based serialization and other
+  questionable stuff.
+
+* Day 16: The Great Cleanup
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Tree-sitter.
+- Grammars.
+- treesit, Emacs 29.
+- Combobulate and structural editing.
+
+** Today
+- Bunch of WIP and how it helps.
+- Example of applying such approach.
+
+** The Way I Organize Work
+Sometimes I focus on one task and do it for a few days in a row, but
+often I do a few tasks in parallel (not at the same time).
+
+Allows to:
+- Make small steps and feel progress.
+- Batch tasks.
+- Get more knowledge and required skills.
+- Process in the background.
+- Benefit from the work done in the meantime.
+- To relax, rest and get a fresh look at the problem.
+- Reevaluate priorities.
+
+** Work
+- Prepare tree-sitter patches and emails.
+- Reviewing emails.
+- Commit all the things.
+
+** Conclusion
+- There is no perfect way to work, don't be afraid to experiment what
+  works better for you.
+- Don't forget to take care of yourself.
+
+* Day 17: Mail Processing
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Great Cleanup approach and practice.
+
+** Today
+- Mail Processing Workflows.
+- Some mail module improvements.
+- Work on tree-sitter grammars.
+
+** Workflows
+- Why distinguish between Inbox and TODO?
+- Manual TODO.
+- Automatic TODO.
+
+** Work
+- yhetil, sourcehut, guix ml links.
+- Automatic todo for read items.
+- Prevent calibre from openning html.
+- Emacs world clock defaults.
+
+** Conclusion
+- Do GC before the stream! :)
+- Allocate some time to sharpen your tools.
+
+* Day 18: Tree-sitter in GNU Guix
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** The Work in the Background
+There are some possible projects to happen on distributed
+computational environments and programming languages.
+
+** Previously on
+- Great Cleanup, various minor improvements.
+- tree-sitter, treesit, Emacs 29, grammars.
+
+** Today
+- Upstreaming work on tree-sitter to Guix.
+
+** Work
+- Update tree-sitter.
+- Move tree-sitter to a separate module?
+- Package tree-sitter-cli.
+- Bootstrap tree sitter grammars.
+
+** Possible Improvements
+- Grammars for embeded languages in comments, embeded DSLs.
+
+** Conclusion
+- Guix is a nice starting point for the future of computing.
+
+* Day 19: Bootstrapping Tree-sitter Grammars
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Made a prototype of tree-sitter+emacs+grammars in local setup.
+- Tried out structural editing.
+- We merged tree-sitter and tree-sitter-cli patches.
+- Added a test grammar.
+- Improved mail workflow and commited a lot of small enchancements.
+
+** Work
+- native search paths or just search paths?
+- Enable Emacs treesitter grammars support.
+- Review tree-sitter-build-system.
+- C grammar is an input for CPP grammar?
+- Repackage grammars.
+
+** Conclusion
+- Tasks are like transactions, split them into small pieces and make
+  atomic steps.
+
+* Day 20: Tests in Scheme
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Streaming setup.
+- Documentation.
+- Shorter Feedback Loops, REPL and Tests.
+- Various Techniques to Get Stuff Done.
+- FOSS Business Models, Contracts and Companies.
+- Nginx.
+- Structural Editing.
+- Mail processing.
+
+** Today
+- Create a separate entity for test.
+- Find such entities.
+
+** Why Do Tests Matter?
+- Speed up development.
+- Make it easier to understand code by examples of the
+  usage. (Learning, Review)
+- Prevent regressions. (Development, Maintanance)
+- Automate QA. (Maintanance)
+
+** Work
+define-test
+procedure-properties
+
+** Conclusion
+- Scheme is quite flexible tool, which you can shape to your needs.
+
+* Day 21: Finishing Tree-sitter Question
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- define-test.
+- Structural Editing.
+- Tree-sitter.
+- Tree-sitter in Emacs 29.
+- Bulding Tree-sitter Grammars.
+
+** Today
+- Check everything works.
+- Cut out generated sources.
+- Package js, ts, c, cpp grammars.
+- Reply to the thread.
+- More tests?)
+
+** Thanks
+To Pierre Langlois, Luis Henrique Gomes, Murad Mamedov, Alexander Vytiazev, Demis
+Balbach and all other people!
+
+** Conclusion
+- Always be closing.
+
+* Day 22: Guile Tests and Emacs
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Tree-sitter in Guix.
+- run-project-tests and define-test.
+
+** Today
+- run-module-tests+refactor.
+- M-x run-module-tests (resolve-module +-test).
+- report in echo area.
+- silent-test-runner?
+
+** Conclusion
+- Do long term investments.
+
+* Day 23: Changelog
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Run module test.
+- Echo area results report.
+
+** Today
+- Decide on Changelog format.
+- Keep working on tests.
+
+** Changelog
+Why?  Dump commit log?
+
+https://github.com/conventional-changelog/standard-version/blob/master/CHANGELOG.md
+https://github.com/minad/consult/blob/main/CHANGELOG.org
+https://github.com/metosin/malli/blob/master/CHANGELOG.md
+
+API changes, breaking changes, deprecations.
+
+** Work
+- Write a Changelog template.
+- Update Contributing section of the Manual.
+- Write ADR.
+
+** Conclusion
+- Do something and adjust as you go.
+- Time constraints move you forward.
+
+* Day 24: Re-run Failed Tests
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** This Week
+- Finished adding tree-sitter to Guix.
+- Added Changelog.
+- Re-implemented tests loading.
+- Added emacs interface for running tests.
+
+** Re-run Tests
+The workflow: Run a pool of tests, fix stuff and re-run failed test, when fixed
+run the whole pool of test again.
+
+Distinguish between tests and asserts.  Collect information about tests.  Use
+this information to re-run them.
+
+** Work
+- Add keymap.
+- Simplify guile code in emacs functions.
+- Get a list of failed tests.
+- Re-run failed tests.
+- Reset test-runner on test re-runs (to prevent working with stale test
+  results).
+
+** Conclusion
+- Start small, achieve success, keep improving.
+- Create great tooling!
+
+* Day 25: Guile Development Environment
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Tips, tricks and workflows.
+- On contracts, taxes, company creation.
+- Work on FOSS projects.
+- On dev process, documentation.
+- Streaming setup.
+- Nginx as a project and as a program.
+- Structural Editing and Tree-sitter.
+- Tests, SRFI-64, Tooling.
+
+** Guile Dev Environment
+- Dependencies and LOAD_PATHs.
+- REPL, Completion, gotodefinition.
+- Navigation, Editing and Refactoring.
+- Testing.
+- Linting.
+
+** Work
+- Check the rerun order is correct.
+- Migrate to sexps from strings.
+- Revisit if we can use ~(geiser modules)~ instead of ~(guix discovery)~.
+
+- Implement C-c C-p for pprinting value of expression in a separate buffer.
+- Handle no tests case or no test module at all.
+- Add report in separate buffer on fails.
+- Run test function by name (completing read?).
+- Explore why ~No REPL is running: start it?~ happens?
+
+** Conclusion
+- It's enough to have a very basic capabilities to be able to do work, but to
+  make work enjoyable it's nice to have a good tooling.
+
+* Day 26: Nginx Config
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Nginx.
+- Nginx in Guix.
+- Tests.
+
+** In the meantime
+conses aka ardon works on:
+- Clojure.
+- Matrix.
+- Common Lisp.
+- Nyxt.
+- and much more.
+
+** Today
+- Briefly about Nginx.
+- Structure of nginx config.
+- Serialization approach.
+- Tests.
+
+** Conclusion
+- Tests is a multipurpose tool.
+
+* Day 27: People
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Open Technology, various tips and tricks about work.
+- Nginx and Tests.
+
+** Today
+- Talk about people.
+- Work on nginx and stuff.
+
+** People
+Sometimes it's tempting to think that people not smart enough, don't understand
+obvious things or doesn't matter at all.
+- Grow me.
+- Teach.
+- Make a foundation.
+- Influence, Support, Help.
+
+We are a part of big ecosystem. We hugely benefit from it, so don't forget to
+contribute back to it and make it better.
+
+** Work
+- Serialize terms.
+- Serialize vectors.
+- Serialize lists.
+
+** Conclusion
+- Want it or not, almost everything in our life is backed by other people.
+- Do care about them.
+
+* Day 28: Test Driven Development
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we
+talk about development tools and practices, share a part of my usual
+work day and travel towards a sustainable ethical business.
+
+** Previously on
+- Testing infrastructure and tooling for guile projects.
+- Tests for Lisp serializers.
+- Tests for Nginx serializers.
+
+** TDD and BDD
+Development technique with a short feedback cycle: write failing test, refactor code to pass it, repeat.  It synergizes with REPL-driven development.
+
+*** Perks
+- Short Feedback Loop :: .
+- Test :: all the benifits of tested code including CI, easier refactoring,
+  easier review, less regressions.
+- Modular code, lower coupling :: better design overall.
+- Testable code by default :: which not that actual for FP.
+- Documentation :: get executable usage examples.
+
+*** BDD
+More high-level, user story driven.
+
+*** How to learn
+In extreme cases I mentioned an approach of understanding, learning and getting
+some feeling with things by radicaly shifting everything to some side.
+
+** Work
+
+** Someday
+- Make test-assert to show line, where it fails.
+- Implement test-match, which uses ice-9 match like patterns and provides
+  meaningful report.
+- Write ADR for serializers or/and implement template/interface for serializers.
+
+** Conclusion
+- Know techinques, but apply them, when appropriate.
+
+* Day 30: Where is the Business?
+** Introduction
+I'm a FOSS developer, author of Guix Home and rde projects.  Here we talked
+about development tools and practices, shared a part of my usual work day and
+traveled towards a sustainable ethical business.  It lasted for 30 working days
+and today we will discuss intermediate results and I'll share some thoughts.
+
+** What we did
+- Discussed taxes, business models, contracts, companies and residence.
+- Created a legal entity, bank accounts, checked out taxes paperwork.
+- Discussed approaches to work, long and short term strategies.
+
+- Improved streaming setup.
+- Improved rde documentation.
+- Improved mailing workflow.
+- Created test infrastructure and tooling.
+- Helped to package tree-sitter and related stuff.
+- Contributed a bunch of different things.
+- Explored Nginx project, implemented serializer.
+
+** Why we did it
+- To prepare the foundation for future contracts.
+- To practice, automate and simplify communication with wide audience.
+- To improve rde development process, make rde more atonoumous and scalable.
+- To benifit from FOSS and make other people, and projects benifit from it.
+- For fun.
+- To make things more accessible, to inspire other people.
+- To prepare stuff for future projects.
+
+** What we get
+- A good foundation for future work.
+- I can talk in English loudly and confidently.
+- Through the series I fought perfectionism hard.
+- Support from the community.
+- Calls and project ideas.
+
+** Contacts
+- @abcdw@fosstodon.org
+- andrew@trop.in
+
+** Other Thoughts
+- It's good idea to do things in small steps (including this report).
+- Many things can be understood only by doing.
+- Working during live stream is quite hard.
+- Current timing is to early and difficult to watch live.
+- Optimal stream time < 1 hour.
+- Almost, no peertube activity, but.
+- More attempts -> More data to analyze.
+- I got a lot of new series/video ideas.
+- Content Marketing is double useful.
+
+I would like:
+- To make a text blog.
+- Higher quality video series.
+
+It would be cool:
+- To make offline meetups.
+- To make offline classes to prepare for video series.
+
+** Video Ideas
+- Guix series.
+- rde series.
+- Scheme series.
+- FP series (patterns, ideas, approaches).
+- Paper Reading Club (highlights of cool ideas in computing envs and PLs).
+
+** Future Plans
+- To take a break from streams.
+- Keep working on FOSS and keep up with incomming patches.
+- Keep working on FOSS Business.
+- Get back to streaming/video series creation after a while.
+
+** Conclusion
+- There is no working business yet, but there is a foundation, there are leads
+  and I'm quite optimistic ATM.
+- We already did and get a lot, we increase our pace and will do even more
+  great things.
+

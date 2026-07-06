@@ -1,0 +1,452 @@
+#+TITLE:      The New Org-mode Exporter Framework
+#+AUTHOR:     John Henderson
+#+EMAIL:      jw.hendy[at]gmail[dot]com
+#+OPTIONS:    H:3 num:nil toc:t \n:nil ::t |:t ^:t -:t f:t *:t tex:t d:(HIDE) tags:not-in-toc
+#+STARTUP:    align fold nodlcheck hidestars oddeven lognotestate hideblocks
+#+SEQ_TODO:   TODO(t) INPROGRESS(i) WAITING(w@) | DONE(d) CANCELED(c@)
+#+TAGS:       Write(w) Update(u) Fix(f) Check(c) noexport(n)
+#+LANGUAGE:   en
+#+STYLE:      <style type="text/css">#outline-container-introduction{ clear:both; }</style>
+#+HTML_LINK_UP:    ../ox-overview.html
+#+HTML_LINK_HOME:  https://orgmode.org/worg/
+#+EXCLUDE_TAGS: noexport
+
+# This file is released by its authors and contributors under the GNU
+# Free Documentation license v1.3 or later, code examples are released
+# under the GNU General Public License v3 or later.
+
+* Introduction
+
+As of release 8.0, Org-mode has transitioned to a new export framework, authored
+primarily (/entirely?/) by Nicolas Goaziou...
+
+#+begin_example
+
+Perhaps this could be filled in with some of the technical reasons and advantages
+of the new exporter by Nicolas or someone else familiar with with it's inner workings?
+
+#+end_example
+
+For instructions on how to upgrade from the previous Org-mode exporter, see
+[[file:../org-8.0.org][the upgrade guide]].
+
+Nicolas' official announcement of the exporter may be viewed at the
+[[https://list.orgmode.org/876229nrxf.fsf@gmail.com][Org-mode mailing list post]].  This document presents an overview of
+features, as well as a list of currently supported exporter
+backends. [[https://orgmode.org/manual/Exporting.html#Exporting][Exporting]] and [[https://orgmode.org/manual/Publishing.html#Publishing][publishing]] are also documented in the [[https://orgmode.org/manual/][Org-mode
+manual]]. See [[file:ox-docstrings.org][ox-docstrings]] and [[file:org-element-docstrings.org][org-element-docstrings]] for the extracted
+docstrings from these two core libraries of the new Org-mode exporter,
+i.e.  for detailled technical information about the exporter
+framework.
+
+* List of Org-mode exporters
+
+Below is a list of Org-mode exporters that were current at the time
+the new export framework was introduced, along with the location of
+the backend elisp file (relative to the downloaded Org-mode
+installation directory).
+
+#+begin_infobox
+Files in =/contrib/= have since been moved out of Org, except
+=ox-koma-letter.el=, which is now in core. For a current overview, see
+[[./index.org][Org Exporters]]. (Updated: 2026-06-04.)
+#+end_infobox
+
+| *Name*        | *Exporter location*                |
+|---------------+------------------------------------|
+| ASCII         | =./lisp/ox-ascii.el=               |
+| [[https://bitbucket.org/rivanvx/beamer/wiki/Home][Beamer]]        | =./lisp/ox-beamer.el=              |
+| HTML          | =./lisp/ox-html.el=                |
+| [[https://en.wikipedia.org/wiki/ICalendar][iCalendar]]     | =./lisp/ox-icalendar.el=           |
+| [[http://www.latex-project.org/][LaTeX]]         | =./lisp/ox-latex.el=               |
+| [[http://manpages.bsd.lv/history.html][Man]]           | =./lisp/ox-man.el=                 |
+| [[http://daringfireball.net/projects/markdown/][Markdown]]      | =./lisp/ox-md.el=                  |
+| [[http://opendocumentformat.org/][ODT]]           | =./lisp/ox-odt.el=                 |
+| [[https://orgmode.org/manual/Publishing.html][Publishing]]    | =./lisp/ox-publish.el=             |
+| [[http://www.gnu.org/software/texinfo/][Texinfo]]       | =./lisp/ox-texinfo.el=             |
+|---------------+------------------------------------|
+| [[http://www.atlassian.com/software/confluence/overview/team-collaboration-software][Confluence]]    | =./contrib/lisp/ox-confluence.el=  |
+| [[http://imakewebthings.com/deck.js/][Deck.js]]       | =./contrib/lisp/ox-deck.el=        |
+| [[http://freemind.sourceforge.net/wiki/index.php/Main_Page][Freemind]]      | =./contrib/lisp/ox-freemind.el=    |
+| [[http://www.gnu.org/software/groff/][Groff]]         | =./contrib/lisp/ox-groff.el=       |
+| [[http://www.ctan.org/pkg/koma-script][Koma Scrlttr2]] | =./contrib/lisp/ox-koma-letter.el= |
+| [[http://www.rssboard.org/rss-specification][RSS]]           | =./contrib/lisp/ox-rss.el=         |
+| [[http://meyerweb.com/eric/tools/s5/][S5]]            | =./contrib/lisp/ox-s5.el=          |
+| [[http://www.taskjuggler.org/][Taskjuggler]]   | =./contrib/lisp/ox-taskjuggler.el= |
+|---------------+------------------------------------|
+| [[http://www.docbook.org/][DocBook]]       | (1)                                |
+
+- (1) DocBook export, available in previous Org-mode versions, was not ported
+  to the new exporter, however the new =ox-texinfo= backend can generate DocBook
+  format. Once =file.texi= is created via =ox-texinfo=, simply execute:
+
+#+begin_example
+makeinfo --docbook file.texi
+#+end_example
+
+* General Documentation
+
+/This page is in progress. Please be patient as it is updated./
+
+* TODO Add details about general export usage and information	   :noexport:
+* TODO Migrate Nicolas' mailing list summary here		   :noexport:
+
+Here is the [[https://list.orgmode.org/876229nrxf.fsf@gmail.com][email text]] to allow for easy reference in this document. The contents of his
+email should end up in this document somehow or another, as this should serve as the
+primary source of information in addition to the manual for the exporter in general.
+
+If you migrate some information to this actual document, please delete it so that the quote below serves as a
+body of "todo" text.
+
+*Remember:* This is just for general exporter information and usage; backend-specific
+things should be housed in their appropriate repository. If the page doesn't exist, feel
+free to create it. There's a template [[file:ox-template.org][here]].
+
+#+begin_quote
+
+Table of Contents
+─────────────────
+
+1 To Whom Used the Experimental Version
+2 What’s New
+.. 2.1 New Back-Ends
+.. 2.2 Drawer Handling
+.. 2.3 Special Blocks
+.. 2.4 Improved Asynchronous Export
+.. 2.5 Smart Quotes
+.. 2.6 Cross Referencing
+.. 2.7 Lists of Tables, Lists of Listings
+3 Installation
+4 Configuration
+.. 4.1 Variables
+.. 4.2 Hooks
+.. 4.3 Filters
+.. 4.4 Forking a Back-End
+5 Caveats
+6 Footnotes
+
+
+      Hello,
+
+  I will install the new export framework along with a set of back-ends
+Wednesday evening (UTC).  Here are a few notes to help you make the
+transition.
+
+
+1 To Whom Used the Experimental Version
+═══════════════════════════════════════
+
+    The merge implies some renaming for symbols and files. More
+  precisely, “e-” is removed from symbols like variable names, functions
+  and back-ends and “org-e-” becomes “ox-” in files. To sum it up:
+
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                  Old name                      New name
+       ───────────────────────────────────────────────────────────
+                   e-latex                       latex
+                 org-e-latex                    ox-latex
+        org-export-latex-packages-alist  org-latex-packages-alist
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    Be sure to check filters and requires in your configuration files.
+
+
+2 What’s New
+════════════
+
+    Even though the internals are completely different, the new exporter
+  mostly behaves like its predecessor.  There are only a few noticeable
+  changes.
+
+
+2.1 New Back-Ends
+─────────────────
+
+    New back-ends come with the new export engine:
+
+  • Markdown back-end (name: `md')
+  • Texinfo back-end (name: `texinfo')
+  • Man back-end (name: `man')
+
+    Most of the other back-ends have been rewritten from scratch, too.
+
+
+2.2 Drawer Handling
+───────────────────
+
+    By default, every drawer but “properties” and “logbook” has its
+  contents exported.  See `org-export-with-drawers' variable.
+
+
+2.3 Special Blocks
+──────────────────
+
+    The `org-special-blocks.el' library, which has been moved to
+  “contrib/”, is obsolete since its features are included in the new
+  export framework.
+
+
+2.4 Improved Asynchronous Export
+────────────────────────────────
+
+    Export can be asynchronous independently on the type of the source
+  or output (temporary buffer or file).  A special interface, called
+  “The Export Stack”, is used to view the output.  See
+  `org-export-in-background' variable.
+
+
+2.5 Smart Quotes
+────────────────
+
+    All back-ends have support for “smart” quotes, according to
+  `org-export-default-language' value or the `LANGUAGE' specifications
+  in the buffer.  See `org-export-with-smart-quotes'.
+    As of now, only “de”, “en”, “es” and “fr” languages are supported,
+  but it’s easy to add more.  See `org-export-smart-quotes-alist'.  Do
+  not hesitate to contribute more languages.
+
+
+2.6 Cross Referencing
+─────────────────────
+
+    Export has now full support for cross references, through targets
+  and `#+NAME' attributes[1].  Pay attention to the following example.
+
+  ╭────
+  │ #+CAPTION: A table
+  │ #+NAME: table
+  │ | a | b |
+  │
+  │ #+CAPTION: Another table
+  │ #+NAME: other-table
+  │ | c | d |
+  │
+  │ 1. <<itm>>item 1
+  │ 2. item 2
+  │
+  │ Look at item [[itm]]! It happens after table.
+  ╰────
+
+    When exported, the last line will be displayed as:
+
+  ╭────
+  │ Look at item 1! It happens after table 2.
+  ╰────
+
+    It doesn’t depend on the back-end used.  It also references
+  footnotes, headlines, LaTeX environments…
+
+
+2.7 Lists of Tables, Lists of Listings
+──────────────────────────────────────
+
+    There is support for lists of tables and lists of listings in some
+  back-ends with the following syntax:
+
+  ╭────
+  │ #+TOC: headlines
+  ╰────
+
+  ╭────
+  │ #+TOC: tables
+  ╰────
+
+  ╭────
+  │ #+TOC: listings
+  ╰────
+
+
+3 Installation
+══════════════
+
+    There are two ways to install export back-ends.
+
+  1. You may customize `org-export-backends' variable.  It contains
+     the list of back-ends that should always be available.
+
+  2. You can also simply require the back-end libraries
+     (e.g. `(require 'ox-icalendar)' for the iCalendar back-end).
+
+    Note that with method 1, the back-ends will be loaded only when the
+  export framework is used for the first time.
+
+
+4 Configuration
+═══════════════
+
+    Previously, the export engine was configured through variables and
+  numerous hooks.  Now, there are variables, only two hooks and
+  filters. One can also easily fork a new export back-end from an
+  existing one.
+
+
+4.1 Variables
+─────────────
+
+    The easiest way to browse configurable variables should be through
+  customize interface.  Though, the old export framework is still
+  lurking in the Org shipped with Emacs.
+    As a consequence, calling “customize” will also load previous export
+  engine.  It can lead to confusion as variables in both frameworks
+  share the same suffix.  You will have to be careful and double check
+  the origin of each variable being considered.
+    Anyway, if you still want to go through this, the following command
+  will get you to the right starting point:
+
+  ╭────
+  │ M-x customize-group RET org-export RET
+  ╰────
+
+    However, I suggest to browse the source files and look after
+  `defcustom' entries.
+
+
+4.2 Hooks
+─────────
+
+    Two hooks are run during the first steps of the export process.  The
+  first one, `org-export-before-processing-hook' is called before
+  expanding macros, Babel code and include keywords in the buffer.  The
+  second one, `org-export-before-parsing-hook', as its name suggests,
+  happens just before parsing the buffer.
+    Their main use is for heavy duties, that is duties involving
+  structural modifications of the document.  For example, one may want
+  to remove every headline in the buffer during export.  The following
+  code can achieve this:
+
+  ╭────
+  │ 1  (defun my-headline-removal (backend)
+  │ 2    "Remove all headlines in the current buffer.
+  │ 3  BACKEND is the export back-end being used, as a symbol."
+  │ 4    (org-map-entries
+  │ 5     (lambda () (delete-region (point) (progn (forward-line) (point))))))
+  │ 6  (add-hook 'org-export-before-parsing-hook 'my-headline-removal)
+  ╰────
+
+    Note that functions used in these hooks require a mandatory
+  argument, as shown at line 1.
+
+
+4.3 Filters
+───────────
+
+    Filters are lists of functions applied on a specific part of the
+  output from a given back-end.  More explicitly, each time a back-end
+  transforms an Org object or element into another language, all
+  functions within a given filter type are called in turn on the string
+  produced.  The string returned by the last function will be the one
+  used in the final output.
+    There are filters sets for each type of element or object, for plain
+  text, for the parse tree, for the export options and for the final
+  output.  They are all named after the same scheme:
+  `org-export-filter-TYPE-functions', where `type' is the type targeted
+  by the filter.
+    For example, the following snippet allows me to use non-breaking
+  spaces in the Org buffer and get them translated into LaTeX without
+  using the `\nbsp' macro:
+
+  ╭────
+  │ 1  (defun ngz-latex-filter-nobreaks (text backend info)
+  │ 2    "Ensure \" \" are properly handled in LaTeX export."
+  │ 3    (when (org-export-derived-backend-p backend 'latex)
+  │ 4          (replace-regexp-in-string " " "~" text)))
+  │ 5  (add-to-list 'org-export-filter-plain-text-functions
+  │ 6               'ngz-latex-filter-nobreaks)
+  ╰────
+
+    Three arguments must be provided to a fiter (line 1): the code being
+  changed, the back-end used, and some information about the export
+  process.  You can safely ignore the third argument for most purposes.
+  Note (line 3) the use of `org-export-derived-backend-p', which ensures
+  that the filter will only be applied when using `latex' back-end or
+  any other back-end derived from it (i.e. `beamer').
+
+
+4.4 Forking a Back-End
+──────────────────────
+
+    This is obviously the most powerful customization, since you work
+  directly at the parser level.  Indeed, complete export back-ends are
+  built as forks from other once (e.g. Markdown exporter is forked from
+  the HTML one).
+    Forking a back-end means that if an element type is not transcoded
+  by the new back-end, it will be handled by the original one.  Hence
+  you can extend specific parts of a back-end without too much work.
+    As an example, imagine we want the `ascii' back-end to display the
+  language used in a source block, when it is available, but only when
+  some attribute is non-nil, like the following:
+
+  ╭────
+  │ #+ATTR_ASCII: :language t
+  ╰────
+
+    Because the `ascii' back-end is lacking in that area, we are going
+  to create a new back-end, `my-ascii', that will do the job.
+
+  ╭────
+  │  1  (defun my-ascii-src-block (src-block contents info)
+  │  2    "Transcode a SRC-BLOCK element from Org to ASCII.
+  │  3  CONTENTS is nil.  INFO is a plist used as a communication
+  │  4  channel."
+  │  5    (let ((visiblep
+  │  6           (org-export-read-attribute :attr_ascii src-block :language)))
+  │  7      (if (not visiblep)
+  │  8          (org-export-with-backend 'ascii src-block contents info)
+  │  9        (let ((utf8p (eq (plist-get info :ascii-charset) 'utf-8)))
+  │ 10          (concat
+  │ 11           (format
+  │ 12            (if utf8p "╭──[ %s ]──\n%s╰────" ",--[ %s ]--\n%s`----")
+  │ 13            (org-element-property :language src-block)
+  │ 14            (replace-regexp-in-string
+  │ 15             "^" (if utf8p "│ " "| ")
+  │ 16             (org-element-normalize-string
+  │ 17              (org-export-format-code-default src-block info)))))))))
+  │ 18
+  │ 19  (org-export-define-derived-backend my-ascii parent
+  │ 20    :translate-alist ((src-block . my-ascii-src-block)))
+  ╰────
+
+    The `my-ascii-src-block' function looks at the attribute above the
+  element (line 6).  If it isn’t true, it gives hand to the `ascii'
+  back-end (line 8).  Otherwise, it creates a box around the code,
+  leaving room for the language.  A fork of `ascii' back-end is then
+  created (line 19).  It only changes its behaviour when translating
+  `src-block' type element (line 20).  Now, all it takes to use the new
+  back-end is calling the following on a buffer:
+
+  ╭────
+  │ (org-export-to-buffer 'my-ascii "*Org MY-ASCII Export*")
+  ╰────
+
+    It is obviously possible to write an interactive function for this,
+  install it in the export dispatcher menu, and so on.
+
+
+5 Caveats
+═════════
+
+  1. Although the old exporter files have been archived into
+     “contrib/” directory, they are not usable anymore.  Org 7.9 will be
+     the last release to provide it.
+
+  2. As a consequence, three export back-ends are not available
+     anymore: Taskjuggler, XOXO and Docbook.  About the latter, there is
+     a new back-end that produces Texinfo files, which can then be
+     converted into Docbook format with:
+
+     ╭────
+     │ makeinfo --docbook file.texi
+     ╰────
+
+  3. Export section from Org manual is now obsolete.  It is being
+     rewritten, but until this task is completed, your best source of
+     information will still be the ML or the source files.
+
+
+
+Footnotes
+─────────
+
+[1] Though, it will expect a caption to be properly numbered.
+
+#+end_quote

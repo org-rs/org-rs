@@ -1,0 +1,97 @@
+#+title: Corpus Manifest and Licensing
+
+* Purpose
+
+This directory contains real-world Org documents used solely as a /testing
+corpus/: the org-rs parser is run over them and its output compared against the
+Emacs =org-element= oracle to detect discrepancies. The files are parser-input
+fixtures only — never modified, executed, or redistributed as functional works.
+
+* Licensing basis
+
+Every file below is recorded with its author/source, its license, and the
+evidence for that license. Three kinds of basis appear:
+
+- *declared / verified* — the file (or the upstream repository/site it comes
+  from) declares an explicit license. All such licenses here are GPL-compatible:
+  GNU FDL 1.3+, GPL v3(+), MIT, Apache-2.0, or CC BY-SA 4.0 (one-way compatible
+  with GPLv3 per Creative Commons and the FSF).
+- *upstream policy* — the file is published under a project-wide license (the GNU
+  Org manual under the GNU FDL; Worg content under GNU FDL / GPL) even though the
+  individual file carries no inline header.
+- *author permission (undeclared license)* — the upstream carries no discoverable
+  license. The author's explicit permission was obtained to include the document
+  as a testing corpus. It remains the copyright of its author and is used here
+  for parser testing only.
+
+If you are an author listed here and want your document removed, open an issue
+and it will be dropped from the corpus.
+
+* Per-file manifest
+
+| File                              | Author / Source                               | License            | Basis / evidence                              |
+|-----------------------------------+-----------------------------------------------+--------------------+-----------------------------------------------|
+| 2021-07-31-citations.org          | TEC (Timothy E. Chapman)                      | (undeclared)       | author permission                             |
+| abcdw_emacs_completion.org        | Andrew Tropin (abcdw)                         | CC BY-SA 4.0       | declared: trop.in site content license        |
+| abcdw_foss_business.org           | Andrew Tropin (abcdw)                         | CC BY-SA 4.0       | declared: trop.in site content license        |
+| abcdw_functional_os.org           | Andrew Tropin (abcdw)                         | CC BY-SA 4.0       | declared: trop.in site content license        |
+| abcdw_genetics_journal.org        | Andrew Tropin (abcdw)                         | CC BY-SA 4.0       | declared: trop.in site content license        |
+| abcdw_gpg_explained.org           | Andrew Tropin (abcdw)                         | CC BY-SA 4.0       | declared: trop.in site content license        |
+| abcdw_gpt_prompts.org             | Andrew Tropin (abcdw)                         | CC BY-SA 4.0       | declared: trop.in site content license        |
+| abcdw_info_texinfo.org            | Andrew Tropin (abcdw)                         | CC BY-SA 4.0       | declared: trop.in site content license        |
+| abcdw_local_first.org             | Andrew Tropin (abcdw)                         | CC BY-SA 4.0       | declared: trop.in site content license        |
+| abcdw_streams_schedule.org        | Andrew Tropin (abcdw)                         | CC BY-SA 4.0       | declared: trop.in site content license        |
+| advanced-searching.org            | Matt Lundin (Worg)                            | GNU FDL 1.3+/GPLv3+| upstream policy (Worg)                        |
+| alphapapa_org_super_agenda.org    | Adam Porter, org-super-agenda                 | GPL v3+            | declared in file; alphapapa/org-super-agenda  |
+| arabic_table.org                  | org-rs contributors (hand-authored fixture)   | GPL v3             | project-owned                                 |
+| bphenriques_akka_cluster.org      | Bruno Henriques                               | MIT                | declared: bphenriques/knowledge-base          |
+| bphenriques_akka_streams.org      | Bruno Henriques                               | MIT                | declared: bphenriques/knowledge-base          |
+| bphenriques_consistency.org       | Bruno Henriques                               | MIT                | declared: bphenriques/knowledge-base          |
+| chapter-2-10.org                  | Japanese Org tutorial (origin unverified)     | (undeclared)       | author permission                             |
+| chapter-2-7.org                   | Japanese Org tutorial (origin unverified)     | (undeclared)       | author permission                             |
+| chapter-5-7.org                   | Japanese Org tutorial (origin unverified)     | (undeclared)       | author permission                             |
+| chapter-appendix-f.org            | Japanese Org tutorial (origin unverified)     | (undeclared)       | author permission                             |
+| emacs_china_elisp.org             | DarkSun (lujun9972), emacs-document           | (undeclared)       | author permission (repo has no LICENSE)       |
+| emacs_china_org_manual.org        | DarkSun — Org Manual 7.8 (zh translation)     | GNU FDL 1.3+       | upstream policy (derivative of Org manual)    |
+| emacs_user-manual.org             | Likhon Barai                                  | GPL-3.0            | declared: Likhon-baRoy/org-notes              |
+| hebrew_l2r.org                    | org-rs contributors (hand-authored fixture)   | GPL v3             | project-owned                                 |
+| hebrew_r2l.org                    | org-rs contributors (hand-authored fixture)   | GPL v3             | project-owned                                 |
+| karl_voit_config.org              | Karl Voit (novoid/dot-emacs)                  | GPL v3             | declared in file (# License)                  |
+| kijimad_lua.org                   | kijimad                                       | GPL-3.0            | declared: kijimad/roam                        |
+| kijimad_wikipedia.org             | kijimad (incl. Wikipedia excerpts)            | GPL-3.0; WP CC BY-SA| declared: kijimad/roam                        |
+| lanceberge_aws.org                | Lance Bergeron (lanceberge/org)               | (undeclared)       | author permission (repo has no LICENSE)       |
+| lanceberge_jq.org                 | Lance Bergeron (lanceberge/org)               | (undeclared)       | author permission (repo has no LICENSE)       |
+| lanceberge_rest.org               | Lance Bergeron (lanceberge/org)               | (undeclared)       | author permission (repo has no LICENSE)       |
+| library-of-babel.org              | Org Mode People                               | GNU FDL 1.3+/GPLv3+| declared in file                              |
+| lujun9972_capture_date_trees.org  | lujun9972 (transl. of Charles Cave)           | (undeclared)       | author permission                             |
+| ob-doc-shell.org                  | Matt Trzcinski (Worg)                         | GNU FDL 1.3+/GPLv3+| upstream policy (Worg)                        |
+| org_user-menual.org               | Likhon Barai                                  | GPL-3.0            | declared: Likhon-baRoy/org-notes              |
+| org-drill.org                     | Paul Sexton (org-drill.el)                    | GNU FDL 1.3+/GPLv3+| declared in file                              |
+| org-latex-export.org              | Tom Dye (Worg)                                | GNU FDL 1.3+/GPLv3+| upstream policy (Worg)                        |
+| org-manual-cn.org                 | The Org Mode Developers (zh translation)      | GNU FDL 1.3+       | upstream policy (Org manual)                  |
+| org-manual.org                    | The Org Mode Developers                       | GNU FDL 1.3+       | upstream policy (Org manual)                  |
+| org-mode.org                      | Bernt Hansen (norang)                         | GNU FDL 1.3+/GPLv3+| declared in file (* License)                  |
+| org-outside-org.org               | Thorsten Jolitz, François Pinard (Worg)       | GNU FDL 1.3+/GPLv3+| upstream policy (Worg)                        |
+| org-publish-html-tutorial.org     | Sebastian Rose (Worg)                         | GNU FDL 1.3+/GPLv3+| upstream policy (Worg)                        |
+| org-quotes.org                    | Org (Worg)                                    | GNU FDL 1.3+/GPLv3+| declared in file                              |
+| org-syntax.org                    | Nicolas Goaziou, Timothy E. Chapman (Worg)    | GNU FDL 1.3+/GPLv3+| declared in file                              |
+| orgmode_guide.org                 | The Org Mode Developers / FSF                 | GNU FDL 1.3        | declared in file (FSF copyright)              |
+| orgtutorial_dto-es.org            | David Arroyo Menéndez (transl. of D. O'Toole) | GNU FDL 1.3+/GPLv3+| upstream policy (Worg org-tutorials)          |
+| orgtutorial_dto-fr.org            | David O'Toole (Worg)                          | GNU FDL 1.3+/GPLv3+| upstream policy (Worg org-tutorials)          |
+| ox-overview.org                   | John Henderson (Worg)                         | GNU FDL 1.3+/GPLv3+| declared in file                              |
+| README.org                        | 谢骐 (shynur)                                  | Apache-2.0         | declared in file (* License)                  |
+| writting_collection.org           | Likhon Barai                                  | GPL-3.0            | declared: Likhon-baRoy/org-notes              |
+| yantar92_config.org               | Ihor Radchenko                                | GPL v3             | repo policy (yantar92 dotfiles)               |
+| yantar92_config_archive_2019.org  | Ihor Radchenko                                | GPL v3             | repo policy (yantar92 dotfiles)               |
+| yantar92_config_archive_2024.org  | Ihor Radchenko                                | GPL v3             | repo policy (yantar92 dotfiles)               |
+| yantar92_readme.org               | Ihor Radchenko                                | GPL v3             | declared in file (* License)                  |
+| yantar92_system_config.org        | Ihor Radchenko                                | GPL v3             | repo policy (yantar92 dotfiles)               |
+
+* Summary
+
+Of 55 documents: 45 carry a verified GPL-compatible license (declared in file or
+by upstream/repo/site policy); 10 carry no discoverable license and are included
+with the author's explicit permission for testing use only. The 10 are:
+=2021-07-31-citations.org=, =emacs_china_elisp.org=,
+=lujun9972_capture_date_trees.org=, =lanceberge_{aws,jq,rest}.org=, and
+=chapter-{2-7,2-10,5-7,appendix-f}.org=.

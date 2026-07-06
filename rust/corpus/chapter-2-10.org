@@ -1,0 +1,678 @@
+:PROPERTIES:
+:ID:       d3809605-d612-4464-b5d0-83ba034c2c41
+:END:
+#+TITLE: 2.10. org-protocolによる外部アプリ連携
+#+DESCRIPTION: description
+#+STARTUP: fold
+#+OPTIONS: toc:nil
+* org-protocolとは
+
+org-protocolは、外部アプリケーションからEmacsにデータを送信するための仕組みです。カスタムURLスキーム =org-protocol://= を使用し、ブラウザやメーラーなどからOrg-modeの機能を呼び出すことができます。
+
+** カスタムURLスキーム
+
+#+begin_src text
+org-protocol://capture?template=t&url=https://example.com&title=Example&body=Selected%20text
+#+end_src
+
+このURLをクリックすると、Emacsが起動してorg-captureテンプレートが展開される。
+
+** 有効化
+
+#+begin_src emacs-lisp
+;; org-protocolを有効化
+(require 'org-protocol)
+#+end_src
+
+** 基本的な動作フロー
+
+1. 外部アプリ（ブラウザなど）で org-protocol:// リンクをクリック
+2. OSがURLスキームを認識し、設定されたハンドラ（emacsclient）を起動
+3. EmacsがURLをパースし、対応するOrg-mode機能を実行
+4. キャプチャバッファやリンクが作成される
+
+* セットアップ
+
+** macOS
+
+*** Emacs.appの設定
+
+Emacs.appの =Info.plist= を編集して、org-protocol URLスキームを登録する。
+
+ファイルの場所: =/Applications/Emacs.app/Contents/Info.plist=
+
+#+begin_src xml
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLName</key>
+    <string>org-protocol handler</string>
+    <key>CFBundleURLSchemes</key>
+    <array>
+      <string>org-protocol</string>
+    </array>
+  </dict>
+</array>
+#+end_src
+
+*** emacsclient設定
+
+#+begin_src emacs-lisp
+;; Emacsサーバーを起動
+(server-start)
+#+end_src
+
+*** シェルスクリプトの作成（オプション）
+
+=/usr/local/bin/org-protocol-handler= として保存:
+
+#+begin_src bash
+#!/bin/bash
+/usr/local/bin/emacsclient -n "$@"
+#+end_src
+
+*** Automatorを使った方法
+
+1. Automatorで「アプリケーション」を新規作成
+2. 「シェルスクリプトを実行」アクションを追加
+3. 次のスクリプトを設定:
+
+#+begin_src bash
+/usr/local/bin/emacsclient -n "$1"
+#+end_src
+
+4. 「OrgProtocol.app」として保存
+5. =Info.plist= にURLスキームを追加
+
+** Linux
+
+*** .desktopファイルの作成
+
+=~/.local/share/applications/org-protocol.desktop= を作成:
+
+#+begin_src ini
+[Desktop Entry]
+Name=Org Protocol Handler
+Exec=emacsclient %u
+Type=Application
+Terminal=false
+MimeType=x-scheme-handler/org-protocol;
+#+end_src
+
+*** xdg-openの設定
+
+#+begin_src bash
+# デスクトップデータベースを更新
+update-desktop-database ~/.local/share/applications/
+
+# org-protocolのハンドラを登録
+xdg-mime default org-protocol.desktop x-scheme-handler/org-protocol
+
+# 登録確認
+xdg-mime query default x-scheme-handler/org-protocol
+#+end_src
+
+** Windows
+
+*** レジストリ設定
+
+=org-protocol.reg= ファイルを作成:
+
+#+begin_src text
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\org-protocol]
+@="URL:Org Protocol"
+"URL Protocol"=""
+
+[HKEY_CLASSES_ROOT\org-protocol\shell]
+
+[HKEY_CLASSES_ROOT\org-protocol\shell\open]
+
+[HKEY_CLASSES_ROOT\org-protocol\shell\open\command]
+@="\"C:\\path\\to\\emacsclientw.exe\" \"%1\""
+#+end_src
+
+*** バッチファイル経由での呼び出し
+
+=C:\path\to\org-protocol.bat= を作成:
+
+#+begin_src bat
+@echo off
+"C:\path\to\emacs\bin\emacsclientw.exe" "%1"
+#+end_src
+
+レジストリのcommandを修正:
+
+#+begin_src text
+@="\"C:\\path\\to\\org-protocol.bat\" \"%1\""
+#+end_src
+
+* プロトコルタイプ
+
+** org-protocol://capture
+
+キャプチャテンプレートを呼び出す:
+
+#+begin_src text
+org-protocol://capture?template=w&url=URL&title=TITLE&body=BODY
+#+end_src
+
+パラメータ:
+- =template= : キャプチャテンプレートのキー
+- =url= : URL（オプション）
+- =title= : タイトル（オプション）
+- =body= : 本文（オプション）
+
+** org-protocol://store-link
+
+リンクを =org-stored-links= に保存:
+
+#+begin_src text
+org-protocol://store-link?url=URL&title=TITLE
+#+end_src
+
+後で =C-c C-l= でリンクを挿入する際に利用できる。
+
+** org-protocol://open-source
+
+ファイルを開く:
+
+#+begin_src text
+org-protocol://open-source?url=file:///path/to/file&line=10&column=5
+#+end_src
+
+特定の行・列にジャンプしてファイルを開く。
+
+** カスタムプロトコルの定義
+
+#+begin_src emacs-lisp
+;; カスタムプロトコルを定義
+(add-to-list 'org-protocol-protocol-alist
+             '("my-custom-protocol"
+               :protocol "my-protocol"
+               :function my-org-protocol-handler
+               :kill-client t))
+
+(defun my-org-protocol-handler (data)
+  "カスタムプロトコルのハンドラ."
+  (let ((url (plist-get data :url))
+        (title (plist-get data :title)))
+    (message "Received: %s - %s" title url)
+    ;; 任意の処理
+    nil))
+#+end_src
+
+* ブラウザ連携（Bookmarklet）
+
+** キャプチャ用bookmarklet
+
+*** 基本的なキャプチャ
+
+#+begin_src javascript
+javascript:location.href='org-protocol://capture?template=w&url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title);
+#+end_src
+
+*** 選択テキスト付きキャプチャ
+
+#+begin_src javascript
+javascript:location.href='org-protocol://capture?template=w&url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title)+'&body='+encodeURIComponent(window.getSelection().toString());
+#+end_src
+
+*** 読みやすく整形したバージョン
+
+#+begin_src javascript
+javascript:(function(){
+  var url = encodeURIComponent(location.href);
+  var title = encodeURIComponent(document.title);
+  var body = encodeURIComponent(window.getSelection().toString());
+  location.href = 'org-protocol://capture?template=w&url=' + url + '&title=' + title + '&body=' + body;
+})();
+#+end_src
+
+** ブラウザ別の注意点
+
+*** Chrome
+
+- ブックマークバーにドラッグ＆ドロップで追加
+- org-protocol://をクリック時に「常にこのアプリで開く」を選択
+
+*** Firefox
+
+- ブックマークとして保存
+- =about:config= で =network.protocol-handler.expose.org-protocol= を =false= に設定すると、毎回確認ダイアログが表示される
+
+*** Safari
+
+- セキュリティ制限により追加の設定が必要な場合がある
+- Automatorアプリをハンドラとして設定
+
+** ブラウザ拡張
+
+*** org-capture-extension
+
+Chrome拡張「org-capture-extension」を使用すると、より便利にキャプチャできる:
+
+#+begin_src emacs-lisp
+;; org-capture-extensionとの連携設定
+(setq org-capture-templates
+      '(("p" "Protocol" entry (file+headline "~/org/notes.org" "Inbox")
+         "* %^{Title}\nSource: %u, %c\n #+BEGIN_QUOTE\n%i\n#+END_QUOTE\n\n\n%?"
+         :immediate-finish t)
+        ("L" "Protocol Link" entry (file+headline "~/org/notes.org" "Inbox")
+         "* %? [[%:link][%:description]]\nCaptured On: %U"
+         :immediate-finish t)))
+#+end_src
+
+* org-protocol-capture-templateのマッピング
+
+** テンプレートキーの指定
+
+#+begin_src emacs-lisp
+(setq org-capture-templates
+      '(;; Webクリッピング用（キー: w）
+        ("w" "Web Clipping" entry
+         (file+headline "~/org/web.org" "Clippings")
+         "* %:annotation\n%U\n%:initial"
+         :immediate-finish t)
+
+        ;; 後で読む用（キー: r）
+        ("r" "Read Later" entry
+         (file+headline "~/org/reading.org" "Queue")
+         "* TODO %:annotation :reading:\nSCHEDULED: %t\n%U"
+         :immediate-finish t)
+
+        ;; タスク作成用（キー: t）
+        ("t" "Task from Web" entry
+         (file+headline "~/org/tasks.org" "Inbox")
+         "* TODO %:annotation\n%U\n%:initial")))
+#+end_src
+
+** テンプレート内で使用可能な変数
+
+| 変数           | 説明                        |
+|----------------+-----------------------------|
+| =%:link=       | URL                         |
+| =%:description= | ページタイトル              |
+| =%:annotation= | リンク形式 =[[url][title]]= |
+| =%:initial=    | 選択テキスト（body）        |
+| =%:query=      | クエリ文字列全体            |
+
+** URLパラメータとテンプレート変数の対応
+
+#+begin_src text
+org-protocol://capture?template=w&url=URL&title=TITLE&body=BODY
+                        ↓         ↓       ↓          ↓
+                     template  %:link  %:description  %:initial
+#+end_src
+
+** エンコーディングの注意点（日本語）
+
+日本語を含むURLは適切にエンコードする必要がある:
+
+#+begin_src javascript
+// 日本語対応bookmarklet
+javascript:(function(){
+  var url = encodeURIComponent(location.href);
+  var title = encodeURIComponent(document.title);
+  var body = encodeURIComponent(window.getSelection().toString());
+  // 日本語は自動的にUTF-8でエンコードされる
+  location.href = 'org-protocol://capture?template=w&url=' + url + '&title=' + title + '&body=' + body;
+})();
+#+end_src
+
+Emacs側でのデコード設定:
+
+#+begin_src emacs-lisp
+;; org-protocolでのURLデコードを確実に行う
+(setq org-protocol-default-template-key "w")
+#+end_src
+
+* 実践例
+
+** （1）Web記事のクリッピング
+
+#+begin_src emacs-lisp
+;; Web記事クリッピング用テンプレート
+(add-to-list 'org-capture-templates
+             '("c" "Web Clipping" entry
+               （file+headline "~/org/clips.org" "Web Clippings"）
+               "* %:annotation
+:PROPERTIES:
+:CAPTURED: %U
+:SOURCE: %:link
+:END:
+
+%:initial
+
+** メモ
+%?"
+               :empty-lines 1))
+#+end_src
+
+対応するbookmarklet:
+
+#+begin_src javascript
+javascript:location.href='org-protocol://capture?template=c&url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title)+'&body='+encodeURIComponent(window.getSelection().toString());
+#+end_src
+
+** （2）Webページの「後で読む」登録
+
+#+begin_src emacs-lisp
+;; 後で読む用テンプレート
+(add-to-list 'org-capture-templates
+             '("r" "Read Later" entry
+               (file+headline "~/org/reading.org" "Reading Queue")
+               "* TODO [[%:link][%:description]] :reading:
+SCHEDULED: %(org-insert-time-stamp (org-read-date nil t \"+1d\") nil nil)
+:PROPERTIES:
+:ADDED: %U
+:END:"
+               :immediate-finish t))
+#+end_src
+
+シンプルなbookmarklet:
+
+#+begin_src javascript
+javascript:location.href='org-protocol://capture?template=r&url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title);
+#+end_src
+
+** （3）メールからのタスク作成
+
+*** mu4eとの連携
+
+#+begin_src emacs-lisp
+;; mu4eメールリンクのサポート
+(require 'org-mu4e)
+
+;; メールからのタスク作成テンプレート
+(add-to-list 'org-capture-templates
+             '("m" "Mail Task" entry
+               (file+headline "~/org/tasks.org" "Mail")
+               "* TODO %:annotation
+:PROPERTIES:
+:MAIL_LINK: %a
+:FROM: %:from
+:SUBJECT: %:subject
+:DATE: %:date
+:END:
+
+%?"
+               :empty-lines 1))
+#+end_src
+
+*** Gnusとの連携
+
+#+begin_src emacs-lisp
+;; Gnusからのキャプチャ設定
+(setq org-capture-templates
+      '(("g" "Gnus Mail" entry
+         (file+headline "~/org/mail.org" "Mail Tasks")
+         "* TODO %:subject :mail:
+From: %:from
+Date: %:date
+
+%a")))
+#+end_src
+
+** （4）Slackメッセージのキャプチャ
+
+#+begin_src emacs-lisp
+;; Slackメッセージ用テンプレート
+(add-to-list 'org-capture-templates
+             '("s" "Slack Message" entry
+               （file+headline "~/org/slack.org" "Messages"）
+               "* TODO %:description :slack:
+:PROPERTIES:
+:SLACK_URL: %:link
+:CAPTURED: %U
+:END:
+
+%:initial
+
+** アクション
+%?"))
+#+end_src
+
+Slack URLを処理するカスタム関数:
+
+#+begin_src emacs-lisp
+(defun my/org-protocol-slack-handler (data)
+  "Slack URLを処理してキャプチャ."
+  (let* ((url (plist-get data :url))
+         (parts (split-string url "/"))
+         (channel (nth 4 parts))
+         (timestamp (nth 5 parts)))
+    (org-capture nil "s")
+    nil))
+#+end_src
+
+* org-roam-protocol
+
+org-roamをorg-protocolと連携させることで、Webページから直接ノートを作成できる。
+
+** org-roam-protocolの設定
+
+#+begin_src emacs-lisp
+(require 'org-roam-protocol)
+#+end_src
+
+** ref:// キャプチャ
+
+Webページをorg-roamノートとしてキャプチャ:
+
+#+begin_src text
+org-protocol://roam-ref?template=r&ref=URL&title=TITLE
+#+end_src
+
+設定例:
+
+#+begin_src emacs-lisp
+(setq org-roam-capture-ref-templates
+      '(("r" "ref" plain
+         "%?"
+         :target (file+head "refs/${slug}.org"
+                            "#+title: ${title}\n#+roam_key: ${ref}\n")
+         :unnarrowed t)))
+#+end_src
+
+** Webページをノートに変換
+
+Bookmarklet:
+
+#+begin_src javascript
+javascript:location.href='org-protocol://roam-ref?template=r&ref='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title);
+#+end_src
+
+** org-roam-dailiesとの連携
+
+#+begin_src emacs-lisp
+;; 日次ノートにWebリンクを追加するテンプレート
+(setq org-roam-capture-ref-templates
+      '(("d" "daily" plain
+         "* %<%H:%M> [[${ref}][${title}]]\n%?"
+         :target (file+head+olp "%<%Y-%m-%d>.org"
+                                "#+title: %<%Y-%m-%d>\n"
+                                ("Web"))
+         :unnarrowed t)))
+#+end_src
+
+* セキュリティ考慮
+
+** org-protocol-check-owner-request
+
+悪意あるリンクからの保護:
+
+#+begin_src emacs-lisp
+;; リクエスト元の確認を有効化
+(setq org-protocol-check-owner-request t)
+#+end_src
+
+** 許可するプロトコルの制限
+
+#+begin_src emacs-lisp
+;; 使用するプロトコルのみを有効化
+(setq org-protocol-protocol-alist
+      '(("capture" :protocol "capture"
+         :function org-protocol-capture
+         :kill-client t)
+        ("store-link" :protocol "store-link"
+         :function org-protocol-store-link)))
+#+end_src
+
+** 悪意あるリンクへの対策
+
+1. 不明なソースからのリンクをクリックしない
+2. =:immediate-finish t= を使用する場合は特に注意
+3. テンプレートで任意コード実行を避ける
+
+#+begin_src emacs-lisp
+;; 安全なテンプレート例（evalを含まない）
+(setq org-capture-templates
+      '(("w" "Web" entry
+         (file "~/org/web.org")
+         "* %:annotation\n%U\n%:initial"
+         :immediate-finish t)))
+
+;; 避けるべきパターン（外部データをevalしない）
+;; 悪い例: "* %(some-function %:initial)"  ; 外部データを関数に渡す
+#+end_src
+
+** 確認ダイアログの表示
+
+#+begin_src emacs-lisp
+;; キャプチャ前に確認
+(defun my/org-protocol-confirm (fun &rest args)
+  "org-protocol実行前に確認."
+  (when (yes-or-no-p "Execute org-protocol capture? ")
+    (apply fun args)))
+
+(advice-add 'org-protocol-capture :around #'my/org-protocol-confirm)
+#+end_src
+
+* トラブルシューティング
+
+** emacsclientが起動しない
+
+*** 原因1: サーバーが起動していない
+
+#+begin_src emacs-lisp
+;; init.elでサーバーを起動
+(unless (server-running-p)
+  (server-start))
+#+end_src
+
+*** 原因2: emacsclientのパスが通っていない
+
+#+begin_src bash
+# パスを確認
+which emacsclient
+
+# シンボリックリンクを作成
+sudo ln -s /Applications/Emacs.app/Contents/MacOS/bin/emacsclient /usr/local/bin/emacsclient
+#+end_src
+
+*** 原因3: ソケットの問題
+
+#+begin_src bash
+# ソケットファイルを確認
+ls -la /tmp/emacs$(id -u)/
+
+# ソケットを指定して接続
+emacsclient -s /tmp/emacs501/server org-protocol://capture?template=t
+#+end_src
+
+** URLデコードの問題
+
+*** 症状: パラメータが正しく渡されない
+
+#+begin_src emacs-lisp
+;; デバッグ用：受け取ったデータを表示
+(defun my/debug-org-protocol (data)
+  "org-protocolのデータをデバッグ."
+  (message "Received data: %S" data))
+
+(advice-add 'org-protocol-capture :before #'my/debug-org-protocol)
+#+end_src
+
+*** 解決策: 二重エンコードを避ける
+
+#+begin_src javascript
+// 正しいエンコード
+var url = encodeURIComponent(location.href);
+
+// 二重エンコードしない
+// 悪い例: encodeURIComponent(encodeURIComponent(location.href))
+#+end_src
+
+** 日本語が文字化け
+
+*** 原因: エンコーディングの不一致
+
+#+begin_src emacs-lisp
+;; UTF-8を強制
+(setq org-protocol-default-template-key "w")
+
+;; URLデコードの設定
+(defun my/decode-org-protocol-url (url)
+  "URLをUTF-8でデコード."
+  (decode-coding-string (url-unhex-string url) 'utf-8))
+#+end_src
+
+*** Bookmarkletでの対策
+
+#+begin_src javascript
+javascript:(function(){
+  // UTF-8でエンコード
+  var url = encodeURIComponent(location.href);
+  var title = encodeURIComponent(document.title);
+  // 選択テキストもUTF-8
+  var body = encodeURIComponent(window.getSelection().toString());
+  location.href = 'org-protocol://capture?template=w&url=' + url + '&title=' + title + '&body=' + body;
+})();
+#+end_src
+
+** macOSでの権限問題
+
+*** 症状: セキュリティ警告が表示される
+
+1. システム環境設定 → セキュリティとプライバシー
+2. 「一般」タブで「このまま開く」を選択
+3. または「App Storeと確認済みの開発元からのアプリケーションを許可」を選択
+
+*** Gatekeeperの回避
+
+#+begin_src bash
+# 属性を削除（自己責任で）
+xattr -cr /Applications/Emacs.app
+#+end_src
+
+*** Automatorアプリの署名
+
+#+begin_src bash
+# アドホック署名
+codesign --force --deep --sign - /path/to/OrgProtocol.app
+#+end_src
+
+** デバッグ方法
+
+*** org-protocolのデバッグログ
+
+#+begin_src emacs-lisp
+;; メッセージバッファにログを出力
+(setq org-protocol-debug t)
+#+end_src
+
+*** コマンドラインでのテスト
+
+#+begin_src bash
+# 直接emacsclientを呼び出してテスト
+emacsclient -e '(org-protocol-capture-string "template=t&url=https://example.com&title=Test")'
+#+end_src
+
+*** ブラウザでのテスト
+
+#+begin_src javascript
+// コンソールでURLを確認
+console.log('org-protocol://capture?template=w&url=' + encodeURIComponent(location.href) + '&title=' + encodeURIComponent(document.title));
+#+end_src

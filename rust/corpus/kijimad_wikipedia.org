@@ -1,0 +1,343 @@
+:PROPERTIES:
+:ID:       39f0af27-f685-4ce5-beac-a3398f648ba4
+:mtime:    20241102180350
+:ctime:    20210926100207
+:END:
+#+title: Wikipedia
+* 概要
+WikipediaはWeb百科辞典。
+
+面白いページがところどころあるので、まとめておく。
+* Memo
+* Tasks
+** [[id:1ad8c3d5-97ba-4905-be11-e6f2626127ad][Emacs]]で簡単に開けるようにする
+Google経由でなく、直に検索できるようにする。
+* ネタ
+** [[https://ja.wikipedia.org/wiki/%E9%81%85%E5%88%BB%E3%81%99%E3%82%8B%E9%A3%9F%E3%83%91%E3%83%B3%E5%B0%91%E5%A5%B3][遅刻する食パン少女 - Wikipedia]]
+明確な発祥はわかっていない。
+** [[https://ja.wikipedia.org/wiki/%E8%A1%97%E7%81%AF%E3%81%AE%E4%B8%8B%E3%81%A7%E9%8D%B5%E3%82%92%E6%8E%A2%E3%81%99][街灯の下で鍵を探す - Wikipedia]]
+的確なたとえ。
+** [[https://ja.wikipedia.org/wiki/%E3%83%8F%E3%82%A4%E3%83%AB%E3%83%96%E3%83%AD%E3%83%B3%E3%81%AE%E6%80%AA%E4%BA%BA][ハイルブロンの怪人 - Wikipedia]]
+DNA汚染で起きた架空の大犯罪者。
+** [[https://ja.wikipedia.org/wiki/%E3%83%A0%E3%83%9A%E3%83%B3%E3%83%90%E5%8A%B9%E6%9E%9C][ムペンバ効果 - Wikipedia]]
+湯のほうが水よりも早く凍ることがある現象。なぜかわかっていない。
+** [[https://en.wikipedia.org/wiki/Wikipedia:Lamest_edit_wars][Wikipedia:Lamest edit wars - Wikipedia]]
+編集合戦・不毛な議論の一覧。
+** [[https://ja.wikipedia.org/wiki/%E3%82%AA%E3%83%BC%E3%83%97%E3%83%B3%E3%82%B3%E3%83%BC%E3%83%A9_(%E9%A3%B2%E6%96%99)][オープンコーラ (飲料) - Wikipedia]]
+GPLのコーラ。
+** [[https://ja.wikipedia.org/wiki/%E6%A0%B8%E3%82%AC%E3%83%B3%E3%82%B8%E3%83%BC][核ガンジー - Wikipedia]]
+面白いバグ。
+** [[https://ja.wikipedia.org/wiki/Qu%E4%BB%A5%E5%A4%96%E3%81%AE%E7%B6%B4%E3%82%8A%E3%81%A7q%E3%82%92%E5%90%AB%E3%82%80%E8%8B%B1%E5%8D%98%E8%AA%9E%E3%81%AE%E4%B8%80%E8%A6%A7][qu以外の綴りでqを含む英単語の一覧 - Wikipedia]]
+変わった記事。
+** [[https://ja.wikipedia.org/wiki/%E3%83%81%E3%83%A5%E3%83%BC%E3%83%90%E3%83%83%E3%82%AB%E5%BC%81%E8%AB%96][チューバッカ弁論 - Wikipedia]]
+詭弁の一種。
+** [[https://ja.wikipedia.org/wiki/%E9%AE%AB%E3%81%AE%E5%A4%8F][鮫の夏 - Wikipedia]]
+2001年夏に全米でサメの話題でもちきりだったこと。メディアの影響と統計的事実との乖離を考える機会になる。
+** [[https://ja.wikipedia.org/wiki/Wikipedia:%E3%83%93%E3%82%B3%E3%83%AA%E3%83%A0%E6%88%A6%E4%BA%89][Wikipedia:ビコリム戦争 - Wikipedia]]
+史実として掲載されていた虚構記事。
+** [[https://ja.wikipedia.org/wiki/%E7%90%83%E5%BD%A2%E3%81%AE%E7%89%9B][球形の牛 - Wikipedia]]
+現実に起こる複雑な現象を高度に単純化した科学的なモデルでとらえることを喩えた表現。
+* 歴史
+** [[https://ja.wikipedia.org/wiki/%E6%97%A5%E6%9C%AC%E3%81%AE%E6%94%B9%E8%BB%8C%E8%AB%96%E4%BA%89][日本の改軌論争 - Wikipedia]]
+軌間に関する論争。
+* 人物
+** [[https://ja.wikipedia.org/wiki/%E3%82%A2%E3%83%A9%E3%83%B3%E3%83%BB%E3%82%AF%E3%83%BC%E3%83%91%E3%83%BC][アラン・クーパー - Wikipedia]]
+ペルソナ、Visual BASICの開発者。
+** [[https://ja.wikipedia.org/wiki/Category:%E3%82%A8%E3%83%89%E3%82%AC%E3%83%BC%E3%83%BB%E3%83%80%E3%82%A4%E3%82%AF%E3%82%B9%E3%83%88%E3%83%A9][Category:エドガー・ダイクストラ - Wikipedia]]
+ダイクストラにはカテゴリページがある。
+** [[https://ja.wikipedia.org/wiki/%E8%A5%BF%E6%9D%91%E5%8D%9A%E4%B9%8B][西村博之 - Wikipedia]]
+ひろゆき。やたら記事が長い。
+** [[https://en.wikipedia.org/wiki/Mark_Wahlberg][Mark Wahlberg - Wikipedia]]
+映画でよく見るイカしたおっちゃん。マット・デーモンとよく間違われるらしい。そんなに似てるかわからない。
+* 場所
+** [[https://ja.wikipedia.org/wiki/%E7%94%B1%E5%B8%83%E5%B3%B6][由布島 - Wikipedia]]
+浅瀬でつながった島。
+** [[https://ja.wikipedia.org/wiki/%E3%82%BD%E3%83%95%E3%82%A3%E3%83%86%E3%83%AB%E6%9D%B1%E4%BA%AC][ソフィテル東京 - Wikipedia]]
+一時期不忍池にあったビル。
+** [[https://ja.wikipedia.org/wiki/%E4%B8%AD%E9%8A%80%E3%82%AB%E3%83%97%E3%82%BB%E3%83%AB%E3%82%BF%E3%83%AF%E3%83%BC%E3%83%93%E3%83%AB][中銀カプセルタワービル - Wikipedia]]
+世界で初めて実用化されたカプセル建築。
+** [[https://ja.wikipedia.org/wiki/%E3%83%AA%E3%83%B3%E3%83%80%E3%82%A6][リンダウ - Wikipedia]]
+美しい島。
+** [[https://ja.wikipedia.org/wiki/%E5%AF%8C%E5%B2%A1%E5%9F%8E][富岡城 - Wikipedia]]
+面白そうな城。陸繋島。
+** [[https://ja.wikipedia.org/wiki/NSPIXP][NSPIXP - Wikipedia]]
+日本で初めての相互接続点は岩波書店本社ビル。
+** [[https://ja.wikipedia.org/wiki/%E3%82%B7%E3%83%A5%E3%83%B4%E3%82%A1%E3%83%AB%E3%81%AE%E7%90%86%E6%83%B3%E5%AE%AE][シュヴァルの理想宮 - Wikipedia]]
+素人の作ったすごい建築物。
+** [[https://ja.wikipedia.org/wiki/%E6%B2%A2%E7%94%B0%E3%83%9E%E3%83%B3%E3%82%B7%E3%83%A7%E3%83%B3][沢田マンション - Wikipedia]]
+#+begin_quote
+沢田マンションは、素人が独自に建てた鉄筋コンクリート造の建物である。
+#+end_quote
+** [[https://ja.wikipedia.org/wiki/%E3%83%81%E3%83%83%E3%82%BF%E3%83%87%E3%83%83%E3%83%A9][チッタデッラ - Wikipedia]]
+城壁都市。
+** [[https://ja.wikipedia.org/wiki/%E5%AE%97%E8%B0%B7_(%E8%88%B9)][宗谷 (船) - Wikipedia]]
+奇遇な歴史をたどった船。現在はお台場に展示されている。
+** [[https://ja.wikipedia.org/wiki/%E3%83%95%E3%83%AC%E3%83%87%E3%83%95%E3%82%A9%E3%83%BC%E3%83%88%E3%83%BB%E3%83%89%E3%83%BC%E3%83%A0][フレデフォート・ドーム - Wikipedia]]
+世界最大のクレーター。
+** [[https://ja.wikipedia.org/wiki/%E3%83%9A%E3%83%AA%E3%83%95%E3%82%A7%E3%83%AA%E3%83%83%E3%82%AF][ペリフェリック - Wikipedia]]
+フランスの高速道路。
+** [[https://ja.wikipedia.org/wiki/%E9%80%9A%E3%82%8A%E6%B1%A0][通り池 - Wikipedia]]
+カルスト地形の例。
+** [[https://ja.wikipedia.org/wiki/%E8%85%90%E6%B5%B7][腐海 - Wikipedia]]
+変わった場所。
+** [[https://ja.wikipedia.org/wiki/%E9%AB%98%E8%BC%AA%E6%A9%8B%E6%9E%B6%E9%81%93%E6%A9%8B%E4%B8%8B%E5%8C%BA%E9%81%93][高輪橋架道橋下区道 - Wikipedia]]
+1.5mの高さしかない道。
+** [[https://ja.wikipedia.org/wiki/%E3%82%AD%E3%83%B3%E3%82%B7%E3%83%A3%E3%82%B5][キンシャサ - Wikipedia]]
+首都が川を隔てて隣り合っている。
+** [[https://ja.wikipedia.org/wiki/%E3%83%95%E3%83%BC%E3%83%90%E3%83%BC%E3%83%80%E3%83%A0][フーバーダム - Wikipedia]]
+超でかいダム。
+** [[https://ja.wikipedia.org/wiki/%E9%A6%AC%E6%AF%9B%E5%B3%B6][馬毛島 - Wikipedia]]
+滑走路の島。
+** [[https://www.google.co.jp/maps/@59.5547794,150.7859761,3a,75y,242.88h,78.65t/data=!3m6!1e1!3m4!1sIHU4S4ir4dUh2994oBLu_Q!2e0!7i13312!8i6656?hl=jagoogle.co.jp/maps/@35.7019863,139.7831018,15zwww.google.co.jp/][3 Ulitsa Klubnaya - Google Maps]]
+ロシアの田舎。かなり発展途上国感。
+** [[https://ja.wikipedia.org/wiki/%E3%83%97%E3%83%AD%E3%83%87%E3%82%A3%E3%82%B8%E3%83%BC][プロディジー - Wikipedia]]
+電子音楽で有名。
+** [[https://ja.wikipedia.org/wiki/%E3%82%A6%E3%82%AF%E3%83%A9%E3%82%A4%E3%83%8A][ウクライナ - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/%E9%9A%85%E7%94%B0%E5%B7%9D%E6%A9%8B%E6%A2%81_(%E6%9D%B1%E6%AD%A6%E4%BC%8A%E5%8B%A2%E5%B4%8E%E7%B7%9A)][隅田川橋梁 (東武伊勢崎線) - Wikipedia]]
+建造から100年経っているのが信じられない、美しい橋。
+併設の歩道橋から間近に見学できる。
+** [[https://ja.wikipedia.org/wiki/%E5%9B%BD%E9%9A%9B%E9%80%A3%E5%90%88%E6%9C%AC%E9%83%A8%E3%83%93%E3%83%AB][国際連合本部ビル - Wikipedia]]
+よく映像で出るやつ。
+** [[https://ja.wikipedia.org/wiki/%E6%9D%BE%E4%BD%8F%E7%94%BA%E6%9E%B6%E9%81%93%E6%A9%8B][松住町架道橋 - Wikipedia]]
+秋葉原の緑色の橋。
+** [[https://ja.wikipedia.org/wiki/%E5%9C%B0%E4%B8%AD%E6%B5%B7][地中海 - Wikipedia]]
+面白い。特殊な環境なことがわかる。
+** [[https://ja.wikipedia.org/wiki/%E3%82%B8%E3%83%96%E3%83%A9%E3%83%AB%E3%82%BF%E3%83%AB%E6%B5%B7%E5%B3%A1][ジブラルタル海峡 - Wikipedia]]
+地中海と大西洋の接続点。
+** [[https://ja.wikipedia.org/wiki/%E3%82%B8%E3%83%96%E3%83%A9%E3%83%AB%E3%82%BF%E3%83%AB%E3%81%AE%E5%B2%A9][ジブラルタルの岩 - Wikipedia]]
+でかい岩。
+* 事件
+** [[https://ja.wikipedia.org/wiki/1970%E5%B9%B4%E3%81%AE%E3%83%9C%E3%83%BC%E3%83%A9%E3%83%BB%E3%82%B5%E3%82%A4%E3%82%AF%E3%83%AD%E3%83%B3][1970年のボーラ・サイクロン - Wikipedia]]
+独立の機会となった自然災害。
+** [[https://ja.wikipedia.org/wiki/%E5%BD%8C%E5%BD%A6%E7%A5%9E%E7%A4%BE%E4%BA%8B%E4%BB%B6][彌彦神社事件 - Wikipedia]]
+群衆事故。
+** [[https://ja.wikipedia.org/wiki/%E3%83%99%E3%83%AC%E3%83%B3%E3%82%B3%E4%B8%AD%E5%B0%89%E4%BA%A1%E5%91%BD%E4%BA%8B%E4%BB%B6][ベレンコ中尉亡命事件 - Wikipedia]]
+函館空港に戦闘機で亡命した事件。
+** [[https://ja.wikipedia.org/wiki/%E3%83%9E%E3%83%BC%E3%82%B9%E3%82%AF%E3%83%BB%E3%82%A2%E3%83%A9%E3%83%90%E3%83%9E%E5%8F%B7%E4%B9%97%E3%81%A3%E5%8F%96%E3%82%8A%E4%BA%8B%E4%BB%B6][マースク・アラバマ号乗っ取り事件 - Wikipedia]]
+映画『キャプテン・フィリップス』で映画化された事件。
+** [[https://ja.wikipedia.org/wiki/%E5%B8%9D%E9%8A%80%E4%BA%8B%E4%BB%B6][帝銀事件 - Wikipedia]]
+未解決事件。
+** [[https://ja.wikipedia.org/wiki/%E5%9B%BD%E9%89%84%E4%B8%89%E5%A4%A7%E3%83%9F%E3%82%B9%E3%83%86%E3%83%AA%E3%83%BC%E4%BA%8B%E4%BB%B6][国鉄三大ミステリー事件 - Wikipedia]]
+名前すごいな。
+** [[https://ja.wikipedia.org/wiki/%E3%83%84%E3%83%B3%E3%82%B0%E3%83%BC%E3%82%B9%E3%82%AB%E5%A4%A7%E7%88%86%E7%99%BA][ツングースカ大爆発 - Wikipedia]]
+隕石被害。
+** [[https://ja.wikipedia.org/wiki/%E7%A5%9E%E6%88%B8%E9%AB%98%E5%A1%9A%E9%AB%98%E6%A0%A1%E6%A0%A1%E9%96%80%E5%9C%A7%E6%AD%BB%E4%BA%8B%E4%BB%B6][神戸高塚高校校門圧死事件 - Wikipedia]]
+悲惨な事故。
+** [[https://ja.wikipedia.org/wiki/%E7%A6%8F%E5%B3%B6%E5%A5%B3%E6%80%A7%E6%95%99%E5%93%A1%E5%AE%85%E4%BE%BF%E6%A7%BD%E5%86%85%E6%80%AA%E6%AD%BB%E4%BA%8B%E4%BB%B6][福島女性教員宅便槽内怪死事件 - Wikipedia]]
+有名な、トイレにハマった図。
+** [[https://ja.wikipedia.org/wiki/%E5%85%AB%E7%94%B2%E7%94%B0%E9%9B%AA%E4%B8%AD%E8%A1%8C%E8%BB%8D%E9%81%AD%E9%9B%A3%E4%BA%8B%E4%BB%B6][八甲田雪中行軍遭難事件 - Wikipedia]]
+最悪の遭難事件。
+** [[https://ja.wikipedia.org/wiki/%E3%83%80%E3%83%83%E3%82%AB%E8%BF%91%E9%83%8A%E3%83%93%E3%83%AB%E5%B4%A9%E8%90%BD%E4%BA%8B%E6%95%85][ダッカ近郊ビル崩落事故 - Wikipedia]]
+最悪のビル崩壊事故。
+* プログラム
+** [[https://ja.wikipedia.org/wiki/%E4%B8%AD%E5%9B%BD%E3%81%AB%E3%81%8A%E3%81%91%E3%82%8B%E5%9C%B0%E7%90%86%E7%9A%84%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%88%B6%E9%99%90][中国における地理的データの制限 - Wikipedia]]
+座標系にランダムなずれを付加している...。
+** [[https://ja.wikipedia.org/wiki/%E7%B5%82%E4%BA%86%E3%82%B9%E3%83%86%E3%83%BC%E3%82%BF%E3%82%B9][終了ステータス - Wikipedia]]
+終了ステータス。
+** [[https://ja.wikipedia.org/wiki/Plan_9_from_Bell_Labs][Plan 9 from Bell Labs - Wikipedia]]
+#+begin_quote
+UNIXはそのような差異をなくそうとし、全ての入出力をファイル操作でモデル化しようとした。そのため、全デバイスドライバが制御手段として read および write 操作に対応する必要に迫られた。こうすることで、mvやcpなどのユーティリティで、実装の詳細を気にすることなくデバイスからデバイスにデータを転送することができるようになった。しかし、UNIXでは多くの重要な概念（例えば、プロセス状態の制御など）はファイルにきれいにマッピングされなかった。ソケットや X Window System といった新たな機能が追加されたとき、それらはファイルシステムの外に存在するようになった。新たなハードウェア機能（ソフトウェアがCDのイジェクトを制御するなど）も、ioctlシステムコールなどのハードウェア固有制御機構を使うようになった。
+#+end_quote
+
+なるほど。
+** [[https://ja.wikipedia.org/wiki/Unreal][Unreal - Wikipedia]]
+Unreal Engineがもともと搭載されていたゲーム。
+** [[https://ja.wikipedia.org/wiki/%E5%B9%BD%E9%9C%8A%E6%96%87%E5%AD%97][幽霊文字 - Wikipedia]]
+規格の中にある典拠不明の漢字。
+** [[https://ja.wikipedia.org/wiki/%E5%9B%BD%E9%9A%9B%E9%80%9A%E8%B2%A8%E8%A8%98%E5%8F%B7][国際通貨記号 - Wikipedia]]
+通貨を示す記号。
+** [[https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html#combined#combined][Intel® 64 and IA-32 Architectures Software Developer Manuals]]
+5000ページある命令セットマニュアル。
+** [[https://ja.wikipedia.org/wiki/IEEE_754][IEEE 754 - Wikipedia]]
+浮動小数点に関する標準仕様。
+** [[https://ja.wikipedia.org/wiki/Sieve][Sieve - Wikipedia]]
+電子メールフィルタリングのためのプログラミング言語。
+** [[https://ja.wikipedia.org/wiki/%E5%B9%B4%E5%95%8F%E9%A1%8C][年問題 - Wikipedia]]
+面白い。
+** [[https://ja.wikipedia.org/wiki/90%E5%AF%BE90%E3%81%AE%E6%B3%95%E5%89%87][90対90の法則 - Wikipedia]]
+ソフトウェア開発のプロジェクトが、スケジュールを大幅にオーバーするのが恒例化していることを皮肉ったもの。
+** [[https://ja.wikipedia.org/wiki/%E3%82%B9%E3%83%86%E3%82%A3%E3%82%B0%E3%83%A9%E3%83%BC%E3%81%AE%E6%B3%95%E5%89%87][スティグラーの法則 - Wikipedia]]
+科学的発見に第一発見者の名前が付くことはない、という法則。
+** [[https://ja.wikipedia.org/wiki/%E3%82%AD%E3%83%AD%E3%83%90%E3%82%A4%E3%83%88][キロバイト - Wikipedia]]
+kbとKBの違い。
+** [[https://ja.wikipedia.org/wiki/Pratt%E3%83%91%E3%83%BC%E3%82%B5][Prattパーサ - Wikipedia]]
+パーサの方式。
+** [[https://ja.wikipedia.org/wiki/%E3%82%AB%E3%83%BC%E3%82%B4%E3%83%BB%E3%82%AB%E3%83%AB%E3%83%88%E3%83%BB%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0][カーゴ・カルト・プログラミング - Wikipedia]]
+秀逸なネーミング。
+
+#+begin_quote
+カーゴ・カルト・プログラミング（英: Cargo cult programming）とは、コンピュータープログラミングにおいて、実際の目的には必要のないコードやプログラム構造を儀式的に含めるという行動で特徴づけられる悪習である。
+#+end_quote
+
+#+begin_quote
+カーゴ・カルトという語句は、元々は第二次世界大戦後の南太平洋で見られた先住民の宗教に由来している。これらの人々は、戦時中素晴らしい積荷をもたらしてくれた神のような飛行機を呼び出そうと、一心不乱に精巧な飛行機の模型や滑走路を作り上げた。
+#+end_quote
+
+方法自体にこだわってしまうことはやりがち。
+
+#+begin_quote
+マコネルは、ソフトウェア開発集団が、ソフトウェア開発工程を猿真似的にそのままか、あるいは長い時間と無給の残業を義務付けることにより（ソフトウェア開発者たちが彼らのプロジェクトが成功するのをみるのに多大な時間とエネルギーを費やす）コミットメント指向の開発アプローチを模倣しようとすることのどちらかによって、より成功している開発集団の真似をしようとしてしまう事例について説明している。しかし、成功した企業ではこれらは成功の原因ではなく高いモチベーションの結果である可能性がある。
+#+end_quote
+** [[https://ja.wikipedia.org/wiki/%E3%83%87%E3%82%B6%E3%82%A4%E3%83%B3%E3%83%91%E3%82%BF%E3%83%BC%E3%83%B3_(%E3%82%BD%E3%83%95%E3%83%88%E3%82%A6%E3%82%A7%E3%82%A2)][デザインパターン (ソフトウェア) - Wikipedia]]
+まとめページ。わかりやすい。
+** [[https://ja.wikipedia.org/wiki/Bearer%E3%83%88%E3%83%BC%E3%82%AF%E3%83%B3][Bearerトークン - Wikipedia]]
+トークンの種類。切符はBearerトークンと同じ性質を持つ。
+** [[https://ja.wikipedia.org/wiki/KISS%E3%81%AE%E5%8E%9F%E5%89%87][KISSの原則 - Wikipedia]]
+設計の単純性（簡潔性）は成功への鍵だということと、不必要な複雑性は避けるべきだ、という原則。
+** [[https://ja.wikipedia.org/wiki/A*][A* - Wikipedia]]
+グラフ探索アルゴリズムの1つ。
+** [[https://ja.wikipedia.org/wiki/%E9%A9%9A%E3%81%8D%E6%9C%80%E5%B0%8F%E3%81%AE%E5%8E%9F%E5%89%87][驚き最小の原則 - Wikipedia]]
+設計の原則。驚きが少ないものを選択すべきという考え方。
+** [[https://ja.wikipedia.org/wiki/%E3%83%87%E3%83%A1%E3%83%86%E3%83%AB%E3%81%AE%E6%B3%95%E5%89%87][デメテルの法則 - Wikipedia]]
+#+begin_quote
+簡潔に言うと「直接の友達とだけ話すこと」と要約できる。
+#+end_quote
+* Reference
+** [[https://ja.wikipedia.org/wiki/Category:Unicode%E3%81%AB%E5%AD%98%E5%9C%A8%E3%81%97%E3%81%AA%E3%81%84%E6%96%87%E5%AD%97][Category:Unicodeに存在しない文字 - Wikipedia]]
+#+begin_quote
+このカテゴリは、Unicode上に存在しない文字は検索機能による検索がとても困難なため、それらUnicodeに存在しない文字が含まれる記事を一覧化し、利用者の便宜を図るためのカテゴリである。
+#+end_quote
+** [[https://ja.wikipedia.org/wiki/%E3%83%80%E3%83%BC%E3%82%A6%E3%82%A3%E3%83%B3%E8%B3%9E][ダーウィン賞 - Wikipedia]]
+イグノーベル賞的な残念賞。
+
+#+begin_quote
+ダーウィン賞（ダーウィンしょう、英: Darwin Awards）は、自らの愚かな行為によって「死亡する」もしくは「生殖能力を喪失する」ことで劣った遺伝子を抹消し、「人類の進化に貢献した」人物に対する皮肉として贈られる賞。進化論者であるチャールズ・ダーウィンにちなんで名づけられた。
+#+end_quote
+** [[https://ja.wikipedia.org/wiki/%E7%84%A1%E9%99%90%E3%81%AE%E7%8C%BF%E5%AE%9A%E7%90%86][無限の猿定理 - Wikipedia]]
+#+begin_quote
+無限の猿定理（むげんのさるていり、英語: infinite monkey theorem）とは、十分長い時間をかけてランダムに文字列を作り続ければ、どんな文字列もほとんど確実にできあがるという定理である。
+#+end_quote
+** [[https://ja.wikipedia.org/wiki/%E3%82%B8%E3%82%A7%E3%83%B3%E3%83%88%E3%83%AA%E3%83%95%E3%82%A3%E3%82%B1%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3][ジェントリフィケーション - Wikipedia]]
+都心から古い町並みが消えるメカニズム。
+** [[https://ja.wikipedia.org/wiki/%E3%83%88%E3%83%A9%E3%82%B9%E6%A9%8B][トラス橋 - Wikipedia]]
+トラスの種類の詳しい解説。
+** [[https://ja.wikipedia.org/wiki/%E3%83%99%E3%82%A4%E3%83%AA%E3%83%BC%E6%A9%8B][ベイリー橋 - Wikipedia]]
+#+begin_quote
+わずか数十名で数時間単位で構築しうるその工法は、まさに工学上の奇跡的発明といえるもので、その軍用の仮設橋は第二次世界大戦でイギリス軍、アメリカ軍、カナダ軍に広く活用され、連合国の勝利に大きく貢献した
+#+end_quote
+** [[https://ja.wikipedia.org/wiki/%E3%83%AC%E3%83%8A_(%E7%94%BB%E5%83%8F%E3%83%87%E3%83%BC%E3%82%BF)][レナ (画像データ) - Wikipedia]]
+画像処理のテスト画像の人。
+** [[https://ja.wikipedia.org/wiki/%E7%AB%B9][竹 - Wikipedia]]
+身近だけどあまり知らない竹。
+** [[https://ja.wikipedia.org/wiki/Wikipedia:%E3%82%A6%E3%82%A3%E3%82%AD%E3%83%9A%E3%83%87%E3%82%A3%E3%82%A2%E3%81%AF%E4%BD%95%E3%81%A7%E3%81%AF%E3%81%AA%E3%81%84%E3%81%8B][Wikipedia:ウィキペディアは何ではないか - Wikipedia]]
+面白い。
+** [[https://ja.wikipedia.org/wiki/%E3%83%9F%E3%83%A9%E3%83%BC%E3%83%86%E3%82%B9%E3%83%88][ミラーテスト - Wikipedia]]
+鏡によって、自分を認識できるかどうかのテスト。パスできる動物は少ない。
+** [[https://ja.wikipedia.org/wiki/%E3%83%88%E3%83%A9%E3%82%B9%E6%A9%8B][トラス橋 - Wikipedia]]
+橋の種類。
+** [[https://ja.wikipedia.org/wiki/%E7%B7%8A%E6%80%A5%E9%80%9A%E5%A0%B1%E4%BD%8D%E7%BD%AE%E9%80%9A%E7%9F%A5][緊急通報位置通知 - Wikipedia]]
+GPS情報が自動で通知されるので、正確な位置を伝えることが最優先なわけではない。
+** [[https://ja.wikipedia.org/wiki/%E8%97%AA%E6%BC%95%E3%81%8E][藪漕ぎ - Wikipedia]]
+語調が独特な記事。
+** [[https://ja.wikipedia.org/wiki/%E6%8A%BC%E3%81%97%E5%B1%8B][押し屋 - Wikipedia]]
+そういう職業。
+** [[https://ja.wikipedia.org/wiki/%E3%82%B0%E3%83%AC%E3%83%BC%E3%83%88%E3%83%BB%E3%82%A2%E3%83%88%E3%83%A9%E3%82%AF%E3%82%BF%E3%83%BC][グレート・アトラクター - Wikipedia]]
+銀河系そのものが移動している。
+** [[https://ja.wikipedia.org/wiki/%E3%83%80%E3%83%8B%E3%83%B3%E3%82%B0%EF%BC%9D%E3%82%AF%E3%83%AB%E3%83%BC%E3%82%AC%E3%83%BC%E5%8A%B9%E6%9E%9C][ダニング＝クルーガー効果 - Wikipedia]]
+能力に関する認知バイアス。
+** [[https://ja.wikipedia.org/wiki/%E3%83%9F%E3%83%AB%E3%82%B0%E3%83%A9%E3%83%A0%E5%AE%9F%E9%A8%93][ミルグラム実験 - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/FGM-148_%E3%82%B8%E3%83%A3%E3%83%99%E3%83%AA%E3%83%B3][FGM-148 ジャベリン - Wikipedia]]
+ウクライナ侵攻で効果を発揮している対戦車ミサイル。
+** [[https://ja.wikipedia.org/wiki/%E3%83%81%E3%82%A7%E3%82%B3%E3%81%AE%E9%87%9D%E9%BC%A0][チェコの針鼠 - Wikipedia]]
+よく戦争映画で見るやつ。
+** [[https://ja.wikipedia.org/wiki/%E3%82%A2%E3%82%B9%E3%83%9A%E3%82%AF%E3%83%88%E6%8C%87%E5%90%91%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0][アスペクト指向プログラミング - Wikipedia]]
+プログラミングパラダイムの1つ。
+** [[https://ja.wikipedia.org/wiki/%E9%89%84%E9%81%93%E6%8D%9C%E6%9F%BB%E5%AE%98][鉄道捜査官 - Wikipedia]]
+タイトルが面白すぎる。
+** [[https://ja.wikipedia.org/wiki/%E3%82%BB%E3%82%AB%E3%83%B3%E3%83%89%E3%83%BB%E3%82%B5%E3%83%9E%E3%83%BC%E3%83%BB%E3%82%AA%E3%83%96%E3%83%BB%E3%83%A9%E3%83%96][セカンド・サマー・オブ・ラブ - Wikipedia]]
+ダンス・ミュージックのムーブメント。
+** [[https://ja.wikipedia.org/wiki/%E9%9B%86%E5%9B%A3%E5%B0%B1%E8%81%B7][集団就職 - Wikipedia]]
+ある期間に起きた社会現象。
+** [[https://ja.wikipedia.org/wiki/%E6%BF%BE%E9%81%8E%E6%91%82%E9%A3%9F][濾過摂食 - Wikipedia]]
+そんなエネルギーのとり方があるのか。
+** [[https://ja.wikipedia.org/wiki/AC-130][AC-130 - Wikipedia]]
+ガンシップ。
+** [[https://en.wikipedia.org/wiki/MIM-104_Patriot#Failure_at_Dhahran][MIM-104 Patriot - Wikipedia]]
+ソフトウェアのバグにより迎撃に失敗し、被害が出た。
+この記事、異様に内容が充実してるな。
+** [[https://ja.wikipedia.org/wiki/%E3%82%A2%E3%83%86%E3%83%8D][アテネ - Wikipedia]]
+ギリシャの首都。
+** [[https://ja.wikipedia.org/wiki/%E3%82%A2%E3%83%8A%E3%82%BF%E3%83%8F%E3%83%B3%E3%81%AE%E5%A5%B3%E7%8E%8B%E4%BA%8B%E4%BB%B6][アナタハンの女王事件 - Wikipedia]]
+極限状態の、奇妙な事件。
+** [[https://ja.wikipedia.org/wiki/%E3%83%AD%E3%83%BC%E3%83%AA%E3%83%B3%E3%82%B0%E3%83%AA%E3%83%AA%E3%83%BC%E3%82%B9][ローリングリリース - Wikipedia]]
+ソフトウェア開発において断続的に更新していくリリースモデル。
+バージョン番号でリリースを管理するようなモデルと対比される。
+** [[https://ja.wikipedia.org/wiki/%E9%A3%9B%E8%A1%8C%E6%A9%9F%E9%9B%B2][飛行機雲 - Wikipedia]]
+** [[https://en.wikipedia.org/wiki/Data-oriented_design][Data-oriented design - Wikipedia]]
+データ駆動開発ではないので注意。
+** [[https://ja.wikipedia.org/wiki/%E3%83%96%E3%83%83%E3%82%B7%E3%83%A5%E3%82%AF%E3%83%A9%E3%83%95%E3%83%88][ブッシュクラフト - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/%E3%83%9E%E3%83%AB%E3%82%B3%E3%83%A0%E3%83%BBX][マルコム・X - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/%E3%82%B7%E3%83%9F%E3%83%A5%E3%83%A9%E3%82%AF%E3%83%A9%E7%8F%BE%E8%B1%A1][シミュラクラ現象 - Wikipedia]]
+3つの点が顔に見える現象のこと。
+** [[https://ja.wikipedia.org/wiki/%E7%9C%9F%E9%B6%B4%E7%94%BA][真鶴町 - Wikipedia]]
+『ひとかた』のモデルになった町。
+行ってみたい。
+独自の景観条例があり、美しさを維持しているという。
+** [[https://en.wikipedia.org/wiki/Template:Unicode_chart_Cuneiform][Template:Unicode chart Cuneiform - Wikipedia]]
+謎の文字。幅がすごい。
+** [[https://ja.wikipedia.org/wiki/%E7%84%BC%E8%82%89%E5%AE%9A%E9%A3%9F_(%E7%86%9F%E8%AA%9E)][焼肉定食 (熟語) - Wikipedia]]
+ちゃんと記事がある驚き。古くからあったネタというのが意外。
+** [[https://ja.wikipedia.org/wiki/Tu-160_(%E8%88%AA%E7%A9%BA%E6%A9%9F)][Tu-160 (航空機) - Wikipedia]]
+美しいフォルムの超音速爆撃機。
+** [[https://ja.wikipedia.org/wiki/RT-23_(%E3%83%9F%E3%82%B5%E3%82%A4%E3%83%AB)][RT-23 (ミサイル) - Wikipedia]]
+鉄道の大陸間弾道ミサイル。
+** [[https://ja.wikipedia.org/wiki/%E3%82%A8%E3%82%AF%E3%83%A9%E3%83%8E%E3%83%97%E3%83%A9%E3%83%B3][エクラノプラン - Wikipedia]]
+異形の地面効果翼機。
+** [[https://ja.wikipedia.org/wiki/%E3%82%BB%E3%83%B3%E3%83%88%E3%83%BB%E3%83%98%E3%83%AC%E3%83%B3%E3%82%BA%E5%B1%B1][セント・ヘレンズ山 - Wikipedia]]
+やばい噴火で山体崩壊。
+** [[https://ja.wikipedia.org/wiki/%E3%83%90%E3%82%BF%E3%82%B7%E3%83%BC%E7%99%BA%E9%9B%BB%E6%89%80][バタシー発電所 - Wikipedia]]
+廃墟。
+** [[https://ja.wikipedia.org/wiki/%E6%B6%85%E6%A7%83][涅槃 - Wikipedia]]
+繰り返す輪廻の再生から開放された状態のこと。
+** [[https://en.wikipedia.org/wiki/20_Fenchurch_Street][20 Fenchurch Street - Wikipedia]]
+曲面が凹面鏡になって危険な反射をするビル。
+目玉焼きを作った人もいるくらい。
+** [[https://ja.wikipedia.org/wiki/%E3%83%87%E3%83%88%E3%83%AD%E3%82%A4%E3%83%88][デトロイト - Wikipedia]]
+都市が復活してきている例。
+** [[https://ja.wikipedia.org/wiki/%E3%82%B8%E3%83%A7%E3%83%B3%E3%83%BB%E3%83%96%E3%83%A9%E3%82%A6%E3%83%B3_(%E5%A5%B4%E9%9A%B7%E5%88%B6%E5%BA%A6%E5%BB%83%E6%AD%A2%E9%81%8B%E5%8B%95%E5%AE%B6)][ジョン・ブラウン (奴隷制度廃止運動家) - Wikipedia]]
+#+begin_quote
+運動の手段としてアメリカでは初めて反乱を唱道し実行した人物として知られる。
+ブラウンは「19世紀のアメリカ人で最も議論の的になる人物」と言われてきた。
+#+end_quote
+** [[https://en.wikipedia.org/wiki/Jamie_Zawinski][Jamie Zawinski - Wikipedia]]
+いくつものプロジェクトに関わった有名なプログラマー。
+#+begin_quote
+  He is best known for his role in the creation of Netscape Navigator, Netscape Mail, Lucid Emacs, Mozilla.org, and XScreenSaver.
+#+end_quote
+** [[https://en.wikipedia.org/wiki/RSpec][RSpec - Wikipedia]]
+Wikipedia。
+** [[https://ja.wikipedia.org/wiki/%E3%83%A2%E3%82%AC%E3%83%87%E3%82%A3%E3%82%B7%E3%83%A5%E3%81%AE%E6%88%A6%E9%97%98][モガディシュの戦闘 - Wikipedia]]
+ブラックホーク・ダウン。
+** [[https://ja.wikipedia.org/wiki/%E3%83%97%E3%83%AB%E3%83%BC%E3%82%A4%E3%83%83%E3%83%88%E3%83%BB%E3%82%A2%E3%82%A4%E3%82%B4%E3%83%BC][プルーイット・アイゴー - Wikipedia]]
+アメリカの住宅計画史上、最大の失敗といわれている。
+** [[https://ja.wikipedia.org/wiki/%E3%83%90%E3%82%AB%E3%83%B3%E3%82%B9][バカンス - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/%E7%A9%BA%E6%B8%AF%E3%81%AB%E5%B1%85%E4%BD%8F%E3%81%97%E3%81%9F%E4%BA%BA%E7%89%A9%E3%81%AE%E4%B8%80%E8%A6%A7][空港に居住した人物の一覧 - Wikipedia]]
+映画『ターミナル』を見て。けっこういて興味深い。
+** [[https://ja.wikipedia.org/wiki/%E5%B1%B1%E5%8F%A3%E5%BD%8A][山口彊 - Wikipedia]]
+広島と長崎で2回被爆した人。
+** [[https://en.wikipedia.org/wiki/T-shaped_skills][T-shaped skills - Wikipedia]]
+精通した専門分野と浅く広く分野を持てということ。
+まず縦から始めたほうがよさげ。
+** [[https://ja.wikipedia.org/wiki/%E9%81%95%E6%B3%95%E7%B4%A0%E6%95%B0][違法素数 - Wikipedia]]
+** [[https://en.wikipedia.org/wiki/Emoticon][Emoticon - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/%E6%A1%83%E5%A4%AA%E9%83%8E][桃太郎 - Wikipedia]]
+** [[https://en.wikipedia.org/wiki/Fa%C3%A7ade_(video_game)][Façade (video game) - Wikipedia]]
+AIのゲーム。
+** [[https://ja.wikipedia.org/wiki/%E3%83%AA%E3%82%AB%E3%83%AB%E3%83%89%E3%83%BB%E3%83%B4%E3%82%A3%E3%83%A9%E3%83%AD%E3%83%9C%E3%82%B9][リカルド・ヴィラロボス - Wikipedia]]
+エレクトロニックのミュージシャン。
+** [[https://ja.wikipedia.org/wiki/%E8%AD%A6%E5%AF%9F%E5%BA%81%E9%95%B7%E5%AE%98%E7%8B%99%E6%92%83%E4%BA%8B%E4%BB%B6][警察庁長官狙撃事件 - Wikipedia]]
+未解決事件。
+** [[https://ja.wikipedia.org/wiki/%E3%82%B9%E3%83%88%E3%83%A9%E3%82%A4%E3%82%B5%E3%83%B3%E3%83%89%E5%8A%B9%E6%9E%9C][ストライサンド効果 - Wikipedia]]
+消そうとするとかえって炎上する。
+** [[https://ja.wikipedia.org/wiki/%E6%9C%80%E9%81%A9%E5%8C%96%E5%95%8F%E9%A1%8C][最適化問題 - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/%E8%A8%88%E7%AE%97%E6%A9%9F%E7%A7%91%E5%AD%A6][計算機科学 - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/Category:%E6%8A%80%E8%A1%93%E3%81%A8%E7%94%A3%E6%A5%AD%E3%81%AE%E3%83%9D%E3%83%BC%E3%82%BF%E3%83%AB][Category:技術と産業のポータル - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/%E3%82%B8%E3%83%A3%E3%82%A4%E3%82%A2%E3%83%8B%E3%82%BA%E3%83%A0][ジャイアニズム - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/Wikipedia:%E8%89%AF%E8%B3%AA%E3%81%AA%E8%A8%98%E4%BA%8B][Wikipedia:良質な記事 - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/Wikipedia:%E7%A7%80%E9%80%B8%E3%81%AA%E8%A8%98%E4%BA%8B][Wikipedia:秀逸な記事 - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/%E3%83%9F%E3%83%8B%E3%82%B3%E3%83%B3%E3%83%94%E3%83%A5%E3%83%BC%E3%82%BF][ミニコンピュータ - Wikipedia]]
+** [[https://ja.wikipedia.org/wiki/%E7%A8%B2%E5%AD%90_(%E5%AE%AE%E5%9F%8E%E7%9C%8C)][稲子 (宮城県) - Wikipedia]]
+限界集落の最期。
+** [[https://en.wikipedia.org/wiki/Ricky_Gervais][Ricky Gervais - Wikipedia]]
+イギリスのコメディアン。
+* Archives

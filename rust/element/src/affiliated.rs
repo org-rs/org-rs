@@ -265,7 +265,7 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 mod test {
     use super::REGEX_AFFILIATED;
     use crate::affiliated::DualVal;
-    use crate::cursor::{Cursor, is_multiline_regex};
+    use crate::cursor::{is_multiline_regex, Cursor};
     use crate::data::RepeaterType::CatchUp;
     use crate::data::StringOrObject;
     use crate::environment::DefaultEnvironment;

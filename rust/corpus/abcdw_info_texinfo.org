@@ -1,0 +1,67 @@
+:PROPERTIES:
+:ID:       d46031a4-6989-4867-91eb-80452eea3f63
+:END:
+#+title: Info and Texinfo
+#+filetags: :Stream:
+
+* Introduction
+Documentation is a way developers communicate with the users.
+
+* Why Info?
+- Designed for the documentation.
+- Well-integrated with Emacs and GNU.
+- Accessible (has many different formats).
+- Offline friendly.
+
+Actually nice to use and not that ancient, just time-proven tech.
+* Info
+** Terminology
+[[info:info#Top][info#Top]]
+- [[help:Info-directory-list][Directory]].
+- Info file.
+- Nodes.
+- Index.
+- Menus.
+** Navigation
+- ~h~ in any info buffer :: show the info tutorial.
+- ~M-x~ ~info-apropos~ :: Search for a string in all indecies.
+- ~n / p~ or ~[ / ]~ :: Navigating nodes.
+- ~^ < d~ :: Up, Top, Dir.
+- ~g~ :: Go to node, even external one.
+- ~m~ or ~1 .. 9~ :: Pick menu item.
+- ~i / T~ :: Lookup index, TOC.
+- ~f~ :: Follow reference.
+- ~C-s~ :: isearch throught the manual.
+- ~SPC / DEL~ or ~C-v / M-v~ :: Scroll up/down.
+- ~l / r~ ::  Navigating history.
+- ~M-n / C-u g/m~ :: Open node in a separate info buffer.
+** Examples
+- ~M-x~ ~info-apropos~ ~RET~ ~string~ ~RET~ ~m~ ~elisp~ :: Whoosh.
+- ~g~ ~(elisp)~ :: Going to the node of another info file.
+- ~T f~ :: TOC with completion.
+- ~T M-g o~ :: Navigating by first level nodes of the TOC.
+- ~C-u g/m~ :: Open in a new buffer.
+* Texinfo
+** Learning
+- ~C-h i d m Texinfo RET~ :: Getting info about commands.
+- ~C-h m~ :: Major mode info and keybindings.
+- ~C-c C-h~ :: ~C-c~ keybindings.
+- ~C-h S~ :: Getting info about commands.
+** Editing
+- ~C-c C-o~ :: Insert evironment.
+- ~C-c C-c C-h~ :: Different inserting commands mostly.
+- ~C-c C-u C-h~ :: Menu commands like [[help:texinfo-make-menu][texinfo-make-menu]].
+- ~C-c C-m C-b~ :: Build the info and visit the node.
+** Navigating
+- ~C-c C-c C-n/p/f~ :: Navigating environments.
+- ~C-c C-s~ :: show structure.
+- ~M-g o~ / ~M-g i~ :: [[help:consult-outline][consult-outline]] / [[help:consult-imenu][consult-imenu]].
+** Tools
+- ~makeinfo~.
+- ~Makefile~.
+- ~css~.
+* Conclusion
+- Relatively easy to write.
+- Actually nice to explore.
+- Well-integrated with GNU ecosystem.
+- Offline friendly.
