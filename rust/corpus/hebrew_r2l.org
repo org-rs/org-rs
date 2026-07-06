@@ -1,0 +1,16 @@
+#+ODT_STYLES_FILE: "hebrew.ott"
+
+שלום דוד
+
+David Hallo
+
+
+
+|שלום| דוד| 
+|David |Hallo|
+
+
+#  Local Variables: 
+#  eval: (setq bidi-paragraph-direction 'right-to-left)
+#  End:
+

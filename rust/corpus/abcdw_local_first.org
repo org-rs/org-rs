@@ -1,0 +1,15 @@
+:PROPERTIES:
+:ID:       d57354f7-7359-441c-a92f-f0bf4b341316
+:END:
+#+title: Local-first Software
+Software built to use localy, but which can have collaboration
+features and various syncronization mechanisms.
+
+Git is a good example of such software.
+
+* Local-first Software article
+https://www.inkandswitch.com/local-first.html
+
+The experiment of developing 3 popular apps clone with local-first
+approach using [[id:ef8e61ea-d0bd-4ff8-b050-245c6f70d7be][CRDT]].  Summary for different researches is provided at
+the end.

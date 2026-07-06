@@ -1,0 +1,355 @@
+:PROPERTIES:
+:ID:       e8f9a0b1-c2d3-e4f5-a6b7-c8d9e0f1a2b3
+:END:
+#+TITLE: Appendix F. Org-modeバージョン履歴と進化の軌跡
+#+DESCRIPTION: description
+#+STARTUP: fold
+#+OPTIONS: toc:nil
+* 黎明期（2003-2006）
+** 誕生の経緯
+
+Org Modeは2003年にCarsten Dominikによって誕生した。彼はEmacsのoutline-modeのユーザーインターフェースに不満を持っていた。アウトラインツリーの表示・非表示を制御するだけで11もの異なるコマンドを覚える必要があり、各コマンドに2〜3個のキーバインドが必要だった。これは彼にとって「まったく受け入れられない」ものだった。
+
+** outline-modeからの発展
+
+最初の実装は =outline-magic.el= として作成された。主な機能は次の2つでした:
+
+- 可視性サイクリング（Visibility Cycling）
+- 構造編集（Structure Editing）
+
+これらの機能は後により汎用的な =org.el= へ移行された。
+
+** 初期の設計思想
+
+Carsten Dominikが掲げた2つの根本的な目標:
+
+1. アウトラインベースのプレーンテキストモードとして革新的で直感的な編集機能を提供する
+2. プロジェクト計画機能をノートファイルに統合する
+
+この設計思想に基づき、次の機能が順次追加されました:
+
+- TODOエントリ
+- タイムスタンプ機能
+- テーブル対応
+
+** 最初の公開リリース（2004年）
+
+2004年、CarstinはOrg-modeをEmacs Wikiで公開し、より広いコミュニティへの紹介が始まった。
+
+** Emacsへの同梱（Emacs 22、2007年5月）
+
+GNU Emacs 22.1（2007年5月リリース）からOrg-modeが標準バンドルされるようになった。これによりOrg-modeは外部パッケージをインストールせずにすぐに利用可能になった。
+
+* 成長期（2007-2010）
+** Org 4.x - 安定版の基盤確立
+
+2007年に安定版Org 4.00がリリースされました。このときの主な改善:
+
+- 基本的な機能の安定化
+- ドキュメントの整備
+- ユーザーベースの拡大
+
+** Org 5.x - 拡張性の向上
+
+2008年にOrg 5.00がリリースされた:
+
+- パッケージ構造の整理
+- カスタマイズ性の向上
+- コミュニティからのフィードバック反映
+
+** Org 6.x - 構造的改革
+
+2008年3月-4月に =org.el= の分割（Org 6.01）が行われた:
+
+- モジュール化の進展
+- org-babel登場前夜
+- 拡張のための基盤整備
+
+** org-babelの誕生（2009年9月）
+
+Eric SchulteとDan Davisonにより =org-babel= が開発された。2009年9月14日に初期リリースが発表され、Org-modeの貢献パッケージとして公開された。
+
+これにより、Org文書内で複数のプログラミング言語のコードを実行可能になり、リテラシープログラミングと再現可能な研究のための環境が整った。
+
+** Org 7.0 - org-babelのコア統合（2010年6月）
+
+2010年6月23日、Eric Schulteが =babel= ブランチをOrg-modeのメインブランチにマージしたことを発表した。
+
+Org 7.0の主な新機能:
+
+- org-babelのコア統合
+- org-captureシステムの実装（旧rememberの置き換え）
+- エンティティ表示機能の改善
+- 大規模なリファクタリング
+
+=org-capture= の導入により、以前の =remember= テンプレートからの移行が可能になった。
+
+** メンテナシップの移行（2010年11月）
+
+Carsten Dominikがリードメンテナを退任し、2011年1月からBastien Guerryがメンテナを引き継いだ。
+
+* 成熟期（2011-2015）
+** Bastien Guerryのメンテナ時代（2011-2013）
+
+Bastien Guerryは2011年から2013年初頭までメンテナを務めた。主な貢献:
+
+- Worgの発明と整備
+- orgmode.orgウェブサイトの確立
+- ホスティングコストのスポンサー
+- コミュニティ主導の開発体制構築
+- 各パーツのコメンテナ制度の確立
+
+** Org 8.0 - 新エクスポートフレームワーク（2013年4月）
+
+Org 8.0はOrg-mode史上最大の変革の1つでした。Nicolas Goaziouにより開発された新しいエクスポートフレームワークが導入されました。
+
+*** ox.el（新エクスポートエンジン）
+
+主な変更点:
+
+- バックエンド定義関数 =org-export-define-backend=
+- モジュール名の変更: =org-html= -> =ox-html= など
+- デフォルトで読み込まれるバックエンド: ASCII、HTML、LaTeX
+- 他のバックエンドは明示的に読み込みが必要
+
+*** org-element.el（パーサーライブラリ）
+
+Org構文のパーサーライブラリがデフォルトでインストールされるようになった。
+
+*** 破壊的変更
+
+- エクスポート変数名の変更: =org-export-*= から =ox-backend-*= へ
+- =org-latex-to-pdf-process= -> =org-latex-pdf-process=
+- =#+STYLE= -> =#+HTML_HEAD=
+- =@<tag>= の廃止、代わりに =@@backend:value@@= 構文を導入
+- publishing関数の変更
+- 脚注定義の仕様変更（2つの連続空行で終了）
+
+** 移行のガイドライン
+
+公式移行ガイドがhttps://orgmode.org/worg/org-8.0.htmlで提供された。
+
+** 2014年以降
+
+- Nicolas Goaziouがメイン開発者として活躍
+- 継続的な機能改善と安定化
+- Emacs 24系列との連携強化
+
+* 現代（2016-2020）
+** Org 9.0（2016年11月）
+
+Org 9.0の主な変更点:
+
+- 新しいパーサーによるより堅牢な複雑構造の処理
+- レキシカルバインディングへの移行開始
+- 各種内部改善
+
+** Org 9.1-9.2
+
+Org 9.2では:
+
+- 新しいテンプレート展開メカニズム
+- =org-insert-structure-template= （C-c C-,にバインド）
+- =org-structure-template-alist= のカスタマイズ方法変更
+
+** Org 9.3（2020年1月）
+
+- バージョン9.3.2が2020年1月26日にリリース
+- 継続的なバグ修正と改善
+
+** Org 9.4
+
+主な変更点:
+
+- =electric-indent-mode= がデフォルトで有効化
+- =org-speed-commands-user= -> =org-speed-commands= に変更
+- 一部のファイルがhttps://git.sr.ht/~bzg/org-contribへ移動
+
+** コミュニティの成長
+
+このとき、Org-modeコミュニティは大きく成長しました:
+
+- メーリングリストの活発化
+- Worgへの貢献者増加
+- 各種チュートリアルの充実
+- Emacs 26、27への対応
+
+* 最新（2021-現在）
+** Org 9.5 - org-citeの導入（2021年10月頃）
+
+Nicolas Goaziouにより =oc.el= が実装された。Bruce D'Arcusの協力と、John Kitchinの =org-ref.el= による先行実装の貢献があった。
+
+org-citeの主な機能:
+
+- 引用の活性化（activate）
+- 引用のフォロー（follow）
+- 引用の挿入（insert）
+- 引用のエクスポート（export）
+
+新しい引用構文として =[cite:@key]= 形式が導入された。
+
+** Org 9.6 - org-foldの導入（2022年11月）
+
+新しい最適化された折りたたみバックエンドが導入され、デフォルトで有効になった。
+
+*** 従来の問題
+
+旧折りたたみバックエンドはファイルサイズが数MBを超えると性能が低下していた。特に長時間のEmacsセッションでカーソル移動が遅くなる問題があった。
+
+*** org-foldの改善点
+
+- 大規模ファイルでの性能向上
+- =org-fold-core-style= が ='text-properties= の場合の新機能:
+  - リンクの隠れた部分をisearchで検索可能
+  - =org-catch-invisible-edits= がリンクの隠れた部分と強調マーカーにも適用
+
+旧バックエンドに戻すには:
+#+begin_src emacs-lisp
+(setq org-fold-core-style 'overlays)
+#+end_src
+
+** Org 9.7
+
+主な変更点:
+
+- セキュリティ強化: Org-mode起動時の任意シェルコマンド実行を禁止
+- =ob-python.el= から =python-mode.el= サポートを削除
+- タブ幅を8文字に標準化
+- 繰り返しタスクのiCalendarエクスポート対応強化
+- 画像の配置カスタマイズ
+- クリップボード・ドラッグ&ドロップによるファイル添付サポート
+- 遅延プロパティ解決による要素APIの改善
+
+** Emacs 29との統合
+
+Emacs 29.1（2023年）の主な関連機能:
+
+- Ahead-of-time native compilation対応
+- Tree-sitterの組み込み
+- Eglotの組み込み
+
+** メンテナシップの変遷（2024年12月）
+
+Bastien Guerryは2011年から2024年までメンテナを務め、2024年12月にIhor Radchenkoがメンテナを引き継いだ。
+
+* バージョンごとの主要機能追加
+
+| バージョン | 年       | 主要機能                           |
+|------------|----------|------------------------------------|
+| 4.00       | 2007     | 安定版リリース、Emacs 22同梱       |
+| 5.00       | 2008     | 拡張性向上、パッケージ構造整理     |
+| 6.01       | 2008年春 | org.el分割、モジュール化           |
+| 7.00       | 2010年6月| org-babel統合、org-capture         |
+| 8.00       | 2013年4月| 新エクスポート（ox.el）、org-element |
+| 9.00       | 2016年11月| パーサー改善、lexical-binding      |
+| 9.2        | -        | 新テンプレート展開                 |
+| 9.3        | 2020年1月| 継続的改善                         |
+| 9.4        | -        | electric-indent-mode、contrib分離 |
+| 9.5        | 2021年10月| org-cite（oc.el）                  |
+| 9.6        | 2022年11月| org-fold                           |
+| 9.7        | -        | セキュリティ強化、各種改善         |
+
+* 破壊的変更の歴史
+** Org 7 -> 8: エクスポートフレームワークの刷新
+
+最大の破壊的変更:
+
+- エクスポート関連の設定変数の大幅なリネーム
+- 旧エクスポート関数の廃止
+- バックエンドの明示的ロードが必要に
+- =#+STYLE= から =#+HTML_HEAD= への変更
+- =@<tag>= から =@@backend:value@@= への変更
+
+多くのユーザーが設定ファイルの大幅な書き換えを余儀なくされた。
+
+** Org 8 -> 9: 細かい非互換
+
+比較的穏やかな移行:
+
+- 一部の変数名変更
+- lexical-bindingへの移行による影響
+- 一部の関数シグネチャ変更
+
+** Org 9.x系での変更
+
+- =org-speed-commands-user= -> =org-speed-commands=
+- org-contribの分離
+- org-fold移行による一部動作変更
+
+** org-fold移行の影響
+
+=org-fold-core-style= が ='text-properties= の場合:
+
+- isearchの動作変更
+- overlay依存のカスタマイズへの影響
+- 一部のサードパーティパッケージとの互換性問題
+
+* コミュニティの発展
+** メーリングリスト
+
+Org-modeメーリングリストは開発者、メンテナ、貢献者、経験豊富なユーザー、新規ユーザーが集まる中心的な場所です。Carsten Dominikにより設立されました。
+
+- 公式: https://list.orgmode.org
+- Kyle Meyerによる =public-inbox= アーカイブの整備
+
+** Worg（コミュニティWiki）
+
+Bastien Guerryにより発明されたWorgは:
+
+- チュートリアル
+- コード例
+- カスタマイズ例
+- ベストプラクティス
+
+を共有するコミュニティドキュメントサイトです。Gitリポジトリで管理されるOrgファイル群がHTMLサイトとして公開されます。現在はChristian Moeがメンテナを務めています。
+
+** Org-modeの文化
+
+Org-modeコミュニティは次の特徴をもちます:
+
+- プレーンテキストへのこだわり
+- Emacsとの深い統合
+- 「1つのファイルですべてを管理」という思想
+- 再現可能な研究への関心
+- リテラシープログラミングの実践
+
+** 主要な貢献者
+
+- Carsten Dominik: 創設者、初期メンテナ
+- Bastien Guerry: 長期メンテナ、Worg発明者
+- Nicolas Goaziou: 新エクスポートフレームワーク、org-cite開発者
+- Eric Schulte: org-babel開発者
+- Dan Davison: org-babel共同開発者
+- Ihor Radchenko: 現メンテナ
+- Kyle Meyer: public-inbox整備、Emacs連携
+
+* 今後の展望
+** 開発のロードマップ
+
+- 継続的な性能改善
+- Emacs本体との連携強化
+- セキュリティ対策の継続
+- モダンな機能の追加
+
+** コミュニティの方向性
+
+- よりコミュニティ主導の開発体制
+- ドキュメントの充実
+- 新規ユーザーへのオンボーディング改善
+- 国際化の推進
+
+** 期待される機能
+
+- org-foldのさらなる最適化
+- パーサーの改善
+- エクスポートバックエンドの拡充
+- 他ツールとの統合強化
+
+* 参考資料
+
+- 公式リリースノート: https://orgmode.org/Changes.html
+- 古いリリースノート: https://orgmode.org/worg/org-release-notes.html
+- 歴史と謝辞: https://orgmode.org/manual/History-and-Acknowledgments.html
+- Org 8.0移行ガイド: https://orgmode.org/worg/org-8.0.html
+- Worg: https://orgmode.org/worg/
+- メーリングリストアーカイブ: https://list.orgmode.org

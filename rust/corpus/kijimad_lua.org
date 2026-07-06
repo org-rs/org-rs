@@ -1,0 +1,13 @@
+:PROPERTIES:
+:ID:       295e843d-b3fa-4206-8616-72b163cac790
+:mtime:    20241102180349
+:ctime:    20220328224652
+:END:
+#+title: Lua
+* 概要
+Luaは、[[id:656a0aa4-e5d3-416f-82d5-f909558d0639][C言語]]のホストプログラムに組み込まれることを目的に設計された[[id:868ac56a-2d42-48d7-ab7f-7047c85a8f39][Programming Language]]。近年はゲーム開発で内部処理に使用する言語としての利用例が多い。
+* Memo
+* Tasks
+* Reference
+- [[https://ja.wikipedia.org/wiki/Lua][Lua - Wikipedia]]
+* Archives

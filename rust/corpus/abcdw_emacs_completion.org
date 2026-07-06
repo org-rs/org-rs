@@ -1,0 +1,103 @@
+:PROPERTIES:
+:ID:       48c20b75-aeea-4b92-a8ac-5f0fcb3a0161
+:END:
+#+title: Emacs Completion Explained
+#+filetags: :Stream:
+
+* Introduction
+- I need intelligent code completion, what to install and how to
+  configure auto-complete/company/ivy/helm?
+- Absolutely no idea how TAB key work.
+- All the windows, [mini]buffers, popups jumping around.
+- Candidates doesn't make sense and comes from unknown sources.
+
+The lack of understanding what happens under the hood makes it hard to
+debug problems and to work in general.
+
+* Minibuffer completion
+[[info:elisp#Minibuffer Completion][elisp#Minibuffer Completion]]
+
+** Annotations
+[[info:elisp#Completion Variables][elisp#Completion Variables]]
+
+~:annotation-function~ and ~:affixation-function~ 
+
+[[https://github.com/minad/marginalia][marginalia.el]]
+** UIs
+icomplete, [[https://github.com/minad/vertico][vertico.el]], selectrum, etc.
+
+Not only visual improvements, but also usablity.
+** Completion Styles
+[[info:emacs#Completion Styles][emacs#Completion Styles]]
+
+[[https://github.com/oantolin/orderless][Orderless]]
+
+[[info:elisp#Regular Expressions][elisp#Regular Expressions]] useful for orderless regexp
+
+- ~\s-~ ~\SPC~
+- ~~ = , !~
+
+capf,~
+** More sources and functionality
+[[https://github.com/minad/consult][consult.el]] compatible with [[info:elisp#Minibuffer Completion][completing-read]] API and thus work with
+default UI, vertico, mct, icomplete, etc.
+
+~consult-history~
+
+- Preview.
+- Grouping.
+- Narrowing.
+- Line numbers.
+- Asyncronous.
+** Operating on candidates
+Embark
+
+* In-buffer completion or CAP
+Ad-hoc commands, which somehow modify text like ~dabbrev-expand~,
+snippet engines, etc.
+
+[[info:elisp#Completion in Buffers][elisp#Completion in Buffers]]
+~completion-at-point-functions~, ~completion-in-region-function~.
+
+~dabbrev-completion~ utilize ~compeltion-in-region~.
+
+** corfu
+
+~M-SPC~ to input space without living completion for orderless completion style.
+** More sources and functionality
+[[https://github.com/minad/cape][cape.el]]
+
+#+begin_src elisp
+(add-to-list 'completion-at-point-functions 'cape-dabbrev)
+#+end_src
+
+** LSP
+
+* Some questions
+- Can minibuffer completion be combined with CAP?
+- Can CAP use minibuffer?
+- Why alternatives exists?
+- Does it make sense to use helm/auto-complete/company/ivy/etc?
+
+* Nice to have
+- Filter out component! or rerun on reduced list of candidates.
+- Async CAPFs.
+
+* Conclusion
+- The most important thing you need to know about are: in-buffer
+  completion (mostly CAPFs), minibuffer completion and styles.
+- There are tradeoffs between advanced functionality and simple
+  elegant implementation.
+- Most of the features required from completion system can be provided
+  by a list of well-composable simple packages.
+
+- rde Emacs have almost everything I need preconfigured, and unified
+  to behave consistently.
+  
+- Make love, not war.
+
+* Links
+- https://protesilaos.com/emacs/dotemacs
+- https://kristofferbalintona.me/posts/202202211546/
+- Wikis and READMEs of packages mentioned above.
+  

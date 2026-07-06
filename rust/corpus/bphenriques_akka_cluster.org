@@ -1,0 +1,181 @@
+:PROPERTIES:
+:ID:       2fa03d4f-948e-4a6e-a38b-178456b578b3
+:END:
+#+TITLE: Akka Cluster
+#+filetags: akka
+
+* Akka Cluster
+
+*Scenario:* Make actors communicate across the network.
+
+Allows actors to communicate across the network, greatly simplifying the process. Each node represents an actor system and they all share the same name.
+
+* Akka Cluster Aware Routers
+
+*Scenario*: High workload.
+
+Scalling vertically has limits. Introducing Akka Cluster Aware Routers, that allows scalling the system horizontally. I.e., large tasks are broken on smaller tasks that are routed to an especific node of our cluster.
+
+* Akka Cluster Sharding
+
+*Scenario*: Database becomes the bottleneck.
+
+Many applications leverage the database for strong-consistency. However it may become the source of contention (see [[id:2fa03d4f-948e-4a6e-a38b-178456b578b9][Amdah's Law]]) as the load increases. We may migrate to a cache service (e.g., Memcached or Redis) but it will eventually become the bottleneck.
+
+In order to solve this, Akka Cluster Sharding allows distributing Actors across the cluster responsible for managing the state of a especific database entitiy (given a hashing function). With the aid of a single-thread illusion, we can cache the entities in-memory without the risk of desyncronizing with the database, leading to strong consistency. This is great as most applications are read-heavy as opposed to write-heavy.
+
+
+* Akka Distributed Data
+
+*Scenario*: Critical information that is required continously and we need maintain it. Especially small data sets with infrequent updates that require high availabiltiy.
+
+Akka Distributed Data is a local, replicated and in-memory data storage. The data is asyncronously replicated to other nodes. The consistency model varies and is [[https://doc.akka.io/docs/akka/current/typed/distributed-data.html#read-consistency][configurable]]. Through this, we can perform updates from any node without coordination and any concurrent updates will be automatically resolved by a monotic merge function explicitly provided.
+
+For this end we use a especific data-structure called Conflict Free Replicated Data Types (CRDTs).
+
+For more, please check [[https://doc.akka.io/docs/akka/current/typed/distributed-data.html][here]].
+
+
+** Conflict Free Replicated Data Types (CRDTs)
+
+CRDTs are stored in-memory and can be copied to disk to speed up recovery if a replica fails.
+
+- A marker that shows something was deleted.
+- Can result in data types that only get larger and never smaller.
+- Aka CRDT Garbage
+
+Limitations CRDT: Do not work with every data type that require a merge function. Some data types are too complex to merge and require the use of /tombstone/.
+
+** Limitations
+
+- It may not be possible depending on the data model due to the merge function.
+- Eventual Consistency. Strong consistency is possible at the expense of availability.
+- The number of top-level entries should me limited (< 1 million) given that it must be transferred to to the nodes.
+- The entity musn't be large given that its full-state may replicated to other nodes.
+
+For more, please check [[https://doc.akka.io/docs/akka/current/typed/distributed-data.html#limitations][here]].
+
+** TODO Concrete use-cases for Akka Distributed Data
+
+The lack of Akka Distributed Data may lead to frequent network requests to fetch as especific entity. However, its usage also requires querying several nodes to look for a quorum. Both options have drawbacks, I am curious on knowing the decision thought behind it.
+
+* Akka Address
+
+
+May be local or remote in the form:
+~akka://<ActorSystem>@<HostName>:<Post>/<ActorPath>~
+
+Several protocols are available and depend on the use-case:
+- ~aeron-udp~: High throughput and low latency.
+- ~tcp~: Good thorughout and latency but lower.
+- ~tls-tcp~: When encryption is required.
+
+* Joining a Cluster
+
+Requires "Seed Nodes", i.e., contact nodes. Any node is eligible. Best practice is to use "Akka Cluster Bootstrap" to avoid setting static seed-nodes in each configuration file.
+
+Must be enabled! And it does not bring any advantage until we set the application to leverage this:
+
+#+BEGIN_SRC scala
+  val loyaltyActorSupervisor = ClusterSharding(system).start(
+     "shared-region-name",
+      MyActorActor.props(someProp),
+      ClusterShardingSettings(system),
+      MyActorSupervisor.idExtractor,
+      MyActorSupervisor.shardIdExtractor
+    )
+#+END_SRC
+
+* Akka Cluster Management
+
+Set of tools served through a HTTP Api to manage the cluster. Must start after the actor system.
+
+Must be enabled!
+
+** Akka Discovery
+
+Service to locate and discover services.
+
+** Akka Cluster Bootstrap
+
+Automated seed node discovery using Akka Discovery.
+
+** Health Check Endpoints
+
+Useful when integrating with orchestrating platforms (e.g., K8S).
+
+* Communication
+
+It is done by using [[id:2fa03d4f-948e-4a6e-a38b-178456b578c9][Gossip Protocol]].
+
+* Network Partitions
+
+This issue cannot be recovered by simply rebooting the affected node. In order to fix this:
+1. Decide which partitions needs to be cleaned up - How?
+2. Shutdown the members
+3. Inform the cluster that those members are down - ~PUT -F operation=down /cluster/members/<member address>~.
+4. Create new members to replace the old.
+
+Step 2. is important otherwise it continues to operate unware that it has been removed from the cluster which can lead to multiple copies of the same shard.
+
+* Split Brain
+
+
+Occurs when single cluster splits into two or more distinctive clusters. It normally does not occur unless poor management (not stopping processes that are /Down/) or configuration (there are strategies to solve this automatically). Can be caused by improper /Downing/ a member leading to the node creating another cluster as the process was not terminated.
+
+It may also occur with a network partition. If this extend, the /Unreachable Nodes/ will be marked as downed but will not be terminated.
+
+Simpler solutions may be solved automatically through orchestration platforms that automatically stop the process. More complicated split brains may be solved using /Lightbend Split Brain Resolver/.
+
+** When using sharding or singleton for data consistency
+
+Each cluster can have a copy of the actor leading to a inconsistency and data corruption specially if both shards have access to the database.
+
+* Lighbend Split Brain Resolver
+
+Set of customizable strategies for terminating members in order to avoid Split Brain scenarios. Terminating members allow orchestration platforms to take over and heal the problem.
+
+** Static Quorum
+
+
+Fixed sized quorom of node. All nodes will evaluate their situation and /Down/ unreachable. If quorum is set then a smaller cluster will prevail, otherwise the nodes will shutdown themselves. The quorum value must at least ~n/2 + 1~.
+
+** Keep Majority
+
+Similar to previous but dynamically tracks the size of the cluster.
+
+** Keep Oldest
+
+
+Monitors the oldest node in the cluster. Members that are not communicating with that node will be marked as down and the nodes will terminate themselves. If the oldest node has crashed so will the cluster  but is configurable in a way, that in that case only the oldest will be /Downed/.
+
+** Keep Referee
+
+Similar to the other one but designate a specific node as /referee/ (based on its address). As far as I can see, it is not configurable to avoid crashing the cluster if the /referee/ is down.
+
+** Down Allows
+
+All nodes terminate themselves relying on good orchestration tools to reduce downtime - Me not like this one.
+
+** Lease Majority
+
+Reserved for Kubernetes deployments.
+
+
+It uses a distributed /lock/ (lock) to make it's decision. Each partition will attempt to obtain it the loser terminates and the winnner remains.
+
+There is a bit of nice hack (IMO but can't understand exactly how this is achieved) which is that the side that is theoretically smaller will delay the attempt to obtain the lock so that the majority wins.
+
+** Some Edge Cases
+
+
+- Indirect connected Edges (for some reason is connected to only one member).
+- Unstable nodes (keeps on disconnecting from some nodes).
+
+These edge-caes are automatically handled.
+
+* Orphaned Node
+
+Is down but not terminated.
+
+* TODO Cluster Singleton

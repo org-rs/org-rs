@@ -1,0 +1,124 @@
+#+title: Shynur’s Emacs
+
+#+BEGIN_COMMENT
+Copyright 2023 谢骐
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+#+END_COMMENT
+
+(由于本 Org 文件使用了过多的特性及其组合, 故 GitHub 会在些许地方渲染不佳.
+请在 [[https://shynur.github.io/.emacs.d/docs/README.html]] 获得最佳阅读体验.)
+
+* Overview
+
+🥰 这是我的 Emacs 个人配置方案, from scratch.
+
+#+ATTR_HTML: :alt 如果你看到了这句话, 说明我没高兴上传图片, 或者你的网络环境有问题.
+#+ATTR_HTML: :width 900px
+[[https://raw.githubusercontent.com/shynur/.emacs.d/assets/demos/emacs.png]]
+
+** Demo
+
+非常多的 demo ✨, *请在 [[https://github.com/shynur/.emacs.d/issues/1][issue#1]] 查看*!  \\
+Quite a lot of demos ✨; *please see them in [[https://github.com/shynur/.emacs.d/issues/1][issue#1]]*!
+
+* Prerequisites                                             :linked:MANIFEST:
+
+** Fonts
+
++ [[https://github.com/subframe7536/maple-font][Maple Mono SC NF]]:
+  显示 中英文.
++ [[https://www.nerdfonts.com/][Symbols Nerd Fonts Mono]]:
+  显示 各种 小图标 (mainly for ~doom-modeline~).
++ Segoe UI Symbol, Segoe UI Emoji.
+
+** 软件
+
++ [[https://releases.llvm.org][clang-format]]:
+  代码格式化工具.
++ [[https://www.smoothscroll.net][SmoothScroll]]:
+  开启鼠标 像素级 滚动的功能.
+  (也可以选其它的类似的工具; 或者你的鼠标原生支持.)
++ [[https://clangd.llvm.org][clang/clangd]]:
+  Language server.
++ [[https://jmeubank.github.io/tdm-gcc][GCC]]:
+  将 =modules/src/= 下的 C 文件 编译成 动态链接库, 提供给 Emacs 加载.
+  (也可以选其它的 C 编译器.)
+
+** Packages for editing this project
+
+为了提高编辑本仓库的文件时的舒适度, 建议安装以下 Emacs 插件
+(不然 =.dir-locals.el= 中有些功能无法启用):
+
++ ~git-modes~
++ ~makefile-mode~
++ ~markdown-mode~
++ ~powershell-mode~
++ ~textile-mode~
++ ~yaml-mode~
++ ~yasnippet~
+
+如果已经安装了这些 package, 可能还需要在进入本仓库之前分别 ~require~ 一下.
+
+* 键位
+** 键盘输入
+
+对调了键盘上的 /圆括号/ (=(= =)=) 与 /方括号/ (=[= =]=), 而 /大括号/ (={= =}=) 与 /数字/ (=9= =0=) 不受任何影响.
+
+** 快捷键
+
++ 未换绑任何默认快捷键, 除了那些自带备选方案的 (e.g., 手册中提到 =C-x C-b= 可换绑到 ~bs-show~);
++ 取消了很多不必要的默认快捷键;
++ 定义了自用快捷键:
+  - =C-c= 后接一个 =<letter>= (upper or lower case; =ASCII= or non-=ASCII=).
+  - =f5=​\tilde​=f9=.
+
+* 安装须知
+
+** Platforms                                         :linked:README:INSTALL:
+
+*Latest* release, using *GUI*, run as *server-clients* ([[file:./docs/Emacs-use_daemon.md][如何运行 Emacs 后台服务?]]).
+
++ MS-Windows 11: =x86_64-w64-mingw32=
++ Ubuntu 23: =x86_64-pc-linux-gnu=
+
+考虑到新手从零开始按照本配置初始化 Emacs 时, 可能会遇到各种意想不到的问题, 所以可以直接[[https://github.com/shynur/.emacs.d/tree/assets/releases/][从这里找到自己需要的目录的打包文件, 并整个下载下来]] (可能会用分卷压缩), 以替换掉原本的 =~/.emacs.d/= 目录.
+
+** Install
+
+见 [[file:./INSTALL.rst][INSTALL.rst]].
+(仅包含 [[Platforms]] 中提到的平台, 当然其它平台应该大差不差.)
+
+* Repo Stats
+
++ [[https://api.codetabs.com/v1/loc/?github=shynur/.emacs.d&branch=main&ignored=][Languages Statistics]]
+  # See [[https://codetabs.com/count-loc/count-loc-online.html][Count LOC online]] hosted at [[https://github.com/jolav/codetabs]].
+
+** 目录结构
+
+见 [[file:./MANIFEST.md][MANIFEST.md]].
+(仅含具体的配置文件.)
+
+* License
+
+See the [[file:./LICENSE.txt][LICENSE.txt]] file for license rights and limitations (Apache-2.0).
+
+-----
+
+Copyright \copy  2023  [[https://github.com/shynur][谢骐]] <[[mailto:one.last.kiss@outlook.com][one.last.kiss@outlook.com]]>.
+I own the copyright to [[https://github.com/shynur/.emacs.d][this entire repository]];
+unless explicitly stated, all files here are included and licensed the same as [[https://github.com/shynur/.emacs.d/blob/main/README.org?plain=1][this file]].
+
+# Local Variables:
+# coding: utf-8-unix
+# End:

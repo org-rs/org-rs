@@ -1,0 +1,636 @@
+:PROPERTIES:
+:ID:       5f439a5b-90c4-4733-9fc4-cbe41fd5f204
+:END:
+#+title: Genetics Work Journal 2024
+
+* W24
+** Time
+Explore Hoot API 3h.
+Call 1h.
+Bio course 1h.
+
+* W25
+Setting up dev environment for spinning up jbrowse following
+[[https://jbrowse.org/jb2/docs/quickstart_web/][jb2-quickstart-guide]].  Downloading mm39 mouse genome from [[https://hgdownload.soe.ucsc.edu/goldenPath/mm39/bigZips/][ucsc.edu]].
+Creating FASTA Index with samtools.  Wrapping all the steps into
+Makefile with guix environment providing all necessary tools.
+
+Looking around for plugins example and read API documentation.  Trying
+to build gwas [[https://github.com/cmdcolin/jbrowse-plugin-gwas][plugin]], having troubles with pangocairo and pkg-config.
+pango provided by guix exposes pangocairo2.pc, to get pangocairo.pc we
+need pango@1.50.14.  Having troubles with tsdx, preset-env,
+@babel/core, caniuse-lite.
+
+The best result I could get so far:
+#+begin_src
+✖ Failed to compile
+(babel plugin) Error: /data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/src/index.ts: You gave us a visitor for the node type ClassAccessorProperty but it's not a valid type
+Error: /data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/src/index.ts: You gave us a visitor for the node type ClassAccessorProperty but it's not a valid type
+    at verify (/data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/.yarn/cache/@babel-traverse-npm-7.12.12-624e94788e-d3af59ec9d.zip/node_modules/@babel/traverse/lib/visitors.js:112:13)
+    at Object.explode (/data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/.yarn/cache/@babel-traverse-npm-7.12.12-624e94788e-d3af59ec9d.zip/node_modules/@babel/traverse/lib/visitors.js:34:3)
+    at traverse (/data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/.yarn/cache/@babel-traverse-npm-7.12.12-624e94788e-d3af59ec9d.zip/node_modules/@babel/traverse/lib/index.js:63:12)
+    at NodePath.traverse (/data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/.yarn/cache/@babel-traverse-npm-7.12.12-624e94788e-d3af59ec9d.zip/node_modules/@babel/traverse/lib/path/index.js:142:24)
+    at ReplaceSupers.replace (/data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/.yarn/$$virtual/@babel-helper-replace-supers-virtual-d08e1d2836/0/cache/@babel-helper-replace-supers-npm-7.24.7-35d1343b26-3807b99d12.zip/node_modules/@babel/helper-replace-supers/lib/index.js:205:18)
+    at pushBody (/data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/.yarn/$$virtual/@babel-plugin-transform-classes-virtual-4a176b19e1/0/cache/@babel-plugin-transform-classes-npm-7.24.7-3020dbe8cb-12eb03c747.zip/node_modules/@babel/plugin-transform-classes/lib/transformClass.js:125:23)
+    at buildBody (/data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/.yarn/$$virtual/@babel-plugin-transform-classes-virtual-4a176b19e1/0/cache/@babel-plugin-transform-classes-npm-7.24.7-3020dbe8cb-12eb03c747.zip/node_modules/@babel/plugin-transform-classes/lib/transformClass.js:91:5)
+    at classTransformer (/data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/.yarn/$$virtual/@babel-plugin-transform-classes-virtual-4a176b19e1/0/cache/@babel-plugin-transform-classes-npm-7.24.7-3020dbe8cb-12eb03c747.zip/node_modules/@babel/plugin-transform-classes/lib/transformClass.js:491:5)
+    at transformClass (/data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/.yarn/$$virtual/@babel-plugin-transform-classes-virtual-4a176b19e1/0/cache/@babel-plugin-transform-classes-npm-7.24.7-3020dbe8cb-12eb03c747.zip/node_modules/@babel/plugin-transform-classes/lib/transformClass.js:520:10)
+    at PluginPass.ClassExpression (/data/abcdw/work/cmdcolin/jbrowse-plugin-gwas/.yarn/$$virtual/@babel-plugin-transform-classes-virtual-4a176b19e1/0/cache/@babel-plugin-transform-classes-npm-7.24.7-3020dbe8cb-12eb03c747.zip/node_modules/@babel/plugin-transform-classes/lib/index.js:54:77)
+#+end_src
+
+Such experinces drains my soul.  Abandoned the mission, trying to
+setup a sample plugin.  Fighting troubles with rollup dependency.
+Removed ~"@jbrowse/development-tools": "^2.1.1"~.  Returned it back, did
+~npm install --force~.  Added pluign to previously created jbrowse
+installation.
+
+Looking for snps data: Snps data for mm10:
+https://github.com/cel7t/plotter/blob/master/data.csv
+
+Uploading mm10.
+https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/
+
+Trying to load hoot js-runtime via plugin.  Maintaining separate
+jbrowse and jbrowse plugin repo is cumbersome, combining them into
+one.  Trying to export Scheme class to plugin.  Workarounded it by
+loading runtime-js into index.html of JBrowse itself.
+
+* W26
+Trying to set up an empty JBrowse track under reference genome track.
+Added a GWA track based on the react views from
+https://github.com/cmdcolin/jbrowse-plugin-gwas source code.
+
+Trying to plot a dot on the track.  Let's try to plot the whole
+dataset first:
+https://raw.githubusercontent.com/cel7t/plotter/master/data.csv Trying
+transform data.csv to bed format.  Wrote a simple python script
+csv2bed.py, created tbi index with tabix. Try to plot it: no features
+are available for Renderer.
+
+The feature are not available, because there is no alias information
+provided to adapter, probably adding this one should fix it:
+https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.chromAlias.txt
+
+Yeees, it's.  I got the dots plotted and typescript callback for
+rendering triggered.
+
+* W27
+We got GWAS track rendered, and features available in renderer
+callback, now let's try to send them into hoot code, which will just
+print it to console.  Hm, calling a hoot function from js is not
+obvious, can find any examples and docs.  Probably need to obtain an
+object from Scheme.load_main and somehow interact with it. Exploring
+reflect.js for related functionality.  Ok, you can make the hoot
+module to return a function.
+
+#+begin_src javascript
+// hello.wasm should have a procedure as the last top-level form
+[tmp] = await Scheme.load_main("hello.wasm", {}, {
+    window: { alert: (s) => window.alert(s)}});
+tmp.call()
+
+// if we return a list of functions, we can call a particular one with
+tmp.reflector.car(tmp).call()
+#+end_src
+
+We need to load wasm module from inside plugin to obtain the value we
+can use for accessing hoot functions.  Trying to import reflection.js
+from index.ts.
+
+10h.
+
+* W28
+Learning about TypeScript module system.  Installed lsp server, now
+it's easier to navigate through the project and see ts errors.  Fuck,
+everything is broken and plugin don't work now.  Ok, it's comming from
+~"module": "commonjs"~, removing it fixes the issue.
+
+#+begin_src text
+npm install @jbrowse/plugin-wiggle
+npm ERR! code ERESOLVE
+npm ERR! ERESOLVE could not resolve
+npm ERR!
+npm ERR! While resolving: @jbrowse/development-tools@2.1.1
+npm ERR! Found: rollup@3.29.4
+npm ERR! node_modules/rollup
+npm ERR!   peer rollup@">=0.31.2" from rollup-plugin-sourcemaps@0.6.3
+npm ERR!   node_modules/rollup-plugin-sourcemaps
+npm ERR!     rollup-plugin-sourcemaps@"^0.6.3" from @jbrowse/development-tools@2.1.1
+npm ERR!     node_modules/@jbrowse/development-tools
+npm ERR!       dev @jbrowse/development-tools@"^2.1.1" from the root project
+npm ERR!   dev rollup@"^3.0.0" from the root project
+npm ERR!
+npm ERR! Could not resolve dependency:
+npm ERR! peer rollup@"^2.0.0" from @jbrowse/development-tools@2.1.1
+npm ERR! node_modules/@jbrowse/development-tools
+npm ERR!   dev @jbrowse/development-tools@"^2.1.1" from the root project
+npm ERR!
+npm ERR! Conflicting peer dependency: rollup@2.79.1
+npm ERR! node_modules/rollup
+npm ERR!   peer rollup@"^2.0.0" from @jbrowse/development-tools@2.1.1
+npm ERR!   node_modules/@jbrowse/development-tools
+npm ERR!     dev @jbrowse/development-tools@"^2.1.1" from the root project
+npm ERR!
+npm ERR! Fix the upstream dependency conflict, or retry
+npm ERR! this command with --force or --legacy-peer-deps
+npm ERR! to accept an incorrect (and potentially broken) dependency resolution.
+npm ERR!
+npm ERR!
+npm ERR! For a full report see:
+npm ERR! /home/bob/.npm/_logs/2024-07-10T15_36_19_671Z-eresolve-report.txt
+
+npm ERR! A complete log of this run can be found in: /home/bob/.npm/_logs/2024-07-10T15_36_19_671Z-debug-0.log
+zsh: exit 1     npm install @jbrowse/plugin-wiggle
+#+end_src
+
+Argh!  4th hour is going, still not much progress.
+
+Ok, trying to include a very simple js class' static method from ts
+code.
+
+#+begin_src text
+(!) Plugin typescript: @rollup/plugin-typescript TS2307: Cannot find module './src/MyClass' or its corresponding type declarations.
+src/index.ts: (22:21)
+
+22 import MyClass from './src/MyClass';
+                       ~~~~~~~~~~~~~~~
+
+[!] RollupError: Could not resolve "./src/MyClass" from "src/index.ts"
+src/index.ts
+    at error (/data/abcdw/work/abcdw/jbrowse-plugin-hoot-gwa/node_modules/rollup/dist/shared/rollup.js:353:30)
+    at ModuleLoader.handleInvalidResolvedId (/data/abcdw/work/abcdw/jbrowse-plugin-hoot-gwa/node_modules/rollup/dist/shared/rollup.js:26015:24)
+    at /data/abcdw/work/abcdw/jbrowse-plugin-hoot-gwa/node_modules/rollup/dist/shared/rollup.js:25977:26
+#+end_src
+
+The internet suggests to configure rollup, however it's already have
+some obscure configuration comming from jbrowse/development-tools
+package.  Tried somehow to mix recommended config with one provided by
+jbrowse.  Getting this nice stacktrace:
+
+#+begin_src text
+[!] Error: Cannot find module '@rollup/plugin-node-resolve'
+Require stack:
+- /data/abcdw/work/abcdw/jbrowse-plugin-hoot-gwa/rollup.config-1720670031739.cjs
+    at Function.Module._resolveFilename (node:internal/modules/cjs/loader:1134:15)
+    at Function.Module._load (node:internal/modules/cjs/loader:975:27)
+    at Module.require (node:internal/modules/cjs/loader:1225:19)
+    at require (node:internal/modules/helpers:177:18)
+    at Object.<anonymous> (/data/abcdw/work/abcdw/jbrowse-plugin-hoot-gwa/rollup.config-1720670031739.cjs:7:1)
+    at Module._compile (node:internal/modules/cjs/loader:1356:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1414:10)
+    at Module.load (node:internal/modules/cjs/loader:1197:32)
+    at Function.Module._load (node:internal/modules/cjs/loader:1013:12)
+    at ModuleWrap.<anonymous> (node:internal/modules/esm/translators:202:29)
+#+end_src
+
+Trying:
+
+#+begin_src sh
+make env
+npm install @rollup/plugin-node-resolve @rollup/plugin-commonjs \
+    @rollup/plugin-typescript -save-dev --force
+#+end_src
+
+Ok, we got back to:
+#+begin_src text
+(!) Plugin typescript: @rollup/plugin-typescript TS2307: Cannot find module './src/MyClass' or its corresponding type declarations.
+src/index.ts: (22:21)
+
+22 import MyClass from './src/MyClass';
+                       ~~~~~~~~~~~~~~~
+
+[!] RollupError: Could not resolve "./src/MyClass" from "src/index.ts"
+src/index.ts
+    at error (/data/abcdw/work/abcdw/jbrowse-plugin-hoot-gwa/node_modules/rollup/dist/shared/rollup.js:353:30)
+    at ModuleLoader.handleInvalidResolvedId (/data/abcdw/work/abcdw/jbrowse-plugin-hoot-gwa/node_modules/rollup/dist/shared/rollup.js:26015:24)
+    at /data/abcdw/work/abcdw/jbrowse-plugin-hoot-gwa/node_modules/rollup/dist/shared/rollup.js:25977:26
+#+end_src
+
+let's play around with different
+
+#+begin_src text
+(!) Plugin typescript: @rollup/plugin-typescript TS2307: Cannot find module './src/MyClass' or its corresponding type declarations.
+src/index.ts: (22:21)
+
+22 import MyClass from './src/MyClass';
+#+end_src
+
+ok, it should have been ~./MyClass~, not ~./src/MyClass~.
+
+I've reset all the settings and changes and now I get in js console:
+
+#+begin_src text
+TypeError: Services.prefs is undefined
+#+end_src
+
+WTF?  Clearing all the storage solved the problem.
+
+Class with static method works fine. Moving dummy class into subfolder. Works good.
+
+Renamed class to TmpClass and downcased filename, trying the following import:
+
+#+begin_src text
+import OClass from './test-subfolder/myclass';
+#+end_src
+
+and it works, WTF?
+
+
+Trying to move the code of dummy class into js-runitme/reflect.js.
+
+We got back to already encountered error:
+#+begin_src text
+[!] (plugin at position 6) SyntaxError: Identifier directly after number (1335:18) in /data/abcdw/work/abcdw/jbrowse-plugin-hoot-gwa/src/js-runtime/reflect.js
+src/js-runtime/reflect.js (1335:18)
+#+end_src
+
+The funny thing that the line 1335 doesn't exist in reflect.js.  It's
+only 718 lines in this file.  Let's do a binary search by commenting
+out parts of reflect.js.  The problem is in SchemeModule class.  More
+preciesly with BigInts.
+
+Tried to add babel "plugins": ["@babel/plugin-syntax-bigint"], didn't work :/
+
+It seems the problem is in acorn js parser used by rollup, which is
+5.something, which doesn't support bigints literals.
+
+@jbrowse/development-tools requires "rollup-plugin-node-globals",
+which is 6 years old and depends on acorn 5.7.2.
+
+Overrided transitive dependency, but it doesn't seem to help.
+
+There is a hardcoded ecmaVersion in rollup-plugin-node-globals:
+https://github.com/calvinmetcalf/rollup-plugin-node-globals/blob/edbbbbd7c485452a0168b27caa5ad49e58cf3cfe/src/inject/index.js#L59
+
+I hardcoded the fix in this line.
+
+20h
+
+* W29
+
+Trying to make hoot reflector accessible to draw function.  The problem
+is that load_main is asyncronous, draw is syncronous.
+
+Plugin loading is syncronous.
+Top-level await is not supported, cause of module type.
+
+Asked how to deal with it in jbrowse matrix chat.
+
+Reporting acorn problem.  There is alternative plugin template here,
+which doesn't use rollup:
+https://github.com/GMOD/jbrowse-plugin-protein3d/tree/master
+
+Adding async keyword to the implementation of the interface made a difference (now I can use await inside draw).
+https://git.sr.ht/~abcdw/jbrowse-plugin-hoot-gwas/commit/07e2ecf#src/LinearManhattanRenderer/LinearManhattanRenderer.ts-2-4
+
+Moreover, I can call wasm functions and it works:
+https://git.sr.ht/~abcdw/jbrowse-plugin-hoot-gwas/commit/07e2ecf#src/LinearManhattanRenderer/LinearManhattanRenderer.ts-3-10
+
+However, I can't obtain value from the call to wasm function, at least following console.log doesn't print anything:
+https://git.sr.ht/~abcdw/jbrowse-plugin-hoot-gwas/commit/07e2ecf#src/LinearManhattanRenderer/LinearManhattanRenderer.ts-3-6
+
+* W30
+Succeed to path the value from hoot to js, however passing objects and
+functions is still problematic, I can't pass the lambda from js to
+hoot.
+
+When I change parameter type for console log from (ref string) to (ref
+eq) it stops printing anything.  WHy?
+
+Trying to get property of js object.
+#+begin_quote
+TypeError: can only pass a WebAssembly GC object to an eqref
+#+end_quote
+
+Trying to implement this function the following way:
+#+begin_src javascript
+    object: {
+      keys: (o) => Object.keys(o),
+      getProperty: (o, key) => Object.getOwnPropertyDescriptor(o, key).value,
+    },
+#+end_src
+
+Produces:
+#+begin_quote
+TypeError: Object.getOwnPropertyDescriptor(...) is undefined
+    getProperty index.ts:29
+    call reflect.js:297
+    call reflect.js:116
+    draw LinearManhattanRenderer.ts:51
+serverSideRenderedBlock.ts:152:16
+#+end_quote
+
+Trying to pass js random generator to Scheme code, with some amount of type adjustments it started to work.
+
+* W31
+Implementing draw-feature in hoot.  Going good.
+
+Found how to display all chromosomes at once.  In what order they
+should go?  You can order chromosomes through mm10.fa.fai.
+
+Oouch, type conversion during the interop is quite involved, it forces
+to write a lot of boilerplate.
+
+#+begin_quote
+This week was quite productive:
+- Found the way to render all chromosomes.
+- Rewrote rendering logic of single SNP to Hoot.
+
+ https://git.sr.ht/~abcdw/jbrowse-plugin-hoot-gwas/tree/09b50e9/scheme/hoot/hello.scm#L102
+Screenshot in the attachment.
+
+Passing capabilities is quite painful, because in FFI you can't have
+polymorphic function (both by type and number of arguments).  Also, all
+values except strings and numerics are opaque, so it's usually tricky to
+write the code on the js/hoot border and it necessary to use hacks like
+this one (notice call1-f64-f64):
+ https://git.sr.ht/~abcdw/jbrowse-plugin-hoot-gwas/tree/09b50e9/scheme/hoot/hello.scm#L41
+#+end_quote
+
+* W32
+Rewriting iterators into hoot.  How to understand that boolean is
+true?  Let's make external->boolean+boolToNull hack.
+
+Holy js consistency. Object.getOwnPropertyDescriptor(o, key).value
+doesn't work for iterator values, what the heck.
+
+Found a problem in get-property types, it fixes the previously
+existing problems I had with interop.
+
+Added init make target.  Adding a patch with js parser fix.  Cleaned
+up all the targets, added init targets.
+
+Implemented draw-features!  Migrated to it.
+
+* W34
+Trying to add modules infrastructure to project.
+ice-9/psyntax.scm:2838:12: In procedure syntax-violation:
+Syntax error:
+./scheme/hoot/hello.scm:8:21: source expression failed to match any pattern in form match
+make: *** [Makefile:32: wasm] Error 1
+
+Even simple module fails to compile with:
+#+begin_quote
+Backtrace:
+In ice-9/boot-9.scm:
+  1755:12 14 (with-exception-handler _ _ #:unwind? _ # _)
+In unknown file:
+          13 (apply-smob/0 #<thunk 7f028dcbd300>)
+In ice-9/boot-9.scm:
+    724:2 12 (call-with-prompt _ _ #<procedure default-prompt-handle…>)
+In ice-9/eval.scm:
+    619:8 11 (_ #(#(#<directory (guile-user) 7f028dcc0c80>)))
+In ice-9/command-line.scm:
+   185:19 10 (_ #<input: custom-port 7f028dcba850>)
+In unknown file:
+           9 (eval ((@ (tmp) compile-hello)) #<directory (guile-user…>)
+In tmp.scm:
+    27:16  8 (compile-hello)
+In ice-9/ports.scm:
+   439:17  7 (call-with-input-file _ _ #:binary _ #:encoding _ # _)
+In hoot/compile.scm:
+   322:18  6 (_ _)
+    229:4  5 (compile _ #:imports _ #:import-abi? _ #:export-abi? _ # …)
+In hoot/library-group.scm:
+    993:7  4 (expand-library-group #<<library-group> src: #f librar…> …)
+    848:4  3 (tree-il->reversed-bindings #<tree-il (seq (call (topl…> …)
+   814:19  2 (foldts #<tree-il (seq (call (toplevel define-module) (…>)
+   814:19  1 (foldts #<tree-il (call (toplevel define-module) (call …>)
+   851:27  0 (_ _)
+
+hoot/library-group.scm:851:27: unbound top-level #("./scheme/hoot/simple.scm" 0 1) define-module
+make: *** [Makefile:32: wasm] Error 1
+#+end_quote
+
+Trying to update hoot to latest version, build with current guile-next
+from guix repo fails on vm tests.
+
+Hoot build time is huge. node build time is enormous, removed node
+dependency from hoot.
+
+#+begin_quote
+--- ./test-suite.log --------------------------------------------------------
+
+========================================
+   guile-hoot 0.4.1: ./test-suite.log
+========================================
+
+# TOTAL: 47
+# PASS:  46
+# SKIP:  0
+# XFAIL: 0
+# FAIL:  1
+# XPASS: 0
+# ERROR: 0
+
+.. contents:: :depth: 2
+
+FAIL: test/test-vm
+==================
+
+%%%% Starting test test-vm  (Writing full log to "test-vm.log")
+test/test-vm.scm:101: FAIL fallthrough with too many values on stack
+test/test-vm.scm:101: FAIL fallthrough with too many values on invalid stack
+test/test-vm.scm:101: FAIL reference to mutable global in constant expression
+test/test-vm.scm:101: FAIL reference to subsequent global in constant expression
+test/test-vm.scm:101: FAIL ref.cast null
+FAIL test/test-vm.scm (exit status: 1)
+#+end_quote
+
+Building node with v8 takes more than 2 hours, I interrupted the build
+process, because laptop is going very hot and it's probably harmful
+for it.
+
+Will try to build it without test and nodejs dependency.  It've been built quite fast, but loading fails with:
+
+#+begin_quote
+Uncaught (in promise) LinkError: import object field 'code_source' is not a Function
+#+end_quote
+
+Maybe I need to build a fresh js-reflection as well.  New hoot has a
+different js runtime structure of the directories.
+
+#+begin_quote
+I've been working on introducing hoot modules, however faced a number of
+issues.  First of all I started simple and created an empty file with
+just module definition and one variable exported.  It didn't work, more
+details in full journal log.  Asked on spritely irc, didn't get a
+response yet, dthompson last seen is August 17, he probably out of
+office.
+
+The second attempt was using entry point scheme file as before (without
+modules) and add modules to load path, however support for
+hoot-load-paths was added after last release.  I decided to update hoot
+to latest commit and the fun begin.  I tried a lot of combinations of
+dependencies to built it and pass test, it didn't pass vm tests.  I
+decided to borrow the definitions for guix scm, but it was building for
+almost an hour and I interrupted it and tried to built without tests and
+with old node.  After built I tried to compile and run previously
+working hoot code, but the execution failed with:
+
+Uncaught (in promise) LinkError: import object field 'code_source' is
+not a Function
+
+I decided to fallback to the option with updated node version, but after
+building for 2.5 hours on 16 threads I stopped the process, because it
+can be harmful for the laptop and makes it unusable during the build
+time.
+
+I went back to the previous option with old node and without tests and
+tried to update reflect.js and js-runtime from newly built package,
+however it didn't help.
+
+Committed changes to separate branch:
+https://git.sr.ht/~abcdw/jbrowse-plugin-hoot-gwas/commit/72c7771718110ace49d12d09d6b9bcc01a495425
+
+The full journal log:
+#+end_quote
+
+* W35
+
+#+begin_quote
+Made a simple html page with two divs, the left one contains plain text,
+the right one contains jbrowse showing 3 tracks, the view, initial
+tracks and their settings are quite flexible.  The data get downloaded
+from external urls.
+
+<#part type="image/png" filename="~/swappy-20240830_092108.png" disposition=attachment>
+<#/part>
+
+The source code is here:
+https://git.sr.ht/~abcdw/jbrowse-plugin-hoot-gwas/commit/2c216a5
+#+end_quote
+* W36
+#+begin_quote
+Good afternoon!
+
+CC: Sarthak.
+
+Added mm10 assembly, reference and GWAS tracks for it into embeded
+jbrowse linear genome view.
+
+WIP code:
+https://git.sr.ht/~abcdw/jbrowse-plugin-hoot-gwas/tree/master/item/embed
+
+Trying to load hoot renderer for GWAS track, have troubles including
+plugins into embedded jbrowse. Got out of power and ideas trying to fix
+it, asked in jbrowse chat, waiting for response.
+#+end_quote
+
+* W37
+Updating Hoot to release version, new paths to reflect.js and
+respective wasm binaries are in separate directory now.
+
+Capabilities moved under key in map in second argument of load_wasm.
+
+I'm getting very strange ~TypeError: Services.prefs is undefined~.  I
+tried another instance of the repo, with clean state and not updated
+hoot, it still throws the same error.  It was fucking cache.
+Restarted the browser, and it started to work.  Migration complete.
+
+Upstreaming export fix for reflect.js:
+https://gitlab.com/spritely/guile-hoot/-/merge_requests/266
+
+Splitting hoot code into modules for easier maintanance.
+define-library doesn't work, when compiled directly.
+Reported here:
+https://gitlab.com/spritely/guile-hoot/-/issues/321
+
+Return back to loading plugin to embeded jbrowse view.
+
+* W38
+#+begin_quote
+Made a package for jbrowse2-linear-genome-view and its deps.
+https://git.sr.ht/~abcdw/jbrowse-plugin-hoot-gwas/tree/16378db/scheme/guile/org/genenetwork/packages/jbrowse2.scm#L7
+
+Made a package for hoot-gwas plugin.
+https://git.sr.ht/~abcdw/jbrowse-plugin-hoot-gwas/tree/16378db/scheme/guile/org/genenetwork/packages/jbrowse2.scm#L32
+
+The data and corresponding indicies are here:
+http://files.trop.in/genenetwork/mm10/
+
+Reworked a bit an example of embeding into page:
+https://git.sr.ht/~abcdw/jbrowse-plugin-hoot-gwas/tree/16378db/embed/index.html#L2
+
+Instead of external urls they should point to the urls from which the
+content of the packages above is served.
+
+Let me know how I can help further with the deployement.
+#+end_quote
+
+* W39
+Trying to fixup commit got into troubles:
+#+begin_quote
+128 git … rebase -i --autosquash --autostash --keep-empty 4008e2e\^
+Created autostash: 03f43f8
+error: unable to unlink old 'src/reflect-js/reflect.js': Permission denied
+fatal: could not reset --hard
+
+  1 git … rebase --abort
+warning: could not read '.git/rebase-merge/head-name': No such file or directory
+
+magit-rebase--todo: Opening input file: No such file or directory, /home/bob/work/abcdw/jbrowse-plugin-hoot-gwas/.git/rebase-merge/git-rebase-todo
+Mark set
+
+#+end_quote
+
+* W40
+Adding gene track. Started with mm10.ncbiRefSeq.gtf.gz, tabix can't
+build an index file for it.
+
+When trying to convert to bed:
+
+#+begin_quote
+gtf2bed --do-not-sort < data/mm10.refGene.gtf > 1.txt
+realloc(): invalid next size
+/gnu/store/6mmsix73cd0vr26il7q1rn291rs0wqfx-profile/bin/gtf2bed: line 139: 12557 Aborted                 ${cmd} ${options} - 0<&0
+zsh: exit 134   gtf2bed --do-not-sort < data/mm10.refGene.gtf > 1.txt
+#+end_quote
+
+* W43
+Reading the docs about the way data get loaded in jbrowse2.
+
+* W45
+Trying to convert provided big file into bed format
+
+#+begin_quote
+[E::get_intv] Failed to parse TBX_GENERIC, was wrong -p [type] used?
+The offending line was: "1      2931544 rs10909855      C       T       0.5676362587591954      -0.01553074     0.01407956      0.128"
+[E::get_intv] Failed to parse TBX_GENERIC, was wrong -p [type] used?
+The offending line was: "1      2932527 rs17391750      G       A       0.1427937689150803      -0.005477851    0.0152596       0.112"
+[E::get_intv] Failed to parse TBX_GENERIC, was wrong -p [type] used?
+The offending line was: "1      2973490 rs6661908       G       A       0.40766288315158367     -0.01030219     0.01200131      0.189"
+[E::hts_idx_push] Invalid record on sequence #1: end 694027 < begin 2973528
+#+end_quote
+
+* W46
+Setting up a separate domain for demo page, adding certificates and using nginx instead of npm serve.
+
+* W47
+Trying Hao data. A lot of trasformation and adjustments.
+
+Refactoring goes here, need to make a few instances of jbrowse for
+different purposes.  Moving data under subfolders, using absolute
+paths to access bundles and data.
+
+* W48
+Call and planning.
+
+* W49
+Tried out clickmap on top of rbush data structure for clickable features
+(getting feature info by x, y coordinate).  Serializes a lot of data,
+potentially it can have a performance penalty. The information displayed
+in a modal window right now.
+
+* W50
+Staring at code, call with Pjotr and Sarthak.
+
+* Future Features
+** DONE Check if it possible to show all chromosomes at once
+** TODO Embed jbrowse into genetwork page
+** TODO Add label with SNP names on click
+** TODO Show metadata popup on doubleclick
+** TODO Make labels sticky
+** TODO Make labels draggable
+** TODO Export to svg/png
+** TODO Try to render 1kk snps
