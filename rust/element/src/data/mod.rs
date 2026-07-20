@@ -16,6 +16,10 @@
 // https://orgmode.org/worg/dev/org-element-api.html
 // API page lists LineBreak as element, when both org-syntax page and source code list is as object
 
+pub mod entity;
+
+pub use entity::EntityData;
+
 use crate::{
     babel::BabelCallData,
     blocks::{
@@ -558,35 +562,6 @@ pub struct PlanningData<'a> {
 pub struct CodeData<'a> {
     /// Contents (string).
     value: &'a str,
-}
-
-#[derive(Debug)]
-pub struct EntityData<'a> {
-    /// Entity's ASCII representation (string).
-    ascii: &'a str,
-
-    /// Entity's HTML representation (string).
-    html: &'a str,
-
-    /// Entity's LaTeX representation (string).
-    latex: &'a str,
-
-    /// Non-nil if entity's LaTeX representation should be
-    /// in math mode (boolean).
-    latex_math_p: bool,
-
-    /// Entity's Latin-1 encoding representation (string).
-    latin1: &'a str,
-
-    /// Entity's name, without backslash nor brackets (string).
-    name: &'a str,
-
-    /// Non-nil if entity is written with optional
-    /// brackets in original buffer (boolean).
-    use_brackets_p: bool,
-
-    /// Entity's UTF-8 encoding representation (string).
-    utf_8: &'a str,
 }
 
 #[derive(Debug)]
