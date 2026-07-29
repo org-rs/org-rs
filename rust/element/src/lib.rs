@@ -32,6 +32,7 @@ pub mod data;
 mod drawer;
 pub mod environment;
 mod fixed_width;
+pub mod from_input;
 pub mod headline;
 pub mod keyword;
 mod latex;
