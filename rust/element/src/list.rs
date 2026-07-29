@@ -63,6 +63,7 @@
 //!
 
 use crate::affiliated::AffiliatedData;
+use crate::cursor::CachedRegex;
 use crate::data::SyntaxNode;
 use crate::parser::Parser;
 use regex::Regex;
@@ -102,7 +103,8 @@ lazy_static! {
 //   "Regexp matching the beginning of a plain list item."
 //   (concat "^" (org-item-re)))
 
-    pub static ref REGEX_ITEM : Regex = Regex::new(r"([ \t]*([-+]|(([0-9]+)[.)]))|[ \t]+\*)([ \t]|$)").unwrap();
+    pub static ref REGEX_ITEM: CachedRegex =
+        CachedRegex::new(Regex::new(r"([ \t]*([-+]|(([0-9]+)[.)]))|[ \t]+\*)([ \t]|$)").unwrap());
 
 }
 

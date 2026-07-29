@@ -14,6 +14,7 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::affiliated::AffiliatedData;
+use crate::cursor::CachedRegex;
 /// LaTeX Environments
 ///
 /// Pattern for LaTeX environments is:
@@ -33,7 +34,8 @@ lazy_static! {
 
     /// Regexp matching the beginning of a LaTeX environment.
     /// The environment is captured by the first group.
-    pub static ref REGEX_LATEX_BEGIN_ENVIRIONMENT: Regex = Regex::new(r"^[ \t]*\\begin\{([A-Za-z0-9*]+)\}").unwrap();
+    pub static ref REGEX_LATEX_BEGIN_ENVIRIONMENT: CachedRegex =
+        CachedRegex::new(Regex::new(r"^[ \t]*\\begin\{([A-Za-z0-9*]+)\}").unwrap());
 }
 
 /// Format string matching the ending of a LaTeX environment

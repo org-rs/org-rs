@@ -44,7 +44,7 @@
 //!
 //! “CAPTION” keyword can contain objects in both VALUE and OPTIONAL fileds.
 
-use crate::cursor::REGEX_EMPTY_LINE;
+use crate::cursor::{CachedRegex, REGEX_EMPTY_LINE};
 use crate::data::StringOrObject;
 use crate::data::SyntaxT;
 use crate::parser::Parser;
@@ -88,7 +88,7 @@ lazy_static! {
    /// the future, for now due laziness and lack of time static regex will be used.
    ///
    /// elisp: `org-element--affiliated-re`
-   pub static ref REGEX_AFFILIATED: Regex = Regex::new(
+   pub static ref REGEX_AFFILIATED: CachedRegex = CachedRegex::new(Regex::new(
            &format!(
               r"(?i)^[ \t]*{}|{}|{}|{}|{}[ \t]*",
               r"#\+(?:(?:(?P<CAPTION>CAPTION)|(?P<RESULTS>RESULTS?))(?:\[(?P<SECONDARY>.*)\])?",   // DUAL
@@ -96,7 +96,7 @@ lazy_static! {
               r"(?P<PLOT>PLOT)",
               r"(?P<NAME>(?:DATA|LABEL|NAME|RESNAME|(?:S(?:OURC|RCNAM)|TBLNAM)E))",
               r"(?P<ATTR>ATTR_[-_A-Za-z0-9]+)):")
-       ).unwrap();
+       ).unwrap());
 }
 
 /// Since CAPTION is both DUAL and PARSED DualVal has to be able to store Strings or StringOrObject
