@@ -34,6 +34,7 @@
 
 use std::cell::RefCell;
 
+use crate::cursor::CachedRegex;
 use crate::data::{Interval, Syntax, SyntaxNode, TimestampData};
 use crate::parser::Parser;
 use regex::Regex;
@@ -49,17 +50,18 @@ lazy_static! {
 
     /// Matches a line with planning info.
     /// Matched keyword is in group 1
-    pub static ref REGEX_PLANNING_LINE: Regex = Regex::new(
+    pub static ref REGEX_PLANNING_LINE: CachedRegex = CachedRegex::new(Regex::new(
         &format!(r"^[ \t]*((?:{}|{}|{}):)",
             ORG_CLOSED_STRING, ORG_DEADLINE_STRING, ORG_SCHEDULED_STRING ))
-        .unwrap();
+        .unwrap());
 
     /// Matches an entire property drawer.
-    pub static ref REGEX_PROPERTY_DRAWER: Regex = Regex::new(
+    pub static ref REGEX_PROPERTY_DRAWER: CachedRegex = CachedRegex::new(Regex::new(
         r"^[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?: .*)?[ \t]*\n)*?[ \t]*:END:[ \t]*")
-            .unwrap();
+            .unwrap());
 
-    pub static ref REGEX_CLOCK_LINE: Regex = Regex::new(r"^[ \t]*CLOCK:").unwrap();
+    pub static ref REGEX_CLOCK_LINE: CachedRegex =
+        CachedRegex::new(Regex::new(r"^[ \t]*CLOCK:").unwrap());
 }
 
 #[derive(Debug)]

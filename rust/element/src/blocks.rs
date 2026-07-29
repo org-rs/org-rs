@@ -16,23 +16,28 @@
 use std::cell::RefCell;
 
 use crate::affiliated::AffiliatedData;
+use crate::cursor::CachedRegex;
 use crate::data::{Interval, LineNumberingMode, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
 
 lazy_static! {
     /// Used to identify the  Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
-    pub static ref REGEX_STARTS_WITH_HASHTAG: Regex = Regex::new(r"[ \t]*#").unwrap();
+    pub static ref REGEX_STARTS_WITH_HASHTAG: CachedRegex =
+        CachedRegex::new(Regex::new(r"[ \t]*#").unwrap());
 
     /// Used to identify Comments. Used together with REGEX_STARTS_WITH_HASHTAG
-    pub static ref REGEX_COLON_OR_EOL: Regex = Regex::new(r"(?: |$)").unwrap();
+    pub static ref REGEX_COLON_OR_EOL: CachedRegex =
+        CachedRegex::new(Regex::new(r"(?: |$)").unwrap());
 
     /// Used to identify center, comment, example, export, quote, source, verse
     /// and special blocks. Used together with REGEX_STARTS_WITH_HASHTAG
-    pub static ref REGEX_BLOCK_BEGIN: Regex = Regex::new(r"\+BEGIN_(\S+)").unwrap();
+    pub static ref REGEX_BLOCK_BEGIN: CachedRegex =
+        CachedRegex::new(Regex::new(r"\+BEGIN_(\S+)").unwrap());
 
     /// Used to identify rare, but technically legal dynamic `BEGIN` blocks
-    pub static ref REGEX_DYNAMIC_BLOCK: Regex = Regex::new(r"\+BEGIN:? ").unwrap();
+    pub static ref REGEX_DYNAMIC_BLOCK: CachedRegex =
+        CachedRegex::new(Regex::new(r"\+BEGIN:? ").unwrap());
 }
 
 /// Greater element
