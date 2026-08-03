@@ -45,6 +45,8 @@ use std::{
 use regex::Regex;
 use strum_macros::EnumDiscriminants;
 
+pub use bumpalo::collections::Vec as BumpVec;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Interval {
     pub start: usize,
