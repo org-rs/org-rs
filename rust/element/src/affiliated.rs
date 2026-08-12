@@ -23,35 +23,32 @@
 //! Items, Table Rows , Node Properties, Headlines
 //! Sections, Planning lines, Property Drawers, Clocks and Inlinetasks
 //!
-//! This is done by adding specific keywords, named “affiliated keywords”,
+//! This is done by adding specific keywords, named "affiliated keywords",
 //! just above the element considered, no blank line allowed.
 //!
 //! Affiliated keywords are built upon one of the following patterns:
 //!
-//! “#+KEY: VALUE” - Regular
-//! “#+KEY[OPTIONAL]: VALUE” - Dual
-//! “#+ATTR_BACKEND: VALUE”  - Exported Attribute
+//! "#+KEY: VALUE" - Regular
+//! "#+KEY[OPTIONAL]: VALUE" - Dual
+//! "#+ATTR_BACKEND: VALUE"  - Exported Attribute
 //!
-//! KEY is either  “CAPTION”, “HEADER”, “NAME”, “PLOT” or “RESULTS” string.
+//! KEY is either  "CAPTION", "HEADER", "NAME", "PLOT" or "RESULTS" string.
 //!
 //! BACKEND is a string constituted of alpha-numeric characters, hyphens or underscores.
 //!
 //! OPTIONAL and VALUE can contain any character but a new line.
-//! Only “CAPTION” and “RESULTS” keywords can have an optional value.
+//! Only "CAPTION" and "RESULTS" keywords can have an optional value.
 //!
-//! An affiliated keyword can appear more than once if KEY is either “CAPTION” or “HEADER”
-//! or if its pattern is “#+ATTR_BACKEND: VALUE”.
+//! An affiliated keyword can appear more than once if KEY is either "CAPTION" or "HEADER"
+//! or if its pattern is "#+ATTR_BACKEND: VALUE".
 //!
-//! “CAPTION” keyword can contain objects in both VALUE and OPTIONAL fileds.
+//! "CAPTION" keyword can contain objects in both VALUE and OPTIONAL fileds.
 
-use crate::cursor::REGEX_EMPTY_LINE;
-use crate::data::StringOrObject;
-use crate::data::SyntaxT;
+use crate::cursor::CachedRegex;
+use crate::data::{Interval, StringOrObject, SyntaxT};
 use crate::parser::Parser;
+use memchr::memchr;
 use regex::{Match, Regex};
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::str::FromStr;
 
 lazy_static! {
 
@@ -88,7 +85,8 @@ lazy_static! {
    /// the future, for now due laziness and lack of time static regex will be used.
    ///
    /// elisp: `org-element--affiliated-re`
-   pub static ref REGEX_AFFILIATED: Regex = Regex::new(
+   pub static ref REGEX_AFFILIATED: CachedRegex = CachedRegex::new(
+       Regex::new(
            &format!(
               r"(?i)^[ \t]*{}|{}|{}|{}|{}[ \t]*",
               r"#\+(?:(?:(?P<CAPTION>CAPTION)|(?P<RESULTS>RESULTS?))(?:\[(?P<SECONDARY>.*)\])?",   // DUAL
@@ -96,7 +94,68 @@ lazy_static! {
               r"(?P<PLOT>PLOT)",
               r"(?P<NAME>(?:DATA|LABEL|NAME|RESNAME|(?:S(?:OURC|RCNAM)|TBLNAM)E))",
               r"(?P<ATTR>ATTR_[-_A-Za-z0-9]+)):")
-       ).unwrap();
+        ).unwrap());
+}
+
+/// The span and affiliated keywords that together describe where an element begins.
+///
+/// `span.start` is the position of the first affiliated keyword (or the element
+/// itself when there are none), `span.end` is the parse limit.  Produced by
+/// [`Parser::collect_affiliated_keywords`] and consumed by every element parser
+/// that can carry affiliated keywords.
+///
+/// `content_start` is the byte position where the element's actual content
+/// begins (after all affiliated keyword lines).  When there are no affiliated
+/// keywords, this is the same as `span.start`.  Element parsers that create
+/// child objects should use `content_start` instead of `span.start` as the
+/// beginning of the object region.
+pub struct ElementSpan<'a, 'b> {
+    pub span: Interval,
+    pub affiliated: Option<AffiliatedData<'a, 'b>>,
+    pub content_start: usize,
+}
+
+/// Builder for [`ElementSpan`], obtained via [`ElementSpan::new`].
+pub struct ElementSpanBuilder<'a, 'b> {
+    span: Interval,
+    affiliated: Option<AffiliatedData<'a, 'b>>,
+    content_start: usize,
+}
+
+impl<'a, 'b> ElementSpanBuilder<'a, 'b> {
+    #[inline]
+    pub fn affiliated(mut self, aff: Option<AffiliatedData<'a, 'b>>) -> Self {
+        self.affiliated = aff;
+        self
+    }
+
+    #[inline]
+    pub fn content_start(mut self, pos: usize) -> Self {
+        self.content_start = pos;
+        self
+    }
+
+    #[inline]
+    pub fn build(self) -> ElementSpan<'a, 'b> {
+        ElementSpan {
+            span: self.span,
+            affiliated: self.affiliated,
+            content_start: self.content_start,
+        }
+    }
+}
+
+impl<'a, 'b> ElementSpan<'a, 'b> {
+    #[inline]
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(span: impl Into<Interval>) -> ElementSpanBuilder<'a, 'b> {
+        let span = span.into();
+        ElementSpanBuilder {
+            span,
+            affiliated: None,
+            content_start: span.start,
+        }
+    }
 }
 
 /// Since CAPTION is both DUAL and PARSED DualVal has to be able to store Strings or StringOrObject
@@ -114,39 +173,36 @@ pub struct DualVal<T> {
 /// MULTI: can occur more than once in an element.
 
 #[derive(Debug, PartialEq)]
-pub struct AffiliatedData<'a> {
+pub struct AffiliatedData<'a, 'b> {
     /// DUAL, PARSED, MULTI
-    pub caption: Vec<DualVal<StringOrObject<'a>>>,
+    pub caption: Vec<DualVal<StringOrObject<'a, 'b>>>,
     /// MULTI
-    pub header: Vec<Cow<'a, str>>,
+    pub header: Vec<&'a str>,
 
     /// No special capabilities
-    pub name: Option<Cow<'a, str>>,
-
-    /// No special capabilities
-    pub plot: Option<Cow<'a, str>>,
+    pub name: Option<&'a str>,
 
     /// DUAL
-    pub results: Option<DualVal<Cow<'a, str>>>,
+    pub results: Option<DualVal<&'a str>>,
 
-    /// MULTI
-    pub attr: HashMap<String, Vec<Cow<'a, str>>>,
+    /// MULTI: backend → values (stored as Vec for 0-1 entry common case)
+    pub attr: Vec<(String, Vec<&'a str>)>,
 }
 
-impl<'a> Default for AffiliatedData<'a> {
-    fn default() -> AffiliatedData<'a> {
+impl<'a, 'b> Default for AffiliatedData<'a, 'b> {
+    #[inline]
+    fn default() -> AffiliatedData<'a, 'b> {
         AffiliatedData {
             caption: vec![],
             header: vec![],
             name: None,
-            plot: None,
             results: None,
-            attr: HashMap::new(),
+            attr: vec![],
         }
     }
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Collect affiliated keywords from point down to LIMIT.
     ///
     /// Most elements can have affiliated keywords.  When looking for an
@@ -174,25 +230,26 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
     /// - Original algorithm does not take into account granularity, and it is probably a bug.
     ///
     /// - It is unclear what should be the type of the field that stores the
-    /// object since it can contain many objects.
+    ///   object since it can contain many objects.
     ///
     /// - It is unclear who should be the "parent" of these objects.  parse-objects function says
-    /// that: "Eventually, if both ACC and PARENT are nil, the common parent is the list of
-    /// objects itself." - It is hard to encode this into a type system, since in all other
-    /// cases, apart from affiliated keywords, objects parents are nodes of syntax trees
-    /// (ACC or PARENT)
-    pub fn collect_affiliated_keywords(&self, limit: usize) -> (usize, Option<AffiliatedData>) {
-        if !self.cursor.borrow().is_bol() {
-            return (self.cursor.borrow().pos(), None);
+    ///   that: "Eventually, if both ACC and PARENT are nil, the common parent is the list of
+    ///   objects itself." - It is hard to encode this into a type system, since in all other
+    ///   cases, apart from affiliated keywords, objects parents are nodes of syntax trees
+    ///   (ACC or PARENT)
+    #[inline]
+    pub fn collect_affiliated_keywords(&mut self, limit: usize) -> ElementSpan<'a, 'b> {
+        if !self.cursor.is_bol() {
+            return ElementSpan::new((self.cursor.pos(), limit)).build();
         }
-        let origin = self.cursor.borrow().pos();
+        let origin = self.cursor.pos();
         let _restrict = |that| SyntaxT::Keyword.can_contain(that);
 
         let mut output: AffiliatedData = Default::default();
 
         loop {
             let maybe_affiliated = capturing_at!(REGEX_AFFILIATED, self);
-            let current_pos = self.cursor.borrow().pos();
+            let current_pos = self.cursor.pos();
             if current_pos >= limit || maybe_affiliated.is_none() {
                 break;
             }
@@ -207,18 +264,15 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
                 .unwrap();
 
             let value_begin = match captures.name("SECONDARY") {
-                None => self.cursor.borrow().pos() + matched.1.end() + 1,
-                Some(sec) => self.cursor.borrow().pos() + sec.end() + 2,
+                None => self.cursor.pos() + matched.1.end() + 1,
+                Some(sec) => self.cursor.pos() + sec.end() + 2,
             };
 
-            let value_end = self.cursor.borrow_mut().line_end_position(None);
+            let value_end = self.cursor.line_end_position(None);
 
-            let value = Cow::from(self.input[value_begin..value_end].trim());
+            let value = self.input[value_begin..value_end].trim();
 
-            let secondary_value = match captures.name("SECONDARY") {
-                None => None,
-                Some(sec) => Some(Cow::from(sec.as_str().trim())),
-            };
+            let secondary_value = captures.name("SECONDARY").map(|sec| sec.as_str().trim());
 
             match matched.0 {
                 "CAPTION" => output.caption.push(DualVal {
@@ -228,52 +282,65 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
 
                 "RESULTS" => {
                     output.results = Some(DualVal {
-                        value: value,
+                        value,
                         secondary: secondary_value,
                     })
                 }
 
                 "NAME" => output.name = Some(value),
-                "PLOT" => output.plot = Some(value),
+                "PLOT" => {}
                 "HEADER" => output.header.push(value),
                 "ATTR" => {
                     let backend = captures.name("ATTR").unwrap().as_str().to_ascii_uppercase();
-                    if let Some(vec) = output.attr.get_mut(backend.as_str()) {
-                        vec.push(value);
-                    } else {
-                        output.attr.insert(backend, vec![value]);
+                    match output.attr.iter_mut().find(|(k, _)| k == &backend) {
+                        Some((_, v)) => v.push(value),
+                        None => output.attr.push((backend, vec![value])),
                     }
                 }
 
                 _ => unreachable!(),
             }
 
-            self.cursor.borrow_mut().goto_next_line();
+            self.cursor.goto_next_line();
         }
 
         // If affiliated keywords are orphaned: move back to first one.
         // They will be parsed as a paragraph.
-        if looking_at!(REGEX_EMPTY_LINE, self).is_some() {
-            self.cursor.borrow_mut().set(origin);
-            return (origin, None);
+        {
+            let bytes = self.input.as_bytes();
+            let cur = self.cursor.pos();
+            let line_end = memchr(b'\n', &bytes[cur..]).map_or(bytes.len(), |i| cur + i);
+            if bytes[cur..line_end]
+                .iter()
+                .all(|&b| b == b' ' || b == b'\t')
+            {
+                self.cursor.set(origin);
+                return ElementSpan::new((origin, limit)).build();
+            }
         }
 
-        return (origin, Some(output));
+        // If the cursor never moved (no lines consumed) there are no
+        // affiliated keywords — return `None` so downstream code does
+        // not mistake an empty AffiliatedData for a real collection.
+        if self.cursor.pos() == origin {
+            return ElementSpan::new((origin, limit)).build();
+        }
+
+        ElementSpan::new((origin, limit))
+            .affiliated(Some(output))
+            .content_start(self.cursor.pos())
+            .build()
     }
 }
 
+#[cfg(test)]
 mod test {
     use super::REGEX_AFFILIATED;
     use crate::affiliated::DualVal;
-    use crate::cursor::{is_multiline_regex, Cursor};
-    use crate::data::RepeaterType::CatchUp;
+    use crate::cursor::Cursor;
     use crate::data::StringOrObject;
     use crate::environment::DefaultEnvironment;
-    use crate::parser::ParseGranularity;
-    use crate::parser::Parser;
-    use regex::Match;
-    use std::borrow::Cow;
-    use std::collections::HashMap;
+    use crate::parser::{ParseGranularity, Parser};
 
     #[test]
     fn test_re() {
@@ -283,7 +350,7 @@ mod test {
 
     #[test]
     fn affiliated_re() {
-        assert!(!is_multiline_regex(REGEX_AFFILIATED.as_str()));
+        assert!(!REGEX_AFFILIATED.multiline());
         let mut maybe_cap = REGEX_AFFILIATED.captures(r"  \n#+caPtion[GIT]: org-rs");
         assert!(maybe_cap.is_none());
 
@@ -324,21 +391,21 @@ mod test {
         let caption_txt = " \n #+caPtion[GIT]: org-rs";
         let mut cursor = Cursor::new(caption_txt, 0);
 
-        assert!(cursor.looking_at(&*REGEX_AFFILIATED).is_none());
+        assert!(cursor.looking_at(&REGEX_AFFILIATED).is_none());
         cursor.goto_next_line();
         assert_eq!(2, cursor.pos());
-        assert!(cursor.looking_at(&*REGEX_AFFILIATED).is_some());
+        assert!(cursor.looking_at(&REGEX_AFFILIATED).is_some());
     }
 
     #[test]
     fn capturing_at_affiliated_re() {
         let mut text = String::new();
         text.push_str(r"#+attr_html: :file filename.ext");
-        text.push_str("\n");
+        text.push('\n');
         text.push_str(r"#+caPtion[GIT]: org-rs");
 
-        let mut cursor = Cursor::new(text.as_str(), 0);
-        let maybe_affiliated = cursor.capturing_at(&*REGEX_AFFILIATED);
+        let cursor = Cursor::new(text.as_str(), 0);
+        let maybe_affiliated = cursor.capturing_at(&REGEX_AFFILIATED);
 
         assert!(maybe_affiliated.is_some());
     }
@@ -347,36 +414,42 @@ mod test {
     fn collect_affiliated_small() {
         let mut text = String::new();
         text.push_str(r"#+caPtion[GIT]: org-rs");
-        text.push_str("\n");
+        text.push('\n');
         text.push_str(r"#+attr_html: :file filename.ext");
         text.push_str("\n\n");
         {
-            let p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
+            let bump = bumpalo::Bump::new();
+            let mut p = Parser::new(
+                text.as_str(),
+                ParseGranularity::Object,
+                DefaultEnvironment,
+                &bump,
+            );
             let maybe_collected = p.collect_affiliated_keywords(text.len());
-            assert_eq!(0, maybe_collected.0);
-            assert!(maybe_collected.1.is_none());
+            assert_eq!(0, maybe_collected.span.start);
+            assert!(maybe_collected.affiliated.is_none());
         }
         text.pop();
         text.push_str("#+BEGIN_SRC");
 
-        let p = Parser::new(text.as_str(), ParseGranularity::Object, DefaultEnvironment);
-        let maybe_collected = p.collect_affiliated_keywords(text.len());
-        assert_eq!(0, maybe_collected.0);
-        assert!(maybe_collected.1.is_some());
-        let collected = maybe_collected.1.unwrap();
-        let mut test_attrs: HashMap<String, Vec<Cow<str>>> = HashMap::new();
-        test_attrs.insert(
-            "ATTR_HTML".to_string(),
-            vec![Cow::from(":file filename.ext")],
+        let bump = bumpalo::Bump::new();
+        let mut p = Parser::new(
+            text.as_str(),
+            ParseGranularity::Object,
+            DefaultEnvironment,
+            &bump,
         );
+        let maybe_collected = p.collect_affiliated_keywords(text.len());
+        assert_eq!(0, maybe_collected.span.start);
+        assert!(maybe_collected.affiliated.is_some());
+        let collected = maybe_collected.affiliated.unwrap();
+        let test_attrs = vec![("ATTR_HTML".to_string(), vec![":file filename.ext"])];
         assert_eq!(test_attrs, collected.attr);
 
-        let mut test_caption: Vec<DualVal<StringOrObject>> = vec![];
-        test_caption.push(DualVal {
-            value: StringOrObject::Raw(Cow::from("org-rs")),
-            secondary: Some(StringOrObject::Raw(Cow::from("GIT"))),
-        });
-
+        let test_caption: Vec<DualVal<StringOrObject>> = vec![DualVal {
+            value: StringOrObject::Raw("org-rs"),
+            secondary: Some(StringOrObject::Raw("GIT")),
+        }];
         assert_eq!(test_caption, collected.caption);
     }
 }
