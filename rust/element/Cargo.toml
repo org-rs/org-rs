@@ -6,6 +6,13 @@ edition = "2018"
 license = "GPL-3.0-or-later"
 
 
+[features]
+# Parse-tree query helpers (`org_element::testutils`). Enabled automatically
+# for the integration test suite via the self dev-dependency below; not
+# compiled in normal library builds.
+testutils = []
+
+
 [dependencies]
 bumpalo = { version = "3", features = ["collections"] }
 memchr = "2.0"
@@ -13,3 +20,7 @@ regex = "1"
 lazy_static = "^1.3.0"
 strum = "0.28"
 strum_macros = "0.28"
+
+[dev-dependencies]
+# Enable the `testutils` feature when building tests/benches/examples.
+org_element = { path = ".", features = ["testutils"] }

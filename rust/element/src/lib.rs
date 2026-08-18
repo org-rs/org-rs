@@ -38,6 +38,8 @@ pub mod markup;
 pub mod paragraph;
 pub mod planning;
 pub mod table;
+#[cfg(feature = "testutils")]
+pub mod testutils;
 
 /// A complete parsed org-mode document with self-owned memory.
 ///
