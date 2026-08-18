@@ -17,22 +17,26 @@
 use std::cell::RefCell;
 
 use crate::affiliated::AffiliatedData;
+use crate::cursor::CachedRegex;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
 
 lazy_static! {
-    pub static ref REGEX_HORIZONTAL_RULE: Regex = Regex::new(r"[ \t]*-{5,}[ \t]*$").unwrap();
+    pub static ref REGEX_HORIZONTAL_RULE: CachedRegex =
+        CachedRegex::new(Regex::new(r"[ \t]*-{5,}[ \t]*$").unwrap());
 
     /// Regular expression matching the definition of a footnote.
     /// Match group 1 contains definition's label
-    pub static ref REGEX_FOOTNOTE_DEFINITION: Regex = Regex::new(r"^\[fn:([-_[:word:]]+)\]").unwrap();
+    pub static ref REGEX_FOOTNOTE_DEFINITION: CachedRegex =
+        CachedRegex::new(Regex::new(r"^\[fn:([-_[:word:]]+)\]").unwrap());
 
 
     /// Fixed Width Areas
     /// A “fixed-width line” start with a colon character and a whitespace or an end of line.
     /// Fixed width areas can contain any number of consecutive fixed-width lines.
-    pub static ref REGEX_FIXED_WIDTH: Regex = Regex::new(r"[ \t]*:( |$)").unwrap();
+    pub static ref REGEX_FIXED_WIDTH: CachedRegex =
+        CachedRegex::new(Regex::new(r"[ \t]*:( |$)").unwrap());
 
 }
 

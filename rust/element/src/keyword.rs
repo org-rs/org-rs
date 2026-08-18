@@ -17,12 +17,13 @@
 use std::cell::RefCell;
 
 use crate::affiliated::AffiliatedData;
+use crate::cursor::CachedRegex;
 use crate::data::{Interval, Syntax, SyntaxNode};
 use crate::parser::Parser;
 use regex::Regex;
 
 lazy_static! {
-    pub static ref REGEX_KEYWORD: Regex = Regex::new(r"\+\S+:").unwrap();
+    pub static ref REGEX_KEYWORD: CachedRegex = CachedRegex::new(Regex::new(r"\+\S+:").unwrap());
 }
 
 #[derive(Debug)]

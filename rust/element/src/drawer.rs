@@ -14,6 +14,7 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::affiliated::AffiliatedData;
+use crate::cursor::CachedRegex;
 use crate::data::SyntaxNode;
 use crate::parser::Parser;
 use regex::Regex;
@@ -23,7 +24,8 @@ lazy_static! {
 
     /// Matches first or last line of a drawer
     /// Group 1 contains drawer's name or \"END\"
-    pub static ref REGEX_DRAWER: Regex = Regex::new(r"^[ \t]*:((?:\w|[-_])+):[ \t]*$").unwrap();
+    pub static ref REGEX_DRAWER: CachedRegex =
+        CachedRegex::new(Regex::new(r"^[ \t]*:((?:\w|[-_])+):[ \t]*$").unwrap());
 
 }
 

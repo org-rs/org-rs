@@ -14,12 +14,14 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::affiliated::AffiliatedData;
+use crate::cursor::CachedRegex;
 use crate::data::SyntaxNode;
 use crate::parser::Parser;
 use regex::Regex;
 
 lazy_static! {
-    pub static ref REGEX_BABEL_CALL: Regex = Regex::new(r"\+CALL:").unwrap();
+    pub static ref REGEX_BABEL_CALL: CachedRegex =
+        CachedRegex::new(Regex::new(r"\+CALL:").unwrap());
 }
 
 #[derive(Debug)]
