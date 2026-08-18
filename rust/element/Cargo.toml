@@ -25,5 +25,22 @@ strum = "0.28"
 strum_macros = "0.28"
 
 [dev-dependencies]
+criterion = "0.5"
+lexpr = "0.2"
+goof = "0.3"
 # Enable the `testutils` feature when building tests/benches/examples.
 org_element = { path = ".", features = ["testutils"] }
+
+[[example]]
+name = "corpus-check"
+required-features = ["par-parse"]
+
+[[bench]]
+name = "parse"
+path = "benches/parse.rs"
+harness = false
+
+[[bench]]
+name = "pattern"
+path = "benches/pattern.rs"
+harness = false
