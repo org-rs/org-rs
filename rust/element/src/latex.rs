@@ -13,82 +13,109 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use crate::affiliated::AffiliatedData;
+use crate::affiliated::ElementSpan;
 use crate::cursor::CachedRegex;
-/// LaTeX Environments
-///
-/// Pattern for LaTeX environments is:
-///
-/// \begin{NAME} CONTENTS \end{NAME}
-///
-/// NAME is constituted of alpha-numeric or asterisk characters.
-///
-/// CONTENTS can contain anything but the “\end{NAME}” string.
-use crate::data::SyntaxNode;
+use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
+use memchr::memrchr;
 use regex::Regex;
 
-// TODO wirte latex regexes
 lazy_static! {
-
-
     /// Regexp matching the beginning of a LaTeX environment.
     /// The environment is captured by the first group.
     pub static ref REGEX_LATEX_BEGIN_ENVIRIONMENT: CachedRegex =
         CachedRegex::new(Regex::new(r"^[ \t]*\\begin\{([A-Za-z0-9*]+)\}").unwrap());
 }
 
-/// Format string matching the ending of a LaTeX environment
-/// Unfortunately because of the way original elisp parser is written this
-/// regex can't be made static as it should match the opening part
-///
-/// In ideal world this should be replaced by a proper parser
-pub static FMTSTR_LATEX_END_ENVIRONMENT: &str = r"\\end{%s}[ \t]*$";
-
 #[derive(Debug)]
 pub struct LatexEnvironmentData<'a> {
-    /// Buffer position at first affiliated keyword or
-    /// at the beginning of the first line of environment (integer).
-    begin: usize,
-
-    /// Buffer position at the first non_blank line
-    /// after last line of the environment, or buffer's end (integer).
-    end: usize,
-
-    /// Number of blank lines between last environment's
-    /// line and next non_blank line or buffer's end (integer).
-    post_blank: usize,
-
-    ///LaTeX code (string).
-    value: &'a str,
+    pub begin: usize,
+    pub end: usize,
+    pub post_blank: usize,
+    pub value: &'a str,
 }
 
-#[derive(Debug)]
-pub struct LatexFragmentData<'a> {
-    ///LaTeX code (string).
-    value: &'a str,
-}
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
+    #[inline]
+    pub fn latex_environment_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+            ..
+        } = element_span;
+        let input_slice = &self.input[start..limit];
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    // TODO implement latext_environment_parser
-    /// Parse a LaTeX environment.
-    /// LIMIT bounds the search.  AFFILIATED is a list of which CAR is
-    /// the buffer position at the beginning of the first affiliated
-    /// keyword and CDR is a plist of affiliated keywords along with
-    /// their value.
-    ///
-    /// Return a list whose CAR is `latex-environment' and CDR is a plist
-    /// containing `:begin', `:end', `:value', `:post-blank' and
-    /// `:post-affiliated' keywords.
-    ///
-    /// Assume point is at the beginning of the latex environment."
-    /// Fallback: LaTeX environment parser (not yet fully implemented).
-    pub fn latex_environment_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _maybe_aff: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        SyntaxNode::fallback(self.input, start, limit)
+        if let Some(caps) = REGEX_LATEX_BEGIN_ENVIRIONMENT.captures(input_slice) {
+            if let Some(env_name) = caps.get(1) {
+                let env_name_str = env_name.as_str();
+                let begin_line_end = start + caps.get(0).map_or(caps.len(), |m| m.end());
+
+                let end_marker = format!("\\end{{{}}}", env_name_str);
+                let mut search_pos = begin_line_end;
+                let mut end_pos = limit;
+                let mut found = false;
+
+                while search_pos < limit {
+                    if let Some(idx) = self.input[search_pos..limit].find(&end_marker) {
+                        let match_start = search_pos + idx;
+                        let match_end = match_start + end_marker.len();
+                        let line_start = memrchr(b'\n', &self.input.as_bytes()[..match_start])
+                            .map_or(0, |p| p + 1);
+                        let line = &self.input[line_start..match_start];
+
+                        if line.chars().all(|c| c == ' ' || c == '\t' || c == '\n') {
+                            end_pos = if match_end < limit
+                                && self.input.as_bytes().get(match_end) == Some(&b'\n')
+                            {
+                                match_end + 1
+                            } else {
+                                match_end
+                            };
+                            found = true;
+                            break;
+                        }
+                        search_pos = match_end;
+                    } else {
+                        break;
+                    }
+                }
+
+                if !found {
+                    return self
+                        .arena
+                        .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump));
+                }
+
+                let post_blank = if end_pos < limit {
+                    let remaining = &self.input[end_pos..limit];
+                    remaining.len() - remaining.trim_start().len()
+                } else {
+                    0
+                }
+                .min(2);
+
+                let value = &self.input[start..end_pos];
+                let env_data = LatexEnvironmentData {
+                    begin: start,
+                    end: end_pos,
+                    post_blank,
+                    value,
+                };
+
+                return self.arena.alloc(
+                    SyntaxNode::new(
+                        Syntax::LatexEnvironment(self.bump.alloc(env_data)),
+                        (start, end_pos),
+                        self.bump,
+                    )
+                    .post_blank(post_blank)
+                    .affiliated(affiliated)
+                    .build(),
+                );
+            }
+        }
+
+        self.arena
+            .alloc(SyntaxNode::fallback(self.input, start, limit, self.bump))
     }
 }

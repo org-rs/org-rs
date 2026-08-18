@@ -49,8 +49,6 @@ impl NodeId {
     }
 }
 
-pub use bumpalo::collections::Vec as BumpVec;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Interval {
     pub start: usize,

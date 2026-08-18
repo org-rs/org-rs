@@ -14,42 +14,90 @@
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-use std::cell::RefCell;
+use std::borrow::Cow;
 
-use crate::affiliated::AffiliatedData;
+use crate::affiliated::ElementSpan;
 use crate::cursor::CachedRegex;
-use crate::data::{Interval, Syntax, SyntaxNode};
+use crate::data::{Interval, NodeId, Syntax, SyntaxNode};
 use crate::parser::Parser;
+use memchr::memchr;
 use regex::Regex;
 
+fn strip_line_prefix(line: &str) -> &str {
+    let t = line.trim_start();
+    if let Some(rest) = t.strip_prefix(": ") {
+        rest
+    } else if t == ":" {
+        ""
+    } else {
+        line
+    }
+}
+
+/// Strip the `: ` prefix from each fixed-width line.
+/// Returns a borrowed slice for single-line input (zero allocation),
+/// or an owned String when multiple lines require reconstruction.
+#[inline]
+pub fn strip_fixed_width_colons(input: &str) -> Cow<'_, str> {
+    let mut lines = input.lines();
+    let first = match lines.next() {
+        None => return Cow::Borrowed(""),
+        Some(l) => l,
+    };
+    let second = lines.next();
+
+    if second.is_none() {
+        return Cow::Borrowed(strip_line_prefix(first));
+    }
+
+    let mut out = String::from(strip_line_prefix(first));
+    out.push('\n');
+    out.push_str(strip_line_prefix(second.unwrap()));
+    for line in lines {
+        out.push('\n');
+        out.push_str(strip_line_prefix(line));
+    }
+    Cow::Owned(out)
+}
+
 lazy_static! {
-    pub static ref REGEX_HORIZONTAL_RULE: CachedRegex =
-        CachedRegex::new(Regex::new(r"[ \t]*-{5,}[ \t]*$").unwrap());
 
     /// Regular expression matching the definition of a footnote.
     /// Match group 1 contains definition's label
     pub static ref REGEX_FOOTNOTE_DEFINITION: CachedRegex =
         CachedRegex::new(Regex::new(r"^\[fn:([-_[:word:]]+)\]").unwrap());
 
-
-    /// Fixed Width Areas
-    /// A “fixed-width line” start with a colon character and a whitespace or an end of line.
-    /// Fixed width areas can contain any number of consecutive fixed-width lines.
-    pub static ref REGEX_FIXED_WIDTH: CachedRegex =
-        CachedRegex::new(Regex::new(r"[ \t]*:( |$)").unwrap());
-
+    /// Diary Sexp elements - must be at beginning of line (unindented)
+    /// Match group 1 contains the content after %%(
+    /// Note: No ^ anchor needed - parser ensures we're at the right position
+    pub static ref REGEX_DIARY_SEXP: CachedRegex =
+        CachedRegex::new(Regex::new(r"%%\((.*)").unwrap());
 }
 
-#[derive(Debug)]
-pub struct CommentData<'a> {
-    /// Comments, with pound signs (string).
-    pub value: &'a str,
-}
+/// Byte-level equivalent of `REGEX_HORIZONTAL_RULE`: check if `line`
+/// (a single line without trailing newline) is a horizontal rule.
+#[inline]
+pub fn is_horizontal_rule(line: &str) -> bool {
+    let bytes = line.as_bytes();
+    let mut i = 0;
 
-#[derive(Debug)]
-pub struct FixedWidthData<'a> {
-    /// Contents, without colons prefix (string).
-    pub value: &'a str,
+    // Skip leading whitespace
+    while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        i += 1;
+    }
+    // Count consecutive hyphens
+    let hyphen_start = i;
+    while i < bytes.len() && bytes[i] == b'-' {
+        i += 1;
+    }
+    if i - hyphen_start < 5 {
+        return false;
+    }
+    // Skip trailing whitespace; must reach end of line
+    while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        i += 1;
+    }
+    i == bytes.len()
 }
 
 /// Greater element
@@ -62,26 +110,26 @@ pub struct FootnoteDefinitionData<'a> {
     /// beginning of the footnote and the beginning
     /// of the contents (0, 1 or 2).
     pub pre_blank: u8,
+
+    /// Raw text content (without the footnote marker).
+    /// TODO: Add child element parsing when implementing element-level parsing.
+    /// Currently stores raw text; caller can parse as needed.
+    pub value: &'a str,
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
     /// Parse a comment element starting at `start`.
     ///
     /// A comment is one or more consecutive lines starting with `# `
     /// (hash + space) or just `#` at end of line.
-    pub fn comment_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        let mut end = start;
+    #[inline]
+    pub fn comment_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let span = element_span.span;
+        let mut end = span.start;
 
-        // Consume consecutive comment lines.
-        while end < limit {
-            let line_end = self.input[end..limit]
-                .find('\n')
-                .map_or(limit, |i| end + i + 1);
+        while end < span.end {
+            let line_end = memchr(b'\n', &self.input.as_bytes()[end..span.end])
+                .map_or(span.end, |i| end + i + 1);
             let line = self.input[end..line_end].trim_start();
             if line.starts_with("# ") || line == "#" || line == "#\n" {
                 end = line_end;
@@ -90,67 +138,267 @@ impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
             }
         }
 
-        if end == start {
-            end = self.input[start..limit]
-                .find('\n')
-                .map_or(limit, |i| start + i + 1);
+        if end == span.start {
+            end = memchr(b'\n', &self.input.as_bytes()[span.start..span.end])
+                .map_or(span.end, |i| span.start + i + 1);
         }
 
-        let value = &self.input[start..end];
-
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Comment(Box::new(CommentData { value })),
-            location: Interval { start, end },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
-        }
+        let value = &self.input[span.start..end];
+        self.arena
+            .alloc(SyntaxNode::new(Syntax::Comment(value), (span.start, end), self.bump).build())
     }
 
     /// Parse a horizontal rule at `start`.
     ///
     /// A horizontal rule is a line containing at least five consecutive
     /// dashes and nothing else (ignoring surrounding whitespace).
-    pub fn horizontal_rule_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        let end = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i + 1);
+    #[inline]
+    pub fn horizontal_rule_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let span = element_span.span;
+        let end = memchr(b'\n', &self.input.as_bytes()[span.start..span.end])
+            .map_or(span.end, |i| span.start + i + 1);
+        self.arena
+            .alloc(SyntaxNode::new(Syntax::HorizontalRule, (span.start, end), self.bump).build())
+    }
 
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::HorizontalRule,
-            location: Interval { start, end },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
+    /// Parse a footnote definition element.
+    ///
+    /// Footnote definition format: `[fn:LABEL] CONTENTS`
+    /// - LABEL is digits or word characters (hyphens, underscores)
+    /// - CONTENTS ends at: next footnote def, headline, 2 consecutive blanks, or buffer end
+    ///
+    /// Matches Elisp implementation:
+    /// - Uses `limit` to bound search
+    /// - Uses `aff_start` for begin position
+    /// - Stores raw text in value field
+    /// - Sets content_location for contents_begin/contents_end
+    /// - Calculates pre_blank and post_blank
+    #[inline]
+    pub fn footnote_definition_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let ElementSpan {
+            span: Interval {
+                start: begin,
+                end: limit,
+            },
+            affiliated,
+            ..
+        } = element_span;
+        let input_slice = &self.input[begin..limit];
+
+        let (label, label_end) = match REGEX_FOOTNOTE_DEFINITION.captures(input_slice) {
+            Some(caps) => {
+                let label = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                let label_end = caps.get(0).unwrap().end();
+                (label, label_end)
+            }
+            None => {
+                return self
+                    .arena
+                    .alloc(SyntaxNode::fallback(self.input, begin, limit, self.bump));
+            }
+        };
+
+        let after_label = begin + label_end;
+        let line_end_pos = memchr(b'\n', &self.input.as_bytes()[after_label..limit])
+            .map_or(limit, |i| after_label + i);
+
+        let mut end = line_end_pos;
+        let mut pre_blank: u8 = 0;
+
+        // Skip the blank line(s) that separate the label from content.
+        // Without this, the `\n` right after `[fn:...]` looks like a
+        // blank-line terminator and the definition ends immediately.
+        let mut search_pos = {
+            let rest = &self.input.as_bytes()[after_label..limit];
+            let mut pos = 0;
+            // Advance past any sequence of: \n followed by optional
+            // spaces/tabs then another \n (i.e. one or more blank lines).
+            while pos < rest.len() && rest[pos] == b'\n' {
+                pos += 1;
+            }
+            after_label + pos
+        };
+        while search_pos < limit {
+            let remaining = &self.input[search_pos..limit];
+
+            if remaining.starts_with("[fn:") {
+                end = search_pos;
+                break;
+            }
+
+            // Headline at any level (1+, e.g. `* `, `** `, …) terminates
+            // the footnote definition.
+            if remaining.starts_with('*') {
+                let stars = remaining
+                    .as_bytes()
+                    .iter()
+                    .take_while(|&&b| b == b'*')
+                    .count();
+                if stars > 0 && remaining.as_bytes().get(stars) == Some(&b' ') {
+                    end = search_pos;
+                    break;
+                }
+            }
+
+            // Blank-line terminator: a line containing only a newline
+            // (or whitespace + newline) is a blank line.  The definition
+            // terminates when TWO consecutive blank lines are found.
+            if remaining.starts_with('\n') {
+                let after = &remaining[1..];
+                let next_nl = after.find('\n').map_or(after.len(), |i| i);
+                if after[..next_nl].trim().is_empty() {
+                    end = search_pos;
+                    pre_blank = 1;
+                    break;
+                }
+            }
+
+            if let Some(nl) = memchr(b'\n', remaining.as_bytes()) {
+                search_pos += nl + 1;
+            } else {
+                end = limit;
+                break;
+            }
         }
+
+        // Fallback for "loop exhausted without finding any terminator".
+        // The blank-line branch above can legitimately set
+        // `end = search_pos` while `search_pos == line_end_pos` (when the
+        // very next \n forms the blank line), so we must not clobber that
+        // result.  `pre_blank > 0` is only set by the blank-line branch
+        // and reliably distinguishes the two cases.
+        if end == line_end_pos && pre_blank == 0 {
+            end = limit;
+        }
+
+        let contents_start_raw = after_label;
+        let contents_start = self.input[contents_start_raw..]
+            .find(|c: char| !c.is_whitespace())
+            .map_or(contents_start_raw, |i| contents_start_raw + i);
+
+        // Emacs' :contents-end for a footnote definition includes the final
+        // newline of the last content line (but not the following blank line).
+        // `end` already points to the blank line (or next-element boundary),
+        // so the content interval (contents_start..end) naturally excludes
+        // the blank line while including the trailing newline of the last
+        // content line.
+        let contents_end = end;
+
+        // `value` is the raw content with surrounding whitespace stripped.
+        let value = self.input[contents_start..contents_end].trim_end();
+
+        let post_blank = if end < limit {
+            let remaining = &self.input[end..limit];
+            let trimmed = remaining.trim_start();
+            ((remaining.len() - trimmed.len()) as u8).min(2) as usize
+        } else {
+            0
+        };
+
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::FootnoteDefinition(self.bump.alloc(FootnoteDefinitionData {
+                    label,
+                    pre_blank,
+                    value,
+                })),
+                (begin, end),
+                self.bump,
+            )
+            .content((contents_start, contents_end))
+            .post_blank(post_blank)
+            .affiliated(affiliated)
+            .build(),
+        )
     }
 
-    /// Fallback: footnote definition parser (not yet fully implemented).
-    pub fn footnote_definition_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        SyntaxNode::fallback(self.input, start, limit)
-    }
+    /// Parse a fixed-width element.
+    ///
+    /// A fixed-width area consists of consecutive lines starting with
+    /// a colon and whitespace (or just colon at end of line).
+    ///
+    /// Matches Elisp implementation:
+    /// - Uses `limit` to bound the search
+    /// - Uses `aff_start` for begin position  
+    /// - Uses affiliated data from parameter
+    /// - Value is stored WITHOUT colons (stripped at parse time)
+    /// - Calculates post-blank
+    #[inline]
+    pub fn fixed_width_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let ElementSpan {
+            span: Interval {
+                start: begin,
+                end: limit,
+            },
+            affiliated,
+            ..
+        } = element_span;
+        let content_start = self.cursor.pos();
+        let mut end_area = content_start;
 
-    /// Fallback: fixed width parser (not yet fully implemented).
-    pub fn fixed_width_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _maybe_aff: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        SyntaxNode::fallback(self.input, start, limit)
+        while end_area < limit {
+            let line_end = memchr(b'\n', &self.input.as_bytes()[end_area..limit])
+                .map_or(limit, |i| end_area + i + 1);
+
+            let line = &self.input[end_area..line_end];
+            let trimmed = line.trim_start();
+
+            if trimmed.is_empty() {
+                break;
+            }
+
+            if !trimmed.starts_with(':') {
+                break;
+            }
+
+            end_area = line_end;
+        }
+
+        if end_area == content_start {
+            end_area = memchr(b'\n', &self.input.as_bytes()[content_start..limit])
+                .map_or(limit, |i| content_start + i + 1);
+        }
+
+        // Trim trailing blank lines from the node extent.
+        let mut end = end_area;
+        while end > content_start {
+            match self.input.as_bytes().get(end - 1).copied() {
+                Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r') => end -= 1,
+                _ => break,
+            }
+        }
+        // Include the final newline in the location span.
+        if end < end_area {
+            end = end_area;
+        }
+
+        let raw_value = &self.input[content_start..end_area];
+
+        let mut post_blank = 0;
+        let mut check_pos = end;
+        while check_pos < limit {
+            if self.input.as_bytes().get(check_pos).copied() == Some(b'\n') {
+                post_blank += 1;
+                check_pos += 1;
+                if check_pos < limit && self.input.as_bytes().get(check_pos).copied() == Some(b'\n')
+                {
+                    break;
+                }
+            } else if self.input.as_bytes().get(check_pos).copied() == Some(b' ')
+                || self.input.as_bytes().get(check_pos).copied() == Some(b'\t')
+            {
+                post_blank += 1;
+                check_pos += 1;
+            } else {
+                break;
+            }
+        }
+
+        self.arena.alloc(
+            SyntaxNode::new(Syntax::FixedWidth(raw_value), (begin, end), self.bump)
+                .post_blank(post_blank)
+                .affiliated(affiliated)
+                .build(),
+        )
     }
 }

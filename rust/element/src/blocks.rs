@@ -13,303 +13,583 @@
 //    You should have received a copy of the GNU General Public License
 //    along with org-rs.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::cell::RefCell;
-
-use crate::affiliated::AffiliatedData;
-use crate::cursor::CachedRegex;
-use crate::data::{Interval, LineNumberingMode, Syntax, SyntaxNode};
+use crate::affiliated::ElementSpan;
+use crate::data::{Interval, LineNumberingMode, NodeId, Syntax, SyntaxNode};
+use crate::from_input::FromInput;
 use crate::parser::Parser;
-use regex::Regex;
+use memchr::memchr;
 
-lazy_static! {
-    /// Used to identify the  Inline Comments, Blocks, Babel Calls, Dynamic Blocks and Keywords.
-    pub static ref REGEX_STARTS_WITH_HASHTAG: CachedRegex =
-        CachedRegex::new(Regex::new(r"[ \t]*#").unwrap());
+/// The name of an org block, borrowed from the source input.
+///
+/// Extracted from `#+BEGIN_<name>` directives; always non-empty.
+/// Derefs to `str` for transparent use at call sites.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockName<'a>(pub &'a str);
 
-    /// Used to identify Comments. Used together with REGEX_STARTS_WITH_HASHTAG
-    pub static ref REGEX_COLON_OR_EOL: CachedRegex =
-        CachedRegex::new(Regex::new(r"(?: |$)").unwrap());
+impl<'a> std::ops::Deref for BlockName<'a> {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.0
+    }
+}
 
-    /// Used to identify center, comment, example, export, quote, source, verse
-    /// and special blocks. Used together with REGEX_STARTS_WITH_HASHTAG
-    pub static ref REGEX_BLOCK_BEGIN: CachedRegex =
-        CachedRegex::new(Regex::new(r"\+BEGIN_(\S+)").unwrap());
-
-    /// Used to identify rare, but technically legal dynamic `BEGIN` blocks
-    pub static ref REGEX_DYNAMIC_BLOCK: CachedRegex =
-        CachedRegex::new(Regex::new(r"\+BEGIN:? ").unwrap());
+impl<'a> FromInput<'a> for BlockName<'a> {
+    type Err = ();
+    fn from_input(s: &'a str) -> Result<Self, ()> {
+        if !s
+            .as_bytes()
+            .get(..7)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"+BEGIN_"))
+        {
+            return Err(());
+        }
+        let rest = &s[7..];
+        let len = rest
+            .bytes()
+            .take_while(|&b| b != b' ' && b != b'\t' && b != b'\n' && b != b'\r')
+            .count();
+        if len == 0 {
+            Err(())
+        } else {
+            Ok(BlockName(&rest[..len]))
+        }
+    }
 }
 
 /// Greater element
 #[derive(Debug)]
 pub struct DynamicBlockData<'a> {
     /// Block's parameters (string).
-    arguments: &'a str,
+    pub arguments: &'a str,
 
     /// Block's name (string).
-    block_name: &'a str,
+    pub block_name: &'a str,
 
     /// Drawer's name (string).
-    drawer_name: &'a str,
+    pub drawer_name: &'a str,
 }
 
-#[derive(Debug)]
-pub struct CommentBlockData<'a> {
-    /// Comments, without block's boundaries (string).
-    value: &'a str,
+/// Packed bitflags shared by [`ExampleBlockData`] and [`SrcBlockData`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockFlags(u8);
+
+impl BlockFlags {
+    const PRESERVE_INDENT: u8 = 0b001;
+    const RETAIN_LABELS: u8 = 0b010;
+    const USE_LABELS: u8 = 0b100;
+
+    #[inline]
+    pub fn new(preserve_indent: bool, retain_labels: bool, use_labels: bool) -> Self {
+        let mut f = 0;
+        if preserve_indent {
+            f |= Self::PRESERVE_INDENT;
+        }
+        if retain_labels {
+            f |= Self::RETAIN_LABELS;
+        }
+        if use_labels {
+            f |= Self::USE_LABELS;
+        }
+        BlockFlags(f)
+    }
+
+    #[inline]
+    pub fn preserve_indent(self) -> bool {
+        self.0 & Self::PRESERVE_INDENT != 0
+    }
+    #[inline]
+    pub fn retain_labels(self) -> bool {
+        self.0 & Self::RETAIN_LABELS != 0
+    }
+    #[inline]
+    pub fn use_labels(self) -> bool {
+        self.0 & Self::USE_LABELS != 0
+    }
 }
 
 #[derive(Debug)]
 pub struct ExampleBlockData<'a> {
     /// Format string used to write labels in current block,
     /// if different from org_coderef_label_format (string or nil).
-    label_fmt: Option<&'a str>,
+    pub label_fmt: Option<&'a str>,
 
     ///Language of the code in the block, if specified (string or nil).
-    language: Option<&'a str>,
+    pub language: Option<&'a str>,
 
     /// Non_nil if code lines should be numbered.
     /// A `new` value starts numbering from 1 wheareas
     /// `continued` resume numbering from previous numbered block
     /// (symbol new, continued or nil).
-    number_lines: Option<LineNumberingMode>,
+    pub number_lines: Option<LineNumberingMode>,
 
     /// Block's options located on the block's opening line (string)
-    options: &'a str,
+    pub options: &'a str,
 
     /// Optional header arguments (string or nil)
-    parameters: Option<&'a str>,
+    pub parameters: Option<&'a str>,
 
-    /// Non_nil when indentation within the block mustn't be modified
-    /// upon export (boolean).
-    preserve_indent: bool,
-
-    /// Non_nil if labels should be kept visible upon export (boolean).
-    retain_labels: bool,
+    /// Packed flags.
+    pub flags: BlockFlags,
 
     /// Optional switches for code block export (string or nil).
-    switches: Option<&'a str>,
-
-    /// Non_nil if links to labels contained in the block should
-    /// display the label instead of the line number (boolean).
-    use_labels: bool,
+    pub switches: Option<&'a str>,
 
     /// Contents (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug)]
 pub struct ExportBlockData<'a> {
     ///Related back_end's name (string).
-    type_s: &'a str,
+    pub type_s: &'a str,
 
     ///Contents (string)
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug)]
 pub struct SpecialBlockData<'a> {
     /// Block's name (string).
-    type_s: &'a str,
+    pub type_s: &'a str,
     /// Raw contents in block (string).
-    raw_value: &'a str,
+    pub raw_value: &'a str,
 }
 
 #[derive(Debug)]
 pub struct SrcBlockData<'a> {
     /// Format string used to write labels in current block,
     /// if different from org_coderef_label_format (string or nil).
-    label_fmt: Option<&'a str>,
+    pub label_fmt: Option<&'a str>,
 
     /// Language of the code in the block, if specified (string or nil).
-    language: Option<&'a str>,
+    pub language: Option<&'a str>,
 
     /// Non_nil if code lines should be numbered.
     /// A `new` value starts numbering from 1 wheareas
     /// `continued` resume numbering from previous
     /// numbered block (symbol new, continued or nil).
-    number_lines: Option<LineNumberingMode>,
+    pub number_lines: Option<LineNumberingMode>,
 
     /// Optional header arguments (string or nil).
-    parameters: Option<&'a str>,
+    pub parameters: Option<&'a str>,
 
-    /// Non_nil when indentation within the block
-    /// mustn't be modified upon export (boolean).
-    preserve_indent: bool,
-    ///Non_nil if labels should be kept visible upon export (boolean).
-    retain_labels: bool,
+    /// Packed flags.
+    pub flags: BlockFlags,
 
     /// Optional switches for code block export (string or nil).
-    switches: Option<&'a str>,
-
-    /// Non_nil if links to labels contained in the block
-    /// should display the label instead of the line number (boolean).
-    use_labels: bool,
+    pub switches: Option<&'a str>,
 
     ///Source code (string).
-    value: &'a str,
+    pub value: &'a str,
 }
 
-/// Find the end of a block that starts at `start` within `input[..limit]`.
+/// Spans for a parsed block.
 ///
-/// Scans forward for a line whose trimmed, uppercased content starts with
-/// `#+END_` and returns the byte position just past that line.  Falls back
-/// to `limit` when no closing line is found.
-fn find_block_end(input: &str, start: usize, limit: usize) -> usize {
-    // Skip the opening #+BEGIN_ line first.
-    let after_first = input[start..limit]
-        .find('\n')
-        .map_or(limit, |i| start + i + 1);
+/// `location` covers the whole block from `#+BEGIN_` through the end of the
+/// `#+END_` line.  `content` covers the lines between those delimiters.
+pub struct BlockBounds {
+    pub location: Interval,
+    pub content: Interval,
+}
 
-    let mut pos = after_first;
+/// Shared iterator that scans lines from `content_start` until `is_end` matches.
+///
+/// Returns `None` when the opening line is the last line (degenerate block).
+/// When no end line is found the entire remaining span is treated as content.
+fn find_block_bounds_impl(
+    input: &str,
+    start: usize,
+    limit: usize,
+    is_end: impl Fn(&str) -> bool,
+) -> Option<BlockBounds> {
+    let content_start_first =
+        memchr(b'\n', &input.as_bytes()[start..limit]).map_or(limit, |i| start + i + 1);
+
+    if content_start_first >= limit {
+        return None;
+    }
+
+    // When affiliated keywords precede the block, `start` points to the
+    // first affiliated keyword line.  The first newline after `start`
+    // then lands on the `#+begin_*` header rather than after it.  In
+    // that case, skip past the begin header line so the content
+    // interval excludes it — otherwise the content parser sees the
+    // `#+begin_*` header and creates a nested block.
+    let content_start = {
+        let line_end = memchr(b'\n', &input.as_bytes()[content_start_first..limit])
+            .map_or(limit, |i| content_start_first + i + 1);
+        let line = input[content_start_first..line_end].trim();
+        if line.len() > 6 && line.as_bytes()[..7].eq_ignore_ascii_case(b"#+BEGIN") {
+            line_end
+        } else {
+            content_start_first
+        }
+    };
+
+    let mut pos = content_start;
     while pos < limit {
-        let line_end = input[pos..limit].find('\n').map_or(limit, |i| pos + i + 1);
-        let trimmed = input[pos..line_end].trim();
-        if trimmed.len() >= 6 {
-            let upper: String = trimmed
-                .chars()
-                .take(6)
-                .collect::<String>()
-                .to_ascii_uppercase();
-            if upper == "#+END_" {
-                return line_end;
-            }
+        let line_end = memchr(b'\n', &input.as_bytes()[pos..limit]).map_or(limit, |i| pos + i + 1);
+        if is_end(&input[pos..line_end]) {
+            return Some(BlockBounds {
+                location: Interval {
+                    start,
+                    end: line_end,
+                },
+                content: Interval {
+                    start: content_start,
+                    end: pos,
+                },
+            });
         }
         pos = line_end;
     }
-    limit
+    Some(BlockBounds {
+        location: Interval { start, end: limit },
+        content: Interval {
+            start: content_start,
+            end: limit,
+        },
+    })
 }
 
-impl<'a, Environment: crate::environment::Environment> Parser<'a, Environment> {
-    /// Fallback block parser: consumes from `start` to the matching
-    /// `#+END_` line (or `limit`) and returns a Paragraph node.
-    fn block_fallback(&self, limit: usize, start: usize) -> SyntaxNode<'a> {
-        let end = find_block_end(self.input, start, limit);
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Paragraph,
-            location: Interval { start, end },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
+/// Find the bounds of a named block (`#+BEGIN_TYPE` / `#+END_TYPE`).
+fn find_block_bounds(
+    input: &str,
+    start: usize,
+    limit: usize,
+    block_type: &str,
+) -> Option<BlockBounds> {
+    let end_tag = b"#+END_";
+    let type_bytes = block_type.as_bytes();
+    find_block_bounds_impl(input, start, limit, |line| {
+        let bytes = line.as_bytes();
+        // Skip leading whitespace inline — avoids the `trim()` call in the
+        // profile hot loop (was `trim_matches(trim_end)` on every line).
+        let s = bytes
+            .iter()
+            .position(|&b| b != b' ' && b != b'\t')
+            .unwrap_or(bytes.len());
+        let after_tag = s + end_tag.len() + type_bytes.len();
+        if bytes.len() < after_tag {
+            return false;
         }
+        if !bytes[s..s + end_tag.len()].eq_ignore_ascii_case(end_tag) {
+            return false;
+        }
+        let ts = s + end_tag.len();
+        if !bytes[ts..ts + type_bytes.len()].eq_ignore_ascii_case(type_bytes) {
+            return false;
+        }
+        let after = ts + type_bytes.len();
+        bytes.len() == after || matches!(bytes[after], b' ' | b'\t' | b'\n')
+    })
+}
+
+/// Find bounds of a dynamic block (`#+BEGIN:` / `#+END:`).
+fn find_dynamic_block_bounds(input: &str, start: usize, limit: usize) -> Option<BlockBounds> {
+    find_block_bounds_impl(input, start, limit, |line| {
+        let trimmed = line.trim();
+        let bytes = trimmed.as_bytes();
+        bytes.len() >= 6
+            && bytes[..5].eq_ignore_ascii_case(b"#+END")
+            && (bytes[5] == b':' || bytes[5] == b' ')
+    })
+}
+
+fn post_blank(input: &str, end: usize, limit: usize) -> usize {
+    if end < limit {
+        let remaining = &input[end..limit];
+        let trimmed = remaining.trim_start();
+        (remaining.len() - trimmed.len()).min(2)
+    } else {
+        0
+    }
+}
+
+impl<'a, 'b, Environment: crate::environment::Environment> Parser<'a, 'b, Environment> {
+    /// Fallback: consume from `start` to the matching `#+END_` line (or
+    /// `limit`) and return a `Paragraph` node so parsing can continue.
+    fn block_fallback(&mut self, span: Interval, block_type: &str) -> NodeId {
+        let end = find_block_bounds(self.input, span.start, span.end, block_type)
+            .map(|b| b.location.end)
+            .unwrap_or(span.end);
+        self.arena
+            .alloc(SyntaxNode::new(Syntax::Paragraph, (span.start, end), self.bump).build())
     }
 
-    /// Fallback: center block parser (not yet fully implemented).
-    pub fn center_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+    /// Shared implementation for the three content-only blocks (CENTER, QUOTE, VERSE):
+    /// blocks whose only parse output is a location, content span, and affiliated data.
+    fn parse_content_block(
+        &mut self,
+        element_span: ElementSpan<'a, 'b>,
+        tag: &str,
+        syntax: Syntax<'a, 'b>,
+    ) -> NodeId {
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+            ..
+        } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, tag) else {
+            return self.block_fallback(Interval { start, end: limit }, tag);
+        };
+        self.arena.alloc(
+            SyntaxNode::new(syntax, bounds.location, self.bump)
+                .content(bounds.content)
+                .post_blank(post_blank(self.input, bounds.location.end, limit))
+                .affiliated(affiliated)
+                .build(),
+        )
     }
 
-    /// Fallback: comment block parser (not yet fully implemented).
-    pub fn comment_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+    /// Parse a center block element.
+    #[inline]
+    pub fn center_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        self.parse_content_block(element_span, "CENTER", Syntax::CenterBlock)
     }
 
-    /// Fallback: example block parser (not yet fully implemented).
-    pub fn example_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+    /// Parse a comment block element.
+    #[inline]
+    pub fn comment_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+            ..
+        } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "COMMENT") else {
+            return self.block_fallback(Interval { start, end: limit }, "COMMENT");
+        };
+        let value = &self.input[bounds.content.start..bounds.content.end];
+        self.arena.alloc(
+            SyntaxNode::new(Syntax::CommentBlock(value), bounds.location, self.bump)
+                .post_blank(post_blank(self.input, bounds.location.end, limit))
+                .affiliated(affiliated)
+                .build(),
+        )
     }
 
-    /// Fallback: export block parser (not yet fully implemented).
-    pub fn export_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+    /// Parse an example block element.
+    #[inline]
+    pub fn example_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+            ..
+        } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "EXAMPLE") else {
+            return self.block_fallback(Interval { start, end: limit }, "EXAMPLE");
+        };
+        let value = &self.input[bounds.content.start..bounds.content.end];
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::ExampleBlock(self.bump.alloc(ExampleBlockData {
+                    label_fmt: None,
+                    language: None,
+                    number_lines: None,
+                    options: "",
+                    parameters: None,
+                    flags: BlockFlags::new(false, false, false),
+                    switches: None,
+                    value,
+                })),
+                bounds.location,
+                self.bump,
+            )
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build(),
+        )
     }
 
-    /// Fallback: quote block parser (not yet fully implemented).
-    pub fn quote_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+    /// Parse an export block element.
+    #[inline]
+    pub fn export_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+            ..
+        } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "EXPORT") else {
+            return self.block_fallback(Interval { start, end: limit }, "EXPORT");
+        };
+        let value = &self.input[bounds.content.start..bounds.content.end];
+        let first_line_end =
+            memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i);
+        let type_s = self.input[start..first_line_end]
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or("html");
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::ExportBlock(self.bump.alloc(ExportBlockData { type_s, value })),
+                bounds.location,
+                self.bump,
+            )
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build(),
+        )
     }
 
-    /// Fallback: src block parser (not yet fully implemented).
-    pub fn src_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+    /// Parse a quote block element.
+    #[inline]
+    pub fn quote_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+            ..
+        } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "QUOTE") else {
+            return self.block_fallback(Interval { start, end: limit }, "QUOTE");
+        };
+        self.arena.alloc(
+            SyntaxNode::new(Syntax::QuoteBlock, bounds.location, self.bump)
+                .content(bounds.content)
+                .post_blank(post_blank(self.input, bounds.location.end, limit))
+                .affiliated(affiliated)
+                .build(),
+        )
     }
 
-    /// Fallback: verse block parser (not yet fully implemented).
-    pub fn verse_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+    /// Parse a src block element.
+    #[inline]
+    pub fn src_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+            ..
+        } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "SRC") else {
+            return self.block_fallback(Interval { start, end: limit }, "SRC");
+        };
+        // When `#+end_src` is not found within the section limit, the
+        // returned bounds extend to `limit` without closing the block.
+        // This happens when a `**` headline inside the src-block content
+        // prematurely ends the section.  In this case Emacs falls back to
+        // paragraph (or whatever element `#+begin_src` would naturally
+        // become), so delegate to `paragraph_parser`.
+        if bounds.content.end >= limit {
+            return self
+                .paragraph_parser(crate::affiliated::ElementSpan::new((start, limit)).build());
+        }
+        let value = &self.input[bounds.content.start..bounds.content.end];
+        let first_line_end =
+            memchr(b'\n', &self.input.as_bytes()[start..limit]).map_or(limit, |i| start + i);
+        let language = self.input[start..first_line_end].split_whitespace().nth(1);
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::SrcBlock(self.bump.alloc(SrcBlockData {
+                    label_fmt: None,
+                    language,
+                    number_lines: None,
+                    parameters: None,
+                    flags: BlockFlags::new(false, false, false),
+                    switches: None,
+                    value,
+                })),
+                bounds.location,
+                self.bump,
+            )
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build(),
+        )
     }
 
-    /// Fallback: special block parser (not yet fully implemented).
-    pub fn special_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        self.block_fallback(limit, start)
+    /// Parse a verse block element.
+    #[inline]
+    pub fn verse_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+            ..
+        } = element_span;
+        let Some(bounds) = find_block_bounds(self.input, start, limit, "VERSE") else {
+            return self.block_fallback(Interval { start, end: limit }, "VERSE");
+        };
+        self.arena.alloc(
+            SyntaxNode::new(Syntax::VerseBlock, bounds.location, self.bump)
+                .content(bounds.content)
+                .post_blank(post_blank(self.input, bounds.location.end, limit))
+                .affiliated(affiliated)
+                .build(),
+        )
+    }
+
+    /// Parse a special block element.
+    #[inline]
+    pub fn special_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+            ..
+        } = element_span;
+        // `start` may point to an affiliated keyword line (e.g. `#+attr_texinfo:`)
+        // rather than the `#+begin_*` line.  Scan forward to find the begin line.
+        let type_s = {
+            let mut pos = start;
+            loop {
+                let line_end =
+                    memchr(b'\n', &self.input.as_bytes()[pos..limit]).map_or(limit, |i| pos + i);
+                let line_bytes = &self.input.as_bytes()[pos..line_end];
+                // Find `+BEGIN_` within the line (skip leading whitespace and `#`).
+                if let Some(hash_off) = line_bytes.iter().position(|&b| b == b'#') {
+                    let after_hash = &self.input[pos + hash_off + 1..line_end];
+                    if let Ok(name) = BlockName::from_input(after_hash) {
+                        break name.0;
+                    }
+                }
+                if line_end >= limit {
+                    break "special";
+                }
+                pos = line_end + 1;
+            }
+        };
+        let Some(bounds) = find_block_bounds(self.input, start, limit, type_s) else {
+            return self.block_fallback(Interval { start, end: limit }, type_s);
+        };
+        let raw_value = &self.input[bounds.content.start..bounds.content.end];
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::SpecialBlock(self.bump.alloc(SpecialBlockData { type_s, raw_value })),
+                bounds.location,
+                self.bump,
+            )
+            .content(bounds.content)
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build(),
+        )
     }
 
     /// Fallback: dynamic block parser (not yet fully implemented).
-    pub fn dynamic_block_parser(
-        &self,
-        limit: usize,
-        start: usize,
-        _affiliated: Option<AffiliatedData>,
-    ) -> SyntaxNode<'a> {
-        // Dynamic blocks use #+BEGIN: / #+END: (no underscore after END).
-        let after_first = self.input[start..limit]
-            .find('\n')
-            .map_or(limit, |i| start + i + 1);
-        let mut pos = after_first;
-        let end = loop {
-            if pos >= limit {
-                break limit;
-            }
-            let line_end = self.input[pos..limit]
-                .find('\n')
-                .map_or(limit, |i| pos + i + 1);
-            let trimmed = self.input[pos..line_end].trim();
-            let upper = trimmed.to_ascii_uppercase();
-            if upper.starts_with("#+END:") || upper.starts_with("#+END ") {
-                break line_end;
-            }
-            pos = line_end;
+    #[inline]
+    pub fn dynamic_block_parser(&mut self, element_span: ElementSpan<'a, 'b>) -> NodeId {
+        let ElementSpan {
+            span: Interval { start, end: limit },
+            affiliated,
+            ..
+        } = element_span;
+        let Some(bounds) = find_dynamic_block_bounds(self.input, start, limit) else {
+            return self
+                .arena
+                .alloc(SyntaxNode::new(Syntax::Paragraph, (start, limit), self.bump).build());
         };
-        SyntaxNode {
-            parent: RefCell::new(None),
-            children: RefCell::new(vec![]),
-            data: Syntax::Paragraph,
-            location: Interval { start, end },
-            content_location: None,
-            post_blank: 0,
-            affiliated: None,
-        }
+        self.arena.alloc(
+            SyntaxNode::new(
+                Syntax::DynamicBlock(self.bump.alloc(DynamicBlockData {
+                    arguments: "",
+                    block_name: "",
+                    drawer_name: "",
+                })),
+                bounds.location,
+                self.bump,
+            )
+            .content(bounds.content)
+            .post_blank(post_blank(self.input, bounds.location.end, limit))
+            .affiliated(affiliated)
+            .build(),
+        )
     }
 }
