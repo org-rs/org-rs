@@ -1,2 +1,6 @@
 [workspace]
 members = [ "element" ]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
