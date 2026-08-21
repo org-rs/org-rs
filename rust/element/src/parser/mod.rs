@@ -18,6 +18,7 @@
 )]
 
 mod dispatch;
+mod objects;
 
 use memchr::{memchr, memmem, memrchr};
 
@@ -503,17 +504,5 @@ impl<'a, 'b, Environment: environment::Environment> Parser<'a, 'b, Environment> 
         let raw = &text[..close + 1];
         let timestamp_data = TimestampData::new(raw)?;
         Some((timestamp_data, close + 1))
-    }
-
-    /// Stub: object-level parsing is not landed yet; elements parsed at
-    /// `ParseGranularity::Object` get no object children. Replaced by the
-    /// real recursive-descent object parser in the follow-up objects branch.
-    pub fn parse_objects(
-        &mut self,
-        interval: impl Into<Interval>,
-        _restriction: impl Fn(SyntaxT) -> bool,
-    ) -> BumpVec<'b, NodeId> {
-        let _ = interval.into();
-        BumpVec::new_in(self.bump)
     }
 }
