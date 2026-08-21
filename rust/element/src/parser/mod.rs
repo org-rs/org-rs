@@ -19,6 +19,8 @@
 
 mod dispatch;
 mod objects;
+#[cfg(feature = "par-parse")]
+pub(crate) mod par;
 
 use memchr::{memchr, memmem, memrchr};
 

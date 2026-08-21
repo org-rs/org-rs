@@ -20,6 +20,8 @@ extern crate regex;
 
 #[macro_use]
 pub mod parser;
+#[cfg(feature = "par-parse")]
+pub use crate::parser::par::parse_parallel;
 pub mod affiliated;
 pub mod babel;
 pub mod blocks;
@@ -78,7 +80,7 @@ fn parse_with_granularity(input: &str, granularity: parser::ParseGranularity) ->
     };
     // SAFETY: `bump` is boxed and will be stored in `arena._bumps`, keeping it
     // alive for as long as the arena.  All node data was allocated in `bump`, so
-    // the borrows remain valid.
+    // the borrows remain valid.  This is the same pattern used in `parser::par`.
     let mut arena: data::ChunkArena<'_, '_> = unsafe { std::mem::transmute(arena) };
     arena._bumps.push(bump);
     ParsedDoc {
@@ -131,6 +133,8 @@ pub mod prelude {
     pub use crate::latex::LatexEnvironmentData;
     pub use crate::list::{CheckBox, ItemData, ListItem, ListKind, ListStruct, PlainListData};
     pub use crate::markup::FootnoteDefinitionData;
+    #[cfg(feature = "par-parse")]
+    pub use crate::parser::par::{parse_parallel, DEFAULT_CHUNK_MULTIPLIER};
     pub use crate::parser::{ParseGranularity, Parser, ParserMode};
     pub use crate::table::TableRowType;
     pub use crate::{parse, ParsedDoc};
